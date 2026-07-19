@@ -1,0 +1,159 @@
+.data-mgmt-page {
+  padding: 32px 40px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header Card */
+.dm-header-card {
+  background: white;
+  border-radius: 16px;
+  padding: 32px 40px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.dm-header-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: linear-gradient(to bottom, #a855f7, #6366f1);
+  border-radius: 6px 0 0 6px;
+}
+
+.dm-badge {
+  display: inline-block;
+  background: #f3e8ff;
+  color: #9333ea;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.dm-header-card h1 {
+  font-size: 24px;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0 0 8px;
+}
+
+.dm-header-card p {
+  color: #64748b;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Metrics Row */
+.dm-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.dm-metric-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+}
+
+.dm-metric-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.dm-metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #6366f1;
+}
+
+/* Exports Section */
+.dm-export-section {
+  background: white;
+  border-radius: 16px;
+  padding: 24px 32px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+.dm-section-header {
+  margin-bottom: 20px;
+}
+
+.dm-section-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 4px;
+}
+
+.dm-section-header p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+.dm-buttons-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.dm-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  color: white;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.dm-btn:hover {
+  opacity: 0.9;
+}
+
+.dm-btn:active {
+  transform: scale(0.98);
+}
+
+.dm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Button Colors Matching Screenshot */
+.dm-btn-green {
+  background: #10b981;
+}
+
+.dm-btn-purple {
+  background: #8b5cf6;
+}
+
+.dm-btn-blue {
+  background: #6366f1;
+}
+
+.dm-btn-orange {
+  background: #f59e0b;
+}

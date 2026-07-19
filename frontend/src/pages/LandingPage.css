@@ -1,0 +1,33 @@
+.landing-container {
+  background: linear-gradient(135deg, #f4f7f6 0%, #e2e8f0 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-bg-overlay {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(15, 76, 129, 0.03) 0%, transparent 60%);
+  animation: rotate 60s linear infinite;
+  z-index: 0;
+}
+
+@keyframes rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.logo-container {
+  background: rgba(15, 76, 129, 0.1);
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 30px;
+  box-shadow: inset 0 2px 4px rgba(255,255,255,0.5);
+}

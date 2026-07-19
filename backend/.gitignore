@@ -1,0 +1,3 @@
+.env
+/src/generated/prisma
+/src/config/google-credentials.json

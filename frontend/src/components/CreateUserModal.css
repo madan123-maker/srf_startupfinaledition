@@ -1,0 +1,89 @@
+/* Reusing most styles from CreateAdminModal for consistency, just changing prefixes if needed */
+.cum-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.cum-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 4px;
+}
+
+.cum-header p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+.cum-form .cum-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.cum-form .form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+}
+
+.cum-form .cum-row .form-group {
+  margin-bottom: 0;
+}
+
+.cum-form label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.cum-form input,
+.cum-form select {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #1e293b;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: white;
+}
+
+.cum-form input:focus,
+.cum-form select:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.cum-form input.input-frozen {
+  background-color: #f1f5f9;
+  color: #64748b;
+  cursor: not-allowed;
+  border-color: #e2e8f0;
+  font-weight: 600;
+}
+
+.cum-form input.input-frozen:focus {
+  box-shadow: none;
+  border-color: #e2e8f0;
+}
+
+.cum-form input::placeholder {
+  color: #9ca3af;
+}
+
+.cum-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #f1f5f9;
+}

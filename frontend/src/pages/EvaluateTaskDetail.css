@@ -1,0 +1,251 @@
+.etd-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: calc(100vh - 40px);
+  padding: 8px;
+}
+
+/* Header */
+.etd-header {
+  background: white;
+  padding: 24px 32px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.etd-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 16px;
+}
+.etd-back:hover { color: #0f172a; }
+
+.etd-header-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.etd-header-main h1 {
+  font-size: 24px;
+  margin: 0 0 4px;
+  color: #0f172a;
+}
+.etd-header-main p {
+  margin: 0;
+  color: #475569;
+  font-size: 14px;
+}
+
+.etd-status-badge {
+  background: #f1f5f9;
+  color: #475569;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid #e2e8f0;
+}
+
+/* Layout */
+.etd-layout {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+}
+
+.etd-main {
+  flex: 1;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.etd-sidebar {
+  width: 350px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+}
+
+.etd-section-title {
+  padding: 20px 24px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+/* Questions */
+.etd-scroll-area {
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.etd-q-card {
+  display: flex;
+  gap: 16px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.etd-q-card:last-child { border-bottom: none; padding-bottom: 0; }
+
+.etd-q-num {
+  background: #e0e7ff;
+  color: #4338ca;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.etd-q-content h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  color: #1e293b;
+  line-height: 1.4;
+}
+
+.etd-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.etd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.etd-field-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.etd-field-val {
+  background: #f8fafc;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-size: 14px;
+  color: #0f172a;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.etd-file-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #4f46e5;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+/* Eval Form */
+.etd-eval-form {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.etd-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 12px;
+}
+
+.etd-decision-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.etd-d-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #475569;
+}
+
+.etd-d-btn.approve.active { background: #dcfce7; border-color: #22c55e; color: #166534; }
+.etd-d-btn.revision.active { background: #fef9c3; border-color: #eab308; color: #854d0e; }
+.etd-d-btn.reject.active { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
+
+.etd-d-btn:hover:not(.active) { background: #f8fafc; }
+
+.etd-remarks {
+  width: 100%;
+  min-height: 150px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  resize: vertical;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+.etd-remarks:focus { outline: none; border-color: #6366f1; }
+
+.etd-save-btn {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #0f172a;
+  color: white;
+  border: none;
+  padding: 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.etd-save-btn:hover { background: #1e293b; }
+.etd-save-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+.animate-spin { animation: spin 1s linear infinite; }

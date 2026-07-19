@@ -1,0 +1,65 @@
+.admin-regular-dashboard {
+  padding: 32px 40px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.dashboard-welcome-card {
+  background: white;
+  border-radius: 16px;
+  padding: 32px 40px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-welcome-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: #3b82f6;
+  border-radius: 6px 0 0 6px;
+}
+
+.dashboard-welcome-card h1 {
+  font-size: 24px;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0 0 8px;
+}
+
+.dashboard-welcome-card p {
+  color: #64748b;
+  font-size: 14px;
+  margin: 0;
+}
+
+.dashboard-placeholder {
+  background: white;
+  border-radius: 16px;
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #e2e8f0;
+}
+
+.placeholder-content {
+  text-align: center;
+  color: #94a3b8;
+}
+
+.placeholder-content h3 {
+  font-size: 18px;
+  color: #64748b;
+  margin: 0 0 8px;
+}
+
+.placeholder-content p {
+  font-size: 14px;
+  margin: 0;
+}
