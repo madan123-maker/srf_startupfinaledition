@@ -249,3 +249,97 @@
 .etd-save-btn:hover { background: #1e293b; }
 .etd-save-btn:disabled { opacity: 0.7; cursor: not-allowed; }
 .animate-spin { animation: spin 1s linear infinite; }
+
+.etd-file-eval-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: white;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  margin-top: 8px;
+  transition: all 0.2s ease;
+}
+.etd-file-eval-box:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+.etd-field-eval-controls {
+  display: flex;
+  gap: 10px;
+}
+.etd-fe-btn {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  background: #f8fafc;
+  cursor: pointer;
+  color: #475569;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.etd-fe-btn:hover:not(.active) {
+  background: white;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+.etd-fe-btn.active.approve { 
+  background: #dcfce7; 
+  border-color: #22c55e; 
+  color: #16a34a; 
+  box-shadow: 0 2px 6px rgba(34, 197, 94, 0.15);
+}
+.etd-fe-btn.active.resubmit { 
+  background: #fef3c7; 
+  border-color: #f59e0b; 
+  color: #d97706; 
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.15);
+}
+.etd-fe-btn.active.reject { 
+  background: #fee2e2; 
+  border-color: #ef4444; 
+  color: #dc2626; 
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.15);
+}
+.etd-fe-remark {
+  padding: 10px 14px;
+  font-size: 13px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  transition: all 0.2s;
+  color: #0f172a;
+}
+.etd-fe-remark:focus {
+  outline: none;
+  border-color: #6366f1;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.etd-fe-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+.etd-fe-btn:disabled:hover {
+  background: inherit;
+  border-color: inherit;
+  color: inherit;
+}
+.etd-fe-btn.active.approve:disabled:hover { background: #dcfce7; border-color: #22c55e; color: #16a34a; }
+.etd-fe-btn.active.resubmit:disabled:hover { background: #fef3c7; border-color: #f59e0b; color: #d97706; }
+.etd-fe-btn.active.reject:disabled:hover { background: #fee2e2; border-color: #ef4444; color: #dc2626; }
+.etd-fe-btn:not(.active):disabled:hover { background: #f8fafc; border-color: #cbd5e1; color: #475569; }
+
+.etd-fe-remark:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #f1f5f9;
+}

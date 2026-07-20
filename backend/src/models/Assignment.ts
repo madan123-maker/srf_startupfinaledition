@@ -19,6 +19,8 @@ export interface IAssignment extends Document {
   evaluationRemarks?: string;
   evaluatedBy?: mongoose.Types.ObjectId;
   evaluatedAt?: Date;
+  awardedScore?: number;
+  maxScore?: number;
 }
 
 const AssignmentSchema: Schema = new Schema(
@@ -64,6 +66,8 @@ const AssignmentSchema: Schema = new Schema(
       ref: 'User',
     },
     evaluatedAt: { type: Date },
+    awardedScore: { type: Number },
+    maxScore: { type: Number },
   },
   {
     timestamps: true,

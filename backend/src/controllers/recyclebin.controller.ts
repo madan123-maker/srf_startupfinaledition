@@ -3,18 +3,22 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { RecycleBin, EntityType } from '../models/RecycleBin';
 import { Department } from '../models/Department';
 import { User } from '../models/User';
+import { Edition } from '../models/Edition';
+import { FormSchemaModel } from '../models/FormSchema';
 
 export const getStats = async (req: AuthRequest, res: Response) => {
   try {
-    const [total, editions, assignments, applications, users] = await Promise.all([
+    const [total, editions, assignments, applications, users, reformAreas, actionPoints] = await Promise.all([
       RecycleBin.countDocuments(),
       RecycleBin.countDocuments({ entityType: EntityType.EDITION }),
       RecycleBin.countDocuments({ entityType: EntityType.ASSIGNMENT }),
       RecycleBin.countDocuments({ entityType: EntityType.APPLICATION }),
       RecycleBin.countDocuments({ entityType: EntityType.USER }),
+      RecycleBin.countDocuments({ entityType: EntityType.REFORM_AREA }),
+      RecycleBin.countDocuments({ entityType: EntityType.ACTION_POINT }),
     ]);
 
-    res.status(200).json({ total, editions, assignments, applications, users });
+    res.status(200).json({ total, editions, assignments, applications, users, reformAreas, actionPoints });
   } catch (error) {
     console.error('Failed to get recycle bin stats:', error);
     res.status(500).json({ error: 'Failed to fetch stats' });
@@ -23,9 +27,9 @@ export const getStats = async (req: AuthRequest, res: Response) => {
 
 export const getItems = async (req: AuthRequest, res: Response) => {
   try {
-    // Note: populate deletedBy so frontend can show "deleted by" name
+    // Note: populate deletedBy so frontend can show "deleted by" name or email
     const items = await RecycleBin.find()
-      .populate('deletedBy', 'name role')
+      .populate('deletedBy', 'name email role')
       .sort({ deletedAt: -1 })
       .lean();
     res.status(200).json(items);
@@ -52,6 +56,27 @@ export const restoreItem = async (req: AuthRequest, res: Response) => {
     } else if (item.entityType === EntityType.USER) {
       const { _id, ...rest } = item.data;
       await User.create({ _id: item.originalId, ...rest });
+    } else if (item.entityType === EntityType.EDITION) {
+      const { _id, ...rest } = item.data;
+      await Edition.create({ _id: item.originalId, ...rest });
+    } else if (item.entityType === EntityType.REFORM_AREA) {
+      const { editionId, ...areaData } = item.data;
+      if (!editionId) {
+        return res.status(400).json({ error: 'Cannot restore: editionId is missing from archived data' });
+      }
+      await FormSchemaModel.findOneAndUpdate(
+        { editionId },
+        { $push: { areas: areaData } }
+      );
+    } else if (item.entityType === EntityType.ACTION_POINT) {
+      const { editionId, areaId, ...apData } = item.data;
+      if (!editionId || !areaId) {
+        return res.status(400).json({ error: 'Cannot restore: parent IDs missing from archived data' });
+      }
+      await FormSchemaModel.findOneAndUpdate(
+        { editionId, "areas.id": areaId },
+        { $push: { "areas.$.actionPoints": apData } }
+      );
     } else {
       return res.status(400).json({ error: 'Restoration for this entity type is not implemented yet' });
     }

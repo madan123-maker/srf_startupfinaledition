@@ -2,6 +2,7 @@ import { User, Role } from '../models/User';
 import { Edition, EditionStatus } from '../models/Edition';
 import { Submission, SubmissionStatus } from '../models/Submission';
 import { FormSchemaModel } from '../models/FormSchema';
+import { Department } from '../models/Department';
 import { SEED_SCHEMA } from './schemaData';
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
@@ -96,6 +97,25 @@ export const seedSuperAdmin = async () => {
         console.log('SRF 6.0 Form Schema seeded successfully!');
       }
     }
+
+    // Seed Departments
+    console.log('Seeding initial departments...');
+    const defaultDepts = [
+      { name: 'DPIIT', code: 'DPIIT', description: 'Department for Promotion of Industry and Internal Trade' },
+      { name: 'Ministry of Commerce', code: 'MOC', description: 'Ministry of Commerce and Industry' },
+      { name: 'SIDBI', code: 'SIDBI', description: 'Small Industries Development Bank of India' },
+      { name: 'Startup India Cell', code: 'SIC', description: 'Startup India Cell' },
+      { name: 'State Nodal Agency', code: 'SNA', description: 'State Nodal Agency' },
+      { name: 'District Industries Centre', code: 'DIC', description: 'District Industries Centre' }
+    ];
+
+    for (const dept of defaultDepts) {
+      const exists = await Department.findOne({ name: dept.name });
+      if (!exists) {
+        await Department.create(dept);
+      }
+    }
+    console.log('Initial departments seeded successfully!');
 
   } catch (error) {
     console.error('Error seeding Super Admin:', error);

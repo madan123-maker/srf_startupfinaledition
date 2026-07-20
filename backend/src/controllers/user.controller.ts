@@ -84,3 +84,33 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to delete user' });
   }
 };
+
+export const updateUser = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, email, organization, state, district, role } = req.body;
+    
+    // Check if user is authorized to edit. A super admin can edit anything, but maybe restrict role changes.
+    // For now we just update basic fields.
+    const userToUpdate = await User.findById(id);
+    if (!userToUpdate) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (name) userToUpdate.name = name;
+    if (email) userToUpdate.email = email;
+    if (organization !== undefined) userToUpdate.organization = organization;
+    if (state !== undefined) userToUpdate.state = state;
+    if (district !== undefined) userToUpdate.district = district;
+    if (role && req.user?.role === 'SUPER_ADMIN') {
+      userToUpdate.role = role;
+    }
+
+    await userToUpdate.save();
+
+    res.status(200).json({ message: 'User updated successfully', user: userToUpdate });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+};

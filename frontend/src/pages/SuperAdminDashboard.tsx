@@ -116,9 +116,12 @@ const SuperAdminDashboard: React.FC = () => {
     { name: 'Rejected', value: executiveCommand.rejected || 0 },
   ];
 
-  // If all values are 0, render a placeholder grey ring
-  const hasData = pieData.some(d => d.value > 0);
-  const chartData = hasData ? pieData.filter(d => d.value > 0) : [{ name: 'No Data', value: 1, fill: '#e2e8f0' }];
+  // Remove placeholder data so charts don't render fake info
+  const hasPieData = pieData.some(d => d.value > 0);
+  const chartData = pieData.filter(d => d.value > 0);
+
+  const hasBarData = districtCompliance && districtCompliance.length > 0;
+  const barData = districtCompliance;
 
   return (
     <div className="dashboard-container">
@@ -203,25 +206,31 @@ const SuperAdminDashboard: React.FC = () => {
           {/* Donut Chart */}
           <div className="chart-container">
             <h4 className="chart-title">Application Status Overview</h4>
-            <div style={{ height: '300px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={80}
-                    outerRadius={120}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={'fill' in entry ? entry.fill : COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+            <div style={{ height: '300px', width: '100%' }}>
+              {hasPieData ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={80}
+                      outerRadius={120}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={'fill' in entry ? entry.fill : COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+                  No application data available for this edition.
+                </div>
+              )}
             </div>
             <div className="chart-legend">
               {pieData.map((entry, index) => (
@@ -236,22 +245,28 @@ const SuperAdminDashboard: React.FC = () => {
           {/* Bar Chart */}
           <div className="chart-container">
             <h4 className="chart-title">District Compliance Progress (%)</h4>
-            <div style={{ height: '300px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={districtCompliance} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
-                  <YAxis 
-                    domain={[0, 100]} 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{fill: '#64748b', fontSize: 12}} 
-                    tickFormatter={(value) => `${value}%`}
-                  />
-                  <Tooltip cursor={{fill: '#f1f5f9'}} />
-                  <Bar dataKey="progress" fill={BAR_COLOR} radius={[4, 4, 0, 0]} maxBarSize={40} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div style={{ height: '300px', width: '100%' }}>
+              {hasBarData ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={barData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                    <YAxis 
+                      domain={[0, 100]} 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fill: '#64748b', fontSize: 12}} 
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <Tooltip cursor={{fill: '#f1f5f9'}} />
+                    <Bar dataKey="progress" fill={BAR_COLOR} radius={[4, 4, 0, 0]} maxBarSize={40} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+                  No compliance data available for this edition.
+                </div>
+              )}
             </div>
           </div>
         </div>

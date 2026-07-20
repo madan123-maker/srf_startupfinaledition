@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, UserPlus, Users, Upload } from 'lucide-react';
+import { UserPlus, Users } from 'lucide-react';
 import CreateAdminModal from '../components/CreateAdminModal';
 import CreateUserModal from '../components/CreateUserModal';
 import AssignTaskModal from '../components/AssignTaskModal';
+import EditUserModal from '../components/EditUserModal';
 import './ManageUsers.css';
 
 interface AppUser {
@@ -35,6 +36,7 @@ const ManageUsers: React.FC = () => {
   const [isCreateAdminOpen, setIsCreateAdminOpen] = useState(false);
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [assignUser, setAssignUser] = useState<AppUser | null>(null);
+  const [editUser, setEditUser] = useState<AppUser | null>(null);
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -64,6 +66,7 @@ const ManageUsers: React.FC = () => {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
+        alert(`User "${userName}" was successfully deleted and moved to Recycle Bin.`);
         fetchUsers();
       } else {
         const data = await response.json();
@@ -72,6 +75,10 @@ const ManageUsers: React.FC = () => {
     } catch (error) {
       alert('An error occurred while deleting.');
     }
+  };
+
+  const handleEditUser = (userToEdit: AppUser) => {
+    setEditUser(userToEdit);
   };
 
   useEffect(() => {
@@ -198,7 +205,12 @@ const ManageUsers: React.FC = () => {
                             Assign
                           </button>
                         )}
-                        <button className="btn-action-edit">Edit</button>
+                        <button 
+                          className="btn-action-edit"
+                          onClick={() => handleEditUser(appUser)}
+                        >
+                          Edit
+                        </button>
                         {appUser.role !== 'SUPER_ADMIN' && user.role === 'SUPER_ADMIN' && (
                           <>
                             <button
@@ -246,6 +258,17 @@ const ManageUsers: React.FC = () => {
         <AssignTaskModal
           user={assignUser}
           onClose={() => setAssignUser(null)}
+        />
+      )}
+
+      {editUser && (
+        <EditUserModal
+          user={editUser}
+          onClose={() => setEditUser(null)}
+          onSuccess={() => {
+            setEditUser(null);
+            fetchUsers();
+          }}
         />
       )}
     </div>

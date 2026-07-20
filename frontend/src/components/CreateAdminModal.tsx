@@ -123,12 +123,9 @@ const CreateAdminModal: React.FC<CreateAdminModalProps> = ({ onClose, onSuccess 
             <div className="cam-row">
               <div className="form-group">
                 <label>State / UT</label>
-                <input
-                  type="text"
-                  value="Andhra Pradesh"
-                  readOnly
-                  className="input-frozen"
-                />
+                <select name="state" value={formData.state} onChange={handleChange} required>
+                  <option value="Andhra Pradesh">Andhra Pradesh</option>
+                </select>
               </div>
               <div className="form-group">
                 <label>District</label>

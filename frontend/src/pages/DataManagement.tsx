@@ -18,6 +18,10 @@ const DataManagement: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState<string | null>(null);
+  
+  const [editions, setEditions] = useState<any[]>([]);
+  const [selectedEdition, setSelectedEdition] = useState('all');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -37,14 +41,37 @@ const DataManagement: React.FC = () => {
       }
     };
 
+    const fetchEditions = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('http://localhost:5001/api/editions', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setEditions(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch editions', error);
+      }
+    };
+
     fetchStats();
+    fetchEditions();
   }, []);
 
-  const handleDownload = async (endpoint: string, filename: string) => {
+  const handleDownload = async (endpoint: string, filename: string, overrideEditionId?: string) => {
     setDownloading(endpoint);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/data/export/${endpoint}`, {
+      
+      let fetchUrl = `http://localhost:5001/api/data/export/${endpoint}`;
+      const targetEdition = overrideEditionId !== undefined ? overrideEditionId : selectedEdition;
+      if (endpoint === 'submissions' && targetEdition !== 'all') {
+        fetchUrl += `?editionId=${targetEdition}`;
+      }
+
+      const response = await fetch(fetchUrl, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
 
@@ -111,14 +138,43 @@ const DataManagement: React.FC = () => {
         </div>
         
         <div className="dm-buttons-row">
-          <button 
-            className="dm-btn dm-btn-green"
-            onClick={() => handleDownload('submissions', 'all_submissions.csv')}
-            disabled={downloading === 'submissions'}
-          >
-            <Download size={16} />
-            {downloading === 'submissions' ? 'Downloading...' : 'Download All Submissions (Excel)'}
-          </button>
+          <div className="dm-dropdown-container">
+            <button 
+              className="dm-btn dm-btn-green"
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              disabled={downloading === 'submissions'}
+            >
+              <Download size={16} />
+              {downloading === 'submissions' ? 'Downloading...' : 'Download Submissions'}
+            </button>
+            {isDropdownOpen && (
+              <div className="dm-dropdown-menu">
+                <div 
+                  className="dm-dropdown-item" 
+                  onClick={() => {
+                    setIsDropdownOpen(false);
+                    setSelectedEdition('all');
+                    handleDownload('submissions', 'all_submissions.csv', 'all');
+                  }}
+                >
+                  All Editions
+                </div>
+                {editions.map(ed => (
+                  <div 
+                    key={ed._id} 
+                    className="dm-dropdown-item"
+                    onClick={() => {
+                      setIsDropdownOpen(false);
+                      setSelectedEdition(ed._id);
+                      handleDownload('submissions', `submissions_${ed._id}.csv`, ed._id);
+                    }}
+                  >
+                    {ed.name} (v{ed.version})
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           
           <button 
             className="dm-btn dm-btn-purple"

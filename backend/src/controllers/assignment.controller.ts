@@ -382,7 +382,7 @@ export const evaluateAssignment = async (req: AuthRequest, res: Response) => {
     }
 
     const { id } = req.params;
-    const { evaluationStatus, evaluationRemarks } = req.body;
+    const { evaluationStatus, evaluationRemarks, fieldEvaluations, questionScores, awardedScore, maxScore } = req.body;
 
     if (!evaluationStatus) {
       return res.status(400).json({ error: 'evaluationStatus is required.' });
@@ -396,12 +396,56 @@ export const evaluateAssignment = async (req: AuthRequest, res: Response) => {
         evaluationRemarks,
         evaluatedBy: req.user.id,
         evaluatedAt: new Date(),
+        awardedScore,
+        maxScore,
       },
       { new: true }
     );
 
     if (!assignment) {
       return res.status(404).json({ error: 'Assignment not found.' });
+    }
+
+    if ((fieldEvaluations && Object.keys(fieldEvaluations).length > 0) || (questionScores && Object.keys(questionScores).length > 0) || awardedScore !== undefined) {
+      const submission = await Submission.findOne({ 
+        editionId: assignment.editionId, 
+        userId: assignment.userId 
+      });
+
+      if (submission) {
+        let changed = false;
+        
+        if (fieldEvaluations) {
+          submission.responses.forEach(qResp => {
+            qResp.fieldResponses.forEach(fResp => {
+              const key = `${qResp.questionId}_${fResp.fieldId}`;
+              if (fieldEvaluations[key]) {
+                fResp.evaluationStatus = fieldEvaluations[key].status || 'PENDING';
+                fResp.evaluationRemarks = fieldEvaluations[key].remarks || '';
+                changed = true;
+              }
+            });
+          });
+        }
+
+        if (questionScores) {
+          submission.responses.forEach(qResp => {
+            if (questionScores[qResp.questionId] !== undefined) {
+              qResp.score = questionScores[qResp.questionId];
+              changed = true;
+            }
+          });
+        }
+
+        if (awardedScore !== undefined) {
+          submission.totalScore = awardedScore;
+          changed = true;
+        }
+
+        if (changed) {
+          await submission.save();
+        }
+      }
     }
 
     return res.status(200).json({ message: 'Task evaluated successfully.', assignment });
@@ -425,14 +469,25 @@ export const reassignAssignment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'New userId is required.' });
     }
 
+    const oldAssignment = await Assignment.findById(id);
+    if (!oldAssignment) {
+      return res.status(404).json({ error: 'Assignment not found.' });
+    }
+    
+    const oldUserId = oldAssignment.userId;
+
     const assignment = await Assignment.findByIdAndUpdate(
       id,
       { userId },
       { new: true }
     );
 
-    if (!assignment) {
-      return res.status(404).json({ error: 'Assignment not found.' });
+    // Transfer the submission data to the new user so they can continue where the previous user left off
+    if (assignment) {
+      await Submission.updateMany(
+        { editionId: assignment.editionId, userId: oldUserId },
+        { $set: { userId: userId } }
+      );
     }
 
     return res.status(200).json({ message: 'Task reassigned successfully.', assignment });

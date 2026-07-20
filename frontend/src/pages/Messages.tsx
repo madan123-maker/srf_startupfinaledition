@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Send } from 'lucide-react';
+
 import './Messages.css';
 
 interface Contact {
@@ -24,6 +24,8 @@ const Messages: React.FC = () => {
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<MessageData[]>([]);
   const [messageInput, setMessageInput] = useState('');
+  
+  const [toast, setToast] = useState<{message: string, visible: boolean}>({ message: '', visible: false });
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const userStr = localStorage.getItem('user');
@@ -74,7 +76,17 @@ const Messages: React.FC = () => {
         });
         if (response.ok) {
           const data = await response.json();
-          setMessages(data);
+          setMessages(prev => {
+            if (prev.length > 0 && data.length > prev.length) {
+              const newMsgs = data.slice(prev.length);
+              const latestMsg = newMsgs[newMsgs.length - 1];
+              if (latestMsg.senderId !== currentUser?.id) {
+                setToast({ message: `New message from ${activeContact.name || 'User'}`, visible: true });
+                setTimeout(() => setToast({ message: '', visible: false }), 4000);
+              }
+            }
+            return data;
+          });
         }
       } catch (error) {
         console.error('Failed to fetch conversation', error);
@@ -135,7 +147,20 @@ const Messages: React.FC = () => {
 
   return (
     <div className="messages-page">
-      <div className="messages-container">
+      <div className="messages-container" style={{ position: 'relative' }}>
+        
+        {/* Toast Notification */}
+        {toast.visible && (
+          <div style={{
+            position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)',
+            backgroundColor: '#10b981', color: 'white', padding: '10px 20px', borderRadius: '8px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', zIndex: 1000,
+            display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 500,
+            animation: 'fadeInOut 4s forwards'
+          }}>
+            <span>💬</span> {toast.message}
+          </div>
+        )}
         
         {/* Left Pane - Contacts */}
         <div className="contacts-pane">
@@ -162,11 +187,11 @@ const Messages: React.FC = () => {
                 onClick={() => setActiveContact(contact)}
               >
                 <div className="contact-avatar">
-                  {getInitial(contact.name)}
+                  {getInitial(contact.name || formatRole(contact.role))}
                 </div>
                 <div className="contact-info">
-                  <span className="contact-name">{contact.name}</span>
-                  <span className="contact-role">{formatRole(contact.role)}</span>
+                  <span className="contact-name">{contact.name || formatRole(contact.role)}</span>
+                  {contact.name && <span className="contact-role">{formatRole(contact.role)}</span>}
                 </div>
               </div>
             ))}
@@ -183,11 +208,11 @@ const Messages: React.FC = () => {
               {/* Chat Header */}
               <div className="chat-header">
                 <div className="contact-avatar">
-                  {getInitial(activeContact.name)}
+                  {getInitial(activeContact.name || formatRole(activeContact.role))}
                 </div>
                 <div className="contact-info">
-                  <span className="contact-name">{activeContact.name}</span>
-                  <span className="contact-role">{formatRole(activeContact.role)}</span>
+                  <span className="contact-name">{activeContact.name || formatRole(activeContact.role)}</span>
+                  {activeContact.name && <span className="contact-role">{formatRole(activeContact.role)}</span>}
                 </div>
               </div>
 
@@ -195,7 +220,7 @@ const Messages: React.FC = () => {
               <div className="chat-messages">
                 {messages.length === 0 ? (
                   <div className="no-messages">
-                    Send a message to start the conversation with {activeContact.name}
+                    Send a message to start the conversation with {activeContact.name || formatRole(activeContact.role)}
                   </div>
                 ) : (
                   messages.map(msg => {

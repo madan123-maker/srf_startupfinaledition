@@ -12,9 +12,13 @@ import {
   ChevronDown,
   ChevronRight,
   CheckCircle2,
-  Circle
+  Circle,
+  BookOpen,
+  Award,
+  FileText
 } from 'lucide-react';
 import './UserWorkspace.css';
+import { SUPPORTING_DOCS_DATA } from '../data/supportingDocsData';
 
 interface Field {
   id: string;
@@ -22,6 +26,16 @@ interface Field {
   label: string;
   required: boolean;
   options?: string[];
+}
+
+export interface ISupportingDocument {
+  id: string;
+  title: string;
+  description: string;
+  mandatory: boolean;
+  acceptedFileTypes: string[];
+  maxFiles: number;
+  maxFileSize: number;
 }
 
 interface Question {
@@ -33,6 +47,7 @@ interface Question {
   guidelinesRef: string;
   scoringCriteria: string;
   fields: Field[];
+  supportingDocuments?: ISupportingDocument[];
 }
 
 interface ActionPoint {
@@ -53,11 +68,54 @@ interface IFieldResponse {
   value: any;
   fileUrl?: string;
   fileName?: string;
+  status?: 'DRAFT' | 'SUBMITTED';
+  evaluationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  evaluationRemarks?: string;
+  history?: {
+    fileUrl: string;
+    fileName: string;
+    evaluationStatus: string;
+    evaluationRemarks?: string;
+    submittedAt: string;
+  }[];
 }
 
 interface ISubmissionResponse {
   questionId: string;
   fieldResponses: IFieldResponse[];
+  additionalFiles?: {
+    fileId: string;
+    fileUrl: string;
+    fileName: string;
+    status: 'DRAFT' | 'SUBMITTED';
+    evaluationStatus: string;
+    evaluationRemarks?: string;
+    history?: {
+      fileUrl: string;
+      fileName: string;
+      evaluationStatus: string;
+      evaluationRemarks?: string;
+      submittedAt: string;
+    }[];
+  }[];
+  supportingDocumentResponses?: {
+    documentId: string;
+    files: {
+      fileId: string;
+      fileUrl: string;
+      fileName: string;
+      status: 'DRAFT' | 'SUBMITTED';
+      evaluationStatus: string;
+      evaluationRemarks?: string;
+      history?: {
+        fileUrl: string;
+        fileName: string;
+        evaluationStatus: string;
+        evaluationRemarks?: string;
+        submittedAt: string;
+      }[];
+    }[];
+  }[];
 }
 
 interface ISubmission {
@@ -193,6 +251,26 @@ const UserWorkspace: React.FC = () => {
     });
   };
 
+  const handleIsApplyingChange = async (questionId: string, isApplying: boolean) => {
+    let newResponses = [...responses];
+    const qIndex = newResponses.findIndex(r => r.questionId === questionId);
+    if (qIndex === -1) {
+      newResponses.push({ questionId, fieldResponses: [], additionalFiles: [], isApplying });
+    } else {
+      newResponses[qIndex] = { ...newResponses[qIndex], isApplying };
+    }
+    setResponses(newResponses);
+
+    if (submission) {
+      const token = localStorage.getItem('token');
+      await fetch(`http://localhost:5001/api/submissions/${submission._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ responses: newResponses, status: submission.status })
+      });
+    }
+  };
+
   const handleFileUpload = async (questionId: string, fieldId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -210,10 +288,38 @@ const UserWorkspace: React.FC = () => {
 
       if (response.ok) {
         const fileData = await response.json();
-        handleFieldChange(questionId, fieldId, fileData.fileUrl, {
-          fileUrl: fileData.fileUrl,
-          fileName: fileData.fileName
-        });
+        
+        let newResponses = [...responses];
+        const qIndex = newResponses.findIndex(r => r.questionId === questionId);
+        
+        if (qIndex === -1) {
+          newResponses.push({
+            questionId,
+            fieldResponses: [{ fieldId, value: fileData.fileUrl, fileUrl: fileData.fileUrl, fileName: fileData.fileName }]
+          });
+        } else {
+          const qResp = { ...newResponses[qIndex] };
+          const fIndex = qResp.fieldResponses?.findIndex((fr: any) => fr.fieldId === fieldId) ?? -1;
+          let updatedFieldResponses = qResp.fieldResponses ? [...qResp.fieldResponses] : [];
+          
+          if (fIndex === -1) {
+            updatedFieldResponses.push({ fieldId, value: fileData.fileUrl, fileUrl: fileData.fileUrl, fileName: fileData.fileName });
+          } else {
+            updatedFieldResponses[fIndex] = { ...updatedFieldResponses[fIndex], value: fileData.fileUrl, fileUrl: fileData.fileUrl, fileName: fileData.fileName };
+          }
+          qResp.fieldResponses = updatedFieldResponses;
+          newResponses[qIndex] = qResp;
+        }
+
+        setResponses(newResponses);
+
+        if (submission) {
+          await fetch(`http://localhost:5001/api/submissions/${submission._id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ responses: newResponses, status: submission.status })
+          });
+        }
       } else {
         alert('File upload failed.');
       }
@@ -223,14 +329,238 @@ const UserWorkspace: React.FC = () => {
     }
   };
 
-  const handleRemoveFile = (questionId: string, fieldId: string) => {
-    handleFieldChange(questionId, fieldId, '', { fileUrl: undefined, fileName: undefined });
-    if (fileInputRefs.current[fieldId]) {
-      fileInputRefs.current[fieldId]!.value = '';
+  const handleRemoveFile = async (questionId: string, fieldId: string) => {
+    let newResponses = [...responses];
+    const qIndex = newResponses.findIndex(r => r.questionId === questionId);
+    if (qIndex !== -1) {
+      const qResp = { ...newResponses[qIndex] };
+      const fIndex = qResp.fieldResponses?.findIndex((fr: any) => fr.fieldId === fieldId) ?? -1;
+      if (fIndex !== -1) {
+        let updatedFieldResponses = [...qResp.fieldResponses];
+        updatedFieldResponses[fIndex] = { ...updatedFieldResponses[fIndex], value: '', fileUrl: undefined, fileName: undefined };
+        qResp.fieldResponses = updatedFieldResponses;
+        newResponses[qIndex] = qResp;
+        
+        setResponses(newResponses);
+
+        if (fileInputRefs.current[fieldId]) {
+          fileInputRefs.current[fieldId]!.value = '';
+        }
+
+        if (submission) {
+          const token = localStorage.getItem('token');
+          await fetch(`http://localhost:5001/api/submissions/${submission._id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ responses: newResponses, status: submission.status })
+          });
+        }
+      }
     }
   };
 
-  const saveSubmission = async (status: string) => {
+  const handleAdditionalFileUpload = async (questionId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5001/api/submissions/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      if (response.ok) {
+        const fileData = await response.json();
+        
+        let newResponses = [...responses];
+        const qIndex = newResponses.findIndex(r => r.questionId === questionId);
+        
+        if (qIndex === -1) {
+          newResponses.push({
+            questionId,
+            fieldResponses: [],
+            additionalFiles: [{
+              fileId: Math.random().toString(36).substr(2, 9),
+              fileUrl: fileData.fileUrl,
+              fileName: fileData.fileName,
+              status: 'DRAFT',
+              evaluationStatus: 'PENDING'
+            }]
+          });
+        } else {
+          const qResp = { ...newResponses[qIndex] };
+          const additionalFiles = [...(qResp.additionalFiles || [])];
+          additionalFiles.push({
+            fileId: Math.random().toString(36).substr(2, 9),
+            fileUrl: fileData.fileUrl,
+            fileName: fileData.fileName,
+            status: 'DRAFT',
+            evaluationStatus: 'PENDING'
+          });
+          qResp.additionalFiles = additionalFiles;
+          newResponses[qIndex] = qResp;
+        }
+
+        setResponses(newResponses);
+
+        if (submission) {
+          await fetch(`http://localhost:5001/api/submissions/${submission._id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ responses: newResponses, status: submission.status })
+          });
+        }
+      } else {
+        alert('File upload failed.');
+      }
+    } catch (err) {
+      console.error('Error uploading file:', err);
+      alert('Error uploading file.');
+    }
+  };
+
+  const handleRemoveAdditionalFile = async (questionId: string, fileId: string) => {
+    let newResponses = [...responses];
+    const qIndex = newResponses.findIndex(r => r.questionId === questionId);
+    if (qIndex !== -1) {
+      const qResp = { ...newResponses[qIndex] };
+      qResp.additionalFiles = (qResp.additionalFiles || []).filter(f => f.fileId !== fileId);
+      newResponses[qIndex] = qResp;
+      
+      setResponses(newResponses);
+
+      if (submission) {
+        const token = localStorage.getItem('token');
+        await fetch(`http://localhost:5001/api/submissions/${submission._id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ responses: newResponses, status: submission.status })
+        });
+      }
+    }
+  };
+
+  const handleSupportingDocumentUpload = async (questionId: string, documentId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const uploadedFilesData = [];
+
+      // 1. Upload all files sequentially to avoid overwhelming server
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('http://localhost:5001/api/submissions/upload', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+
+        if (response.ok) {
+          const fileData = await response.json();
+          uploadedFilesData.push(fileData);
+        } else {
+          console.error('File upload failed for', file.name);
+        }
+      }
+
+      if (uploadedFilesData.length === 0) {
+        alert('All file uploads failed.');
+        setSaving(false);
+        return;
+      }
+
+      // 2. Compute new state synchronously
+      let newResponses = [...responses];
+      const qIndex = newResponses.findIndex(r => r.questionId === questionId);
+      
+      const newFilesToPush = uploadedFilesData.map(fileData => ({
+        fileId: Math.random().toString(36).substr(2, 9),
+        fileUrl: fileData.fileUrl,
+        fileName: fileData.fileName,
+        evaluationStatus: 'PENDING' as any,
+        submittedAt: new Date()
+      }));
+
+      if (qIndex === -1) {
+        newResponses.push({
+          questionId,
+          fieldResponses: [],
+          supportingDocumentResponses: [{
+            documentId,
+            status: 'DRAFT',
+            files: newFilesToPush
+          }]
+        });
+      } else {
+        const qResp = { ...newResponses[qIndex] };
+        const suppDocs = [...(qResp.supportingDocumentResponses || [])];
+        const docIndex = suppDocs.findIndex(d => d.documentId === documentId);
+        
+        if (docIndex === -1) {
+          suppDocs.push({
+            documentId,
+            status: 'DRAFT',
+            files: newFilesToPush
+          });
+        } else {
+          const docResp = { ...suppDocs[docIndex] };
+          docResp.files = [...(docResp.files || []), ...newFilesToPush];
+          suppDocs[docIndex] = docResp;
+        }
+        qResp.supportingDocumentResponses = suppDocs;
+        newResponses[qIndex] = qResp;
+      }
+
+      // 3. Update local state
+      setResponses(newResponses);
+
+      // 4. Save to backend immediately (this will also update submission._id and version)
+      if (submission) {
+        await saveSubmission(submission.status, false, newResponses);
+      }
+    } catch (err) {
+      console.error('Error uploading supporting doc:', err);
+      alert('Error processing document upload.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeSupportingDocument = async (questionId: string, documentId: string, fileId: string) => {
+    let newResponses = [...responses];
+    const qIndex = newResponses.findIndex(r => r.questionId === questionId);
+    
+    if (qIndex !== -1) {
+      const qResp = { ...newResponses[qIndex] };
+      const suppDocs = [...(qResp.supportingDocumentResponses || [])];
+      const docIndex = suppDocs.findIndex(d => d.documentId === documentId);
+      
+      if (docIndex !== -1) {
+        const docResp = { ...suppDocs[docIndex] };
+        docResp.files = (docResp.files || []).filter(f => f.fileId !== fileId);
+        suppDocs[docIndex] = docResp;
+        qResp.supportingDocumentResponses = suppDocs;
+        newResponses[qIndex] = qResp;
+        
+        setResponses(newResponses);
+        if (submission) {
+          await saveSubmission(submission.status, false, newResponses);
+        }
+      }
+    }
+  };
+
+  const saveSubmission = async (status: string, notify = true, explicitResponses?: ISubmissionResponse[]) => {
     if (!submission) return;
     setSaving(true);
     try {
@@ -241,33 +571,125 @@ const UserWorkspace: React.FC = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ responses, status })
+        body: JSON.stringify({ responses: explicitResponses || responses, status })
       });
 
       if (response.ok) {
         const updatedSub = await response.json();
         setSubmission(updatedSub);
-        alert(status === 'SUBMITTED' ? 'Application submitted successfully!' : 'Draft saved successfully!');
+        setResponses(updatedSub.responses || []);
+        if (notify) {
+          alert(status === 'SUBMITTED' ? 'Application submitted successfully!' : 'Draft saved successfully!');
+        }
         if (status === 'SUBMITTED') {
           navigate('/user-dashboard');
         }
       } else {
         const errorData = await response.json();
-        alert(`Failed to save: ${errorData.error || 'Unknown error'}`);
+        if (notify) alert(`Failed to save: ${errorData.error || 'Unknown error'}`);
       }
     } catch (err) {
       console.error('Error saving submission:', err);
-      alert('Error saving submission.');
+      if (notify) alert('Error saving submission.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const submitQuestion = async (questionId: string) => {
+    if (!window.confirm('Are you sure you want to submit this question? You will not be able to edit it unless it is rejected by an admin.')) return;
+    
+    let updatedResponsesForSave: ISubmissionResponse[] = [];
+    
+    setResponses(prev => {
+      const qIndex = prev.findIndex(r => r.questionId === questionId);
+      if (qIndex === -1) {
+        updatedResponsesForSave = prev;
+        return prev;
+      }
+      
+      const updatedResponses = [...prev];
+      updatedResponses[qIndex] = {
+        ...updatedResponses[qIndex],
+        fieldResponses: updatedResponses[qIndex].fieldResponses.map(f => ({
+          ...f,
+          status: 'SUBMITTED'
+        })),
+        additionalFiles: (updatedResponses[qIndex].additionalFiles || []).map(f => ({
+          ...f,
+          status: 'SUBMITTED'
+        })),
+        supportingDocumentResponses: (updatedResponses[qIndex].supportingDocumentResponses || []).map(d => ({
+          ...d,
+          status: 'SUBMITTED',
+          files: (d.files || []).map(f => ({
+            ...f,
+            status: 'SUBMITTED'
+          }))
+        }))
+      };
+      updatedResponsesForSave = updatedResponses;
+      return updatedResponses;
+    });
+
+    setTimeout(() => {
+      saveSubmission('DRAFT', false, updatedResponsesForSave).then(() => {
+        alert('Question submitted successfully!');
+      });
+    }, 50);
+  };
+
+  const submitReformArea = async (areaId: string) => {
+    if (!window.confirm('Are you sure you want to submit all questions in this Reform Area?')) return;
+    
+    const area = schema?.areas?.find(a => a.id === areaId);
+    if (!area) return;
+
+    const questionIdsInArea: string[] = [];
+    area.actionPoints?.forEach(ap => {
+      ap.questions?.forEach(q => questionIdsInArea.push(q.id));
+    });
+
+    setResponses(prev => {
+      return prev.map(qResp => {
+        if (questionIdsInArea.includes(qResp.questionId)) {
+          return {
+            ...qResp,
+            fieldResponses: qResp.fieldResponses.map(f => ({
+              ...f,
+              status: 'SUBMITTED'
+            })),
+            additionalFiles: (qResp.additionalFiles || []).map(f => ({
+              ...f,
+              status: 'SUBMITTED'
+            })),
+            supportingDocumentResponses: (qResp.supportingDocumentResponses || []).map(d => ({
+              ...d,
+              status: 'SUBMITTED',
+              files: (d.files || []).map(f => ({
+                ...f,
+                status: 'SUBMITTED'
+              }))
+            }))
+          };
+        }
+        return qResp;
+      });
+    });
+
+    setTimeout(() => {
+      saveSubmission('DRAFT', false).then(() => {
+        alert('Reform Area submitted successfully!');
+      });
+    }, 100);
   };
 
   const isQuestionAnswered = (question: Question): boolean => {
     const qResp = responses.find(r => r.questionId === question.id);
     if (!qResp) return false;
     
-    if (!question.fields) return true; // If no fields, technically answered or N/A
+    if (qResp.isApplying === false) return true;
+    if (!question.fields) return true;
     for (const field of question.fields) {
       if (field.required) {
         const fResp = qResp.fieldResponses?.find(f => f.fieldId === field.id);
@@ -279,7 +701,30 @@ const UserWorkspace: React.FC = () => {
     return true;
   };
 
-  // Flatten all questions
+  const calculateTotalScore = (): number => {
+    let total = 0;
+    responses.forEach(qResp => {
+      const q = schema?.areas?.flatMap(a => a.actionPoints || []).flatMap(ap => ap.questions || []).find(q => q.id === qResp.questionId);
+      if (!q) return;
+
+      const allItems = [
+        ...(qResp.fieldResponses || []),
+        ...(qResp.additionalFiles || [])
+      ];
+      const allSuppFiles = (qResp.supportingDocumentResponses || []).flatMap(d => d.files || []);
+      const combined = [...allItems, ...allSuppFiles];
+      
+      const isRejected = combined.some(f => f.evaluationStatus === 'REJECTED');
+      const isResubmit = combined.some(f => f.evaluationStatus === 'RESUBMISSION_REQUIRED');
+      const isApproved = !isRejected && !isResubmit && combined.some(f => f.evaluationStatus === 'APPROVED');
+
+      if (isApproved) {
+        total += (q.weightage || q.maxScore || 0);
+      }
+    });
+    return total;
+  };
+
   const allQuestions: { areaId: string; question: Question }[] = [];
   schema?.areas?.forEach(area => {
     area.actionPoints?.forEach(ap => {
@@ -294,7 +739,6 @@ const UserWorkspace: React.FC = () => {
   const selectedQuestion = selectedQuestionData?.question;
   const currentAreaId = selectedQuestionData?.areaId;
 
-  // Auto-expand area when navigating via Next/Prev
   useEffect(() => {
     if (currentAreaId) setExpandedAreaId(currentAreaId);
   }, [currentAreaId]);
@@ -326,7 +770,6 @@ const UserWorkspace: React.FC = () => {
 
   return (
     <div className="user-workspace-container">
-      {/* Top Header */}
       <div className="workspace-header">
         <div className="header-title-section">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -339,6 +782,9 @@ const UserWorkspace: React.FC = () => {
             <span>State: <strong>{submission?.stateName}</strong></span>
             <span className={`status-indicator ${submission?.status?.toLowerCase() || ''}`}>
               <span className="dot"></span> Status: {submission?.status}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', background: '#f0fdf4', padding: '4px 12px', borderRadius: '20px', border: '1px solid #bbf7d0', fontSize: '12px', fontWeight: 700, color: '#166534', marginLeft: '12px' }}>
+              Score (Approved): {calculateTotalScore()}
             </span>
           </div>
         </div>
@@ -365,10 +811,7 @@ const UserWorkspace: React.FC = () => {
         </div>
       </div>
 
-      {/* Workspace Columns (2-Column Wizard) */}
       <div className="workspace-body">
-        
-        {/* Left Column: Progress & Navigation */}
         <div className="workspace-column">
           <div className="progress-container">
             <div className="progress-label">
@@ -387,7 +830,6 @@ const UserWorkspace: React.FC = () => {
             {schema?.areas?.map((area) => {
               const isExpanded = expandedAreaId === area.id;
               
-              // Calculate how many questions answered in this area
               let areaTotal = 0;
               let areaAnswered = 0;
               area.actionPoints?.forEach(ap => {
@@ -403,12 +845,22 @@ const UserWorkspace: React.FC = () => {
                     className="accordion-header"
                     onClick={() => setExpandedAreaId(isExpanded ? null : area.id)}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                       {isExpanded ? <ChevronDown size={16} color="#64748b" /> : <ChevronRight size={16} color="#64748b" />}
                       <span>{area.title.replace(/^\d+\.\s*/, '')}</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: areaAnswered === areaTotal ? '#10b981' : '#64748b', fontWeight: 'bold' }}>
-                      {areaAnswered}/{areaTotal}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ fontSize: '11px', color: areaAnswered === areaTotal ? '#10b981' : '#64748b', fontWeight: 'bold' }}>
+                        {areaAnswered}/{areaTotal}
+                      </div>
+                      <button 
+                        className="btn-outline btn-sm" 
+                        onClick={(e) => { e.stopPropagation(); submitReformArea(area.id); }}
+                        style={{ fontSize: '10px', padding: '2px 6px', height: 'auto' }}
+                        disabled={isReadOnly}
+                      >
+                        Submit Area
+                      </button>
                     </div>
                   </div>
                   
@@ -416,13 +868,37 @@ const UserWorkspace: React.FC = () => {
                     <div className="accordion-content">
                       {area.actionPoints?.map((ap) => (
                         <div key={ap.id}>
-                          {/* We can hide action point titles to save space, or show them minimalistically */}
                           <div style={{ padding: '8px 16px', fontSize: '11px', fontWeight: 700, color: '#94a3b8', backgroundColor: '#f8fafc', textTransform: 'uppercase' }}>
                             {ap.title.length > 30 ? ap.title.substring(0, 30) + '...' : ap.title}
                           </div>
                           {ap.questions?.map(q => {
                             const isSelected = selectedQuestionId === q.id;
                             const isAnswered = isQuestionAnswered(q);
+                            
+                            // Check evaluation status
+                            const qResp = responses.find(r => r.questionId === q.id);
+                            let isApproved = false;
+                            let isRejected = false;
+                            let isResubmit = false;
+                            let isSubmitted = false;
+                            
+                            if (qResp) {
+                              const allItems = [
+                                ...(qResp.fieldResponses || []),
+                                ...(qResp.additionalFiles || [])
+                              ];
+                              const allSuppFiles = (qResp.supportingDocumentResponses || []).flatMap(d => d.files || []);
+                              const combined = [...allItems, ...allSuppFiles];
+                              
+                              if (combined.length > 0) {
+                                isSubmitted = combined.every(f => f.status === 'SUBMITTED');
+                              }
+                              
+                              isRejected = combined.some(f => f.evaluationStatus === 'REJECTED');
+                              isResubmit = combined.some(f => f.evaluationStatus === 'RESUBMISSION_REQUIRED');
+                              isApproved = !isRejected && !isResubmit && combined.some(f => f.evaluationStatus === 'APPROVED');
+                            }
+
                             return (
                               <div 
                                 key={q.id}
@@ -430,15 +906,27 @@ const UserWorkspace: React.FC = () => {
                                 onClick={() => setSelectedQuestionId(q.id)}
                               >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                  {isAnswered ? (
+                                  {isApproved ? (
                                     <CheckCircle2 size={14} color="#10b981" />
+                                  ) : isRejected || isResubmit ? (
+                                    <AlertCircle size={14} color="#ef4444" />
+                                  ) : isSubmitted ? (
+                                    <CheckCircle2 size={14} color="#3b82f6" />
+                                  ) : isAnswered ? (
+                                    <CheckCircle2 size={14} color="#94a3b8" />
                                   ) : (
                                     <Circle size={14} color="#cbd5e1" />
                                   )}
                                   <span>Q {q.questionNumber}</span>
                                 </div>
                                 <span style={{ fontSize: '11px', fontWeight: 600, color: isSelected ? '#3b82f6' : '#94a3b8' }}>
-                                  [{q.weightage}M]
+                                  {isApproved ? (
+                                    <span style={{ color: '#10b981' }}>[{q.weightage}/{q.weightage}M]</span>
+                                  ) : isRejected || isResubmit ? (
+                                    <span style={{ color: '#ef4444' }}>[0/{q.weightage}M]</span>
+                                  ) : (
+                                    <span>[{q.weightage}M]</span>
+                                  )}
                                 </span>
                               </div>
                             );
@@ -453,7 +941,6 @@ const UserWorkspace: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column: Main Form Area */}
         <div className="workspace-column">
           <div className="column-header">
             <h3>Question Form</h3>
@@ -463,184 +950,486 @@ const UserWorkspace: React.FC = () => {
           <div className="column-content" style={{ padding: '24px 32px' }}>
             {selectedQuestion ? (
               <div className="form-container">
-                {/* Question Details Header */}
-                <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '8px' }}>
-                  <div style={{ fontWeight: 700, fontSize: '20px', color: '#0f172a', marginBottom: '16px' }}>
-                    <span style={{ color: '#4f46e5', marginRight: '8px' }}>Q{selectedQuestion.questionNumber}.</span>
+                <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '20px', marginBottom: '16px' }}>
+                  <div style={{ fontWeight: 800, fontSize: '22px', color: '#1e1b4b', marginBottom: '16px', lineHeight: '1.4' }}>
+                    <span style={{ color: '#6366f1', marginRight: '8px' }}>Q{selectedQuestion.questionNumber}.</span>
                     {selectedQuestion.title}
                   </div>
                   
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px', borderLeft: '4px solid #3b82f6' }}>
+                  <div className="elegant-details-box">
                     {selectedQuestion.guidelinesRef && (
-                      <div style={{ fontSize: '13px' }}>
-                        <strong style={{ color: '#334155' }}>Guidelines:</strong> {renderGuidelinesRef(selectedQuestion.guidelinesRef)}
+                      <div className="elegant-detail-item">
+                        <BookOpen size={16} className="detail-icon guidelines" />
+                        <span className="detail-label">Guidelines:</span> {renderGuidelinesRef(selectedQuestion.guidelinesRef)}
                       </div>
                     )}
                     {selectedQuestion.scoringCriteria && (
-                      <div style={{ fontSize: '13px' }}>
-                        <strong style={{ color: '#334155' }}>Scoring Criteria:</strong> <span style={{ color: '#475569' }}>{selectedQuestion.scoringCriteria}</span>
+                      <div className="elegant-detail-item">
+                        <Award size={16} className="detail-icon scoring" />
+                        <span className="detail-label">Scoring Criteria:</span> <span style={{ color: '#475569' }}>{selectedQuestion.scoringCriteria}</span>
                       </div>
                     )}
                     {selectedQuestion.requiredDocuments && (
-                      <div style={{ fontSize: '13px', marginTop: '6px' }}>
-                        <strong style={{ color: '#b91c1c' }}>Required Evidence:</strong> 
-                        <div style={{ color: '#475569', marginTop: '4px', whiteSpace: 'pre-wrap' }}>{selectedQuestion.requiredDocuments}</div>
+                      <div className="elegant-detail-item evidence">
+                        <FileText size={16} className="detail-icon evidence-icon" />
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span className="detail-label evidence-label">Required Evidence:</span> 
+                          <span className="evidence-value">{selectedQuestion.requiredDocuments}</span>
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Form Inputs Renderer */}
-                <div className="dynamic-form-fields" style={{ minHeight: '300px' }}>
-                  {(() => {
-                    // Check if any Radio Button in this question is set to 'No'
-                    const isNoSelected = selectedQuestion.fields?.some(f => 
-                      f.type === 'Radio Button' && getFieldValue(selectedQuestion.id, f.id) === 'No'
-                    );
+                {(() => {
+                  const qResp = responses.find(r => r.questionId === selectedQuestion.id);
+                  
+                  const isHardcodedSuppDocs = !!SUPPORTING_DOCS_DATA[selectedQuestion.id];
+                  const hasSuppDocs = (selectedQuestion.supportingDocuments && selectedQuestion.supportingDocuments.length > 0) || isHardcodedSuppDocs;
+                  
+                  const hasOldData = qResp?.fieldResponses?.some(f => f.value || f.fileUrl) || false;
+                  if (hasSuppDocs && !hasOldData) {
+                    return null; // Skip rendering dynamic fields (textboxes) because user requested only upload buttons
+                  }
 
-                    return selectedQuestion.fields?.map(field => {
-                      // If 'No' is selected, hide all other fields (uploads, textboxes, dates, etc.)
-                      if (isNoSelected && field.type !== 'Radio Button') {
-                        return null;
-                      }
+                  return (
+                    <div className="dynamic-form-fields" style={{ minHeight: '300px' }}>
+                      {selectedQuestion.fields?.map(field => {
+                        const fieldValue = getFieldValue(selectedQuestion.id, field.id);
+                        const fResp = responses.find(r => r.questionId === selectedQuestion.id)?.fieldResponses?.find(f => f.fieldId === field.id);
+                        const isFieldSubmitted = fResp?.status === 'SUBMITTED';
+                        const isRejected = fResp?.evaluationStatus === 'REJECTED';
+                        const isResubmit = fResp?.evaluationStatus === 'RESUBMISSION_REQUIRED';
+                        const isFieldReadOnly = (isFieldSubmitted && !isRejected && !isResubmit) || (isReadOnly && isFieldSubmitted && !isRejected && !isResubmit);
 
-                      const fieldValue = getFieldValue(selectedQuestion.id, field.id);
-                      return (
-                        <div key={field.id} className="dynamic-field-group">
-                        <label className="field-label" style={{ fontSize: '14px', marginBottom: '4px' }}>
-                          {field.label}
-                          {field.required && <span className="field-required">*</span>}
-                        </label>
+                        return (
+                          <div key={field.id} className="dynamic-field-group">
+                            <label className="field-label" style={{ fontSize: '14px', marginBottom: '4px' }}>
+                              {field.label}
+                              {field.required && <span className="field-required">*</span>}
+                            </label>
+                            
+                            {isFieldSubmitted && !isRejected && !isResubmit && (
+                              <div style={{ display: 'inline-block', fontSize: '10px', backgroundColor: '#e0e7ff', color: '#4338ca', padding: '2px 6px', borderRadius: '4px', marginBottom: '8px', fontWeight: 600 }}>
+                                SUBMITTED FOR REVIEW
+                              </div>
+                            )}
 
-                        {field.type === 'Textbox' && (
-                          <input 
-                            type="text" 
-                            className="field-input"
-                            value={fieldValue}
-                            onChange={(e) => handleFieldChange(selectedQuestion.id, field.id, e.target.value)}
-                            disabled={isReadOnly}
-                            placeholder="Enter text response"
-                          />
-                        )}
+                            {(isRejected || isResubmit) && (
+                              <div style={{ padding: '12px', backgroundColor: isResubmit ? '#fff7ed' : '#fef2f2', border: `1px solid ${isResubmit ? '#fdba74' : '#fecaca'}`, borderRadius: '6px', marginBottom: '12px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: isResubmit ? '#c2410c' : '#b91c1c', fontWeight: 600, marginBottom: '4px', fontSize: '12px' }}>
+                                  <AlertCircle size={14} /> {isResubmit ? 'RESUBMISSION REQUIRED' : 'DOCUMENT REJECTED'}
+                                </div>
+                                <div style={{ fontSize: '13px', color: isResubmit ? '#9a3412' : '#7f1d1d' }}>
+                                  <strong>Admin Remarks:</strong> {fResp?.evaluationRemarks || 'No remarks provided.'}
+                                </div>
+                              </div>
+                            )}
 
-                        {field.type === 'URL Field' && (
-                          <input 
-                            type="url" 
-                            className="field-input"
-                            value={fieldValue}
-                            onChange={(e) => handleFieldChange(selectedQuestion.id, field.id, e.target.value)}
-                            disabled={isReadOnly}
-                            placeholder="https://example.gov.in"
-                          />
-                        )}
+                            {field.type === 'Textbox' && (
+                              <input 
+                                type="text" 
+                                className="field-input"
+                                value={fieldValue}
+                                onChange={(e) => handleFieldChange(selectedQuestion.id, field.id, e.target.value)}
+                                disabled={isFieldReadOnly}
+                                placeholder="Enter text response"
+                              />
+                            )}
 
-                        {field.type === 'Number Field' && (
-                          <input 
-                            type="number" 
-                            className="field-input"
-                            value={fieldValue}
-                            onChange={(e) => handleFieldChange(selectedQuestion.id, field.id, e.target.value)}
-                            disabled={isReadOnly}
-                            placeholder="Enter numeric value"
-                          />
-                        )}
+                            {field.type === 'URL Field' && (
+                              <input 
+                                type="url" 
+                                className="field-input"
+                                value={fieldValue}
+                                onChange={(e) => handleFieldChange(selectedQuestion.id, field.id, e.target.value)}
+                                disabled={isFieldReadOnly}
+                                placeholder="https://example.gov.in"
+                              />
+                            )}
 
-                        {field.type === 'Textarea' && (
-                          <textarea 
-                            rows={5}
-                            className="field-input"
-                            value={fieldValue}
-                            onChange={(e) => handleFieldChange(selectedQuestion.id, field.id, e.target.value)}
-                            disabled={isReadOnly}
-                            placeholder="Provide details..."
-                          />
-                        )}
+                            {field.type === 'Number Field' && (
+                              <input 
+                                type="number" 
+                                className="field-input"
+                                value={fieldValue}
+                                onChange={(e) => handleFieldChange(selectedQuestion.id, field.id, e.target.value)}
+                                disabled={isFieldReadOnly}
+                                placeholder="Enter numeric value"
+                              />
+                            )}
 
-                        {field.type === 'Date Picker' && (
-                          <input 
-                            type="date" 
-                            className="field-input"
-                            value={fieldValue}
-                            onChange={(e) => handleFieldChange(selectedQuestion.id, field.id, e.target.value)}
-                            disabled={isReadOnly}
-                          />
-                        )}
+                            {field.type === 'Textarea' && (
+                              <textarea 
+                                rows={5}
+                                className="field-input"
+                                value={fieldValue}
+                                onChange={(e) => handleFieldChange(selectedQuestion.id, field.id, e.target.value)}
+                                disabled={isFieldReadOnly}
+                                placeholder="Provide details..."
+                              />
+                            )}
 
-                        {field.type === 'Radio Button' && (
-                          <div className="options-layout">
-                            {field.options?.map(opt => (
-                              <label key={opt} className="option-choice">
-                                <input 
-                                  type="radio" 
-                                  name={field.id}
-                                  value={opt}
-                                  checked={fieldValue === opt}
-                                  onChange={() => handleFieldChange(selectedQuestion.id, field.id, opt)}
-                                  disabled={isReadOnly}
-                                />
-                                {opt}
-                              </label>
-                            ))}
-                          </div>
-                        )}
+                            {field.type === 'Date Picker' && (
+                              <input 
+                                type="date" 
+                                className="field-input"
+                                value={fieldValue}
+                                onChange={(e) => handleFieldChange(selectedQuestion.id, field.id, e.target.value)}
+                                disabled={isFieldReadOnly}
+                              />
+                            )}
 
-                        {(field.type === 'File Upload' || field.type === 'PDF Upload') && (
-                          <div style={{ marginTop: '8px' }}>
-                            {getFieldFile(selectedQuestion.id, field.id) ? (
-                              <div className="uploaded-file-info">
-                                <a 
-                                  href={`http://localhost:5001${getFieldFile(selectedQuestion.id, field.id)?.fileUrl}`} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
-                                  className="file-link"
-                                >
-                                  <Paperclip size={14} />
-                                  <span>{getFieldFile(selectedQuestion.id, field.id)?.fileName}</span>
-                                </a>
-                                {!isReadOnly && (
-                                  <button 
-                                    className="remove-file-btn"
-                                    onClick={() => handleRemoveFile(selectedQuestion.id, field.id)}
+                            {field.type === 'Radio Button' && (
+                              <div className="elegant-radio-group">
+                                {field.options?.map(opt => (
+                                  <label key={opt} className={`elegant-radio-card ${fieldValue === opt ? 'selected' : ''}`}>
+                                    <input 
+                                      type="radio" 
+                                      name={field.id}
+                                      value={opt}
+                                      checked={fieldValue === opt}
+                                      onChange={() => handleFieldChange(selectedQuestion.id, field.id, opt)}
+                                      disabled={isFieldReadOnly}
+                                      className="hidden-radio"
+                                    />
+                                    <div className="radio-content">
+                                      <div className="radio-circle"></div>
+                                      <span className="radio-text">{opt}</span>
+                                    </div>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+
+                            {(field.type === 'File Upload' || field.type === 'PDF Upload') && (
+                              <div style={{ marginTop: '8px' }}>
+                                {getFieldFile(selectedQuestion.id, field.id) ? (
+                                  <div className={`uploaded-file-info ${(isRejected || isResubmit) ? 'rejected-border' : ''}`}>
+                                    <a 
+                                      href={`http://localhost:5001${getFieldFile(selectedQuestion.id, field.id)?.fileUrl}`} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer" 
+                                      className="file-link"
+                                    >
+                                      <Paperclip size={14} />
+                                      <span>{getFieldFile(selectedQuestion.id, field.id)?.fileName}</span>
+                                    </a>
+                                    {!isFieldReadOnly && (
+                                      <button 
+                                        className="remove-file-btn"
+                                        onClick={() => handleRemoveFile(selectedQuestion.id, field.id)}
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div 
+                                    className="file-upload-card"
+                                    onClick={() => !isFieldReadOnly && fileInputRefs.current[field.id]?.click()}
                                   >
+                                    <Upload size={24} style={{ color: '#64748b', marginBottom: '12px' }} />
+                                    <div style={{ fontSize: '14px', color: '#475569', fontWeight: 600 }}>
+                                      {isFieldReadOnly ? 'No file uploaded' : 'Click to Upload Document / Evidence'}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>
+                                      Supports PDF, DOC, images up to 10MB
+                                    </div>
+                                    <input 
+                                      type="file" 
+                                      ref={el => { fileInputRefs.current[field.id] = el; }}
+                                      style={{ display: 'none' }}
+                                      onChange={(e) => handleFileUpload(selectedQuestion.id, field.id, e)}
+                                    />
+                                  </div>
+                                )}
+
+                                {fResp?.history && fResp.history.length > 0 && (
+                                  <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>Document History (Rejected)</div>
+                                    {fResp.history.map((hist, idx) => (
+                                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', padding: '8px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', marginBottom: idx !== fResp.history!.length - 1 ? '6px' : '0' }}>
+                                        <a 
+                                          href={`http://localhost:5001${hist.fileUrl}`} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}
+                                        >
+                                          <Paperclip size={12} /> {hist.fileName}
+                                        </a>
+                                        {hist.evaluationRemarks && (
+                                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>
+                                            Remarks: {hist.evaluationRemarks}
+                                          </div>
+                                        )}
+                                        <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
+                                          Rejected on: {new Date(hist.submittedAt).toLocaleDateString()}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+                
+                {(() => {
+                  const qResp = responses.find(r => r.questionId === selectedQuestion.id);
+                  
+                  // Hide this block completely if we are showing supporting docs, as "no dynamic form inputs configured" doesn't apply
+                  const isHardcodedSuppDocs = !!SUPPORTING_DOCS_DATA[selectedQuestion.id];
+                  const hasSuppDocs = (selectedQuestion.supportingDocuments && selectedQuestion.supportingDocuments.length > 0) || isHardcodedSuppDocs;
+                  if (hasSuppDocs) return null;
+
+                  if (!selectedQuestion.fields || selectedQuestion.fields.length === 0) {
+                    return (
+                      <div style={{ padding: '32px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '10px', color: '#64748b', fontSize: '14px', border: '1px dashed #cbd5e1' }}>
+                        <AlertCircle size={24} style={{ margin: '0 auto 12px auto', color: '#94a3b8' }} />
+                        No dynamic form inputs configured for this question yet.
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {(() => {
+                  const qResp = responses.find(r => r.questionId === selectedQuestion.id);
+                  const fieldsSubmitted = qResp?.fieldResponses?.every(f => f.status === 'SUBMITTED' && f.evaluationStatus !== 'REJECTED') ?? true;
+                  const additionalFilesSubmitted = qResp?.additionalFiles?.every(f => f.status === 'SUBMITTED' && f.evaluationStatus !== 'REJECTED') ?? true;
+                  const suppDocsSubmitted = qResp?.supportingDocumentResponses?.every(d => 
+                    (d.files || []).every(f => f.status === 'SUBMITTED' && f.evaluationStatus !== 'REJECTED')
+                  ) ?? true;
+
+                  const hasFieldResponses = (qResp?.fieldResponses?.length || 0) > 0;
+                  const hasAdditionalFiles = (qResp?.additionalFiles?.length || 0) > 0;
+                  const hasSuppDocs = qResp?.supportingDocumentResponses?.some(d => (d.files || []).length > 0) || false;
+
+                  const allSubmitted = (hasFieldResponses || hasAdditionalFiles || hasSuppDocs) && fieldsSubmitted && additionalFilesSubmitted && suppDocsSubmitted;
+                  
+                  // Check if the entire question is approved
+                  const allItems = [...(qResp?.fieldResponses || []), ...(qResp?.additionalFiles || [])];
+                  const allSuppFiles = (qResp?.supportingDocumentResponses || []).flatMap(d => d.files || []);
+                  const combined = [...allItems, ...allSuppFiles];
+                  const isQRejected = combined.some(f => f.evaluationStatus === 'REJECTED');
+                  const isQResubmit = combined.some(f => f.evaluationStatus === 'RESUBMISSION_REQUIRED');
+                  const isQApproved = !isQRejected && !isQResubmit && combined.some(f => f.evaluationStatus === 'APPROVED');
+
+                  const isQuestionReadOnly = isReadOnly || allSubmitted || isQApproved;
+
+                  // Only show additional evidence section if they selected "Yes"
+                  if (qResp?.isApplying === false) return null;
+
+                  // Fallback for Q1 to Q4 if DB migration hasn't loaded yet
+                  const isHardcodedSuppDocs = !!SUPPORTING_DOCS_DATA[selectedQuestion.id];
+                  const suppDocs = selectedQuestion.supportingDocuments && selectedQuestion.supportingDocuments.length > 0 
+                    ? selectedQuestion.supportingDocuments 
+                    : (SUPPORTING_DOCS_DATA[selectedQuestion.id] || []);
+
+                  if (suppDocs.length === 0) {
+                    return (
+                      <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
+                        {/* Fallback to old generic upload if no supporting docs schema exists */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                          <h4 style={{ fontSize: '16px', color: '#1e293b', fontWeight: 700 }}>Additional Evidence</h4>
+                          <label className={`btn-primary btn-sm ${isQuestionReadOnly ? 'disabled' : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: isQuestionReadOnly ? 'not-allowed' : 'pointer', opacity: isQuestionReadOnly ? 0.5 : 1 }}>
+                            <Upload size={14} /> Upload Additional File
+                            <input type="file" style={{ display: 'none' }} onChange={(e) => handleAdditionalFileUpload(selectedQuestion.id, e)} accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.csv,.xlsx" disabled={isQuestionReadOnly} multiple />
+                          </label>
+                        </div>
+                        {qResp?.additionalFiles?.map(af => {
+                          const isAFSubmitted = af.status === 'SUBMITTED';
+                          const isAFRejected = af.evaluationStatus === 'REJECTED';
+                          const isAFReadOnly = (isAFSubmitted && !isAFRejected) || (isReadOnly && isAFSubmitted);
+                          return (
+                            <div key={af.fileId} style={{ marginBottom: '16px' }}>
+                              <div className={`uploaded-file-info ${isAFRejected ? 'rejected-border' : ''}`}>
+                                <a href={`http://localhost:5001${af.fileUrl}`} target="_blank" rel="noopener noreferrer" className="file-link">
+                                  <Paperclip size={14} />
+                                  <span>{af.fileName}</span>
+                                </a>
+                                {!isAFReadOnly && (
+                                  <button className="remove-file-btn" onClick={() => handleRemoveAdditionalFile(selectedQuestion.id, af.fileId)}>
                                     <Trash2 size={16} />
                                   </button>
                                 )}
                               </div>
-                            ) : (
-                              <div 
-                                className="file-upload-card"
-                                onClick={() => !isReadOnly && fileInputRefs.current[field.id]?.click()}
-                              >
-                                <Upload size={24} style={{ color: '#64748b', marginBottom: '12px' }} />
-                                <div style={{ fontSize: '14px', color: '#475569', fontWeight: 600 }}>
-                                  {isReadOnly ? 'No file uploaded' : 'Click to Upload Document / Evidence'}
-                                </div>
-                                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>
-                                  Supports PDF, DOC, images up to 10MB
-                                </div>
-                                <input 
-                                  type="file" 
-                                  ref={el => { fileInputRefs.current[field.id] = el; }}
-                                  style={{ display: 'none' }}
-                                  onChange={(e) => handleFileUpload(selectedQuestion.id, field.id, e)}
-                                />
-                              </div>
-                            )}
+                            </div>
+                          );
+                        })}
+                        {selectedQuestion.fields?.length > 0 && (
+                          <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button 
+                              className="btn-primary" 
+                              onClick={() => submitQuestion(selectedQuestion.id)} 
+                              disabled={allSubmitted || saving || isQApproved} 
+                              style={{ 
+                                opacity: (allSubmitted || saving || isQApproved) ? 0.6 : 1, 
+                                cursor: (allSubmitted || saving || isQApproved) ? 'not-allowed' : 'pointer', 
+                                backgroundColor: isQApproved ? '#10b981' : (allSubmitted ? '#10b981' : '#4f46e5') 
+                              }}
+                            >
+                              {saving ? 'Submitting...' : isQApproved ? ( 
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><CheckCircle2 size={16} /> Approved</span>
+                              ) : allSubmitted ? ( 
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><CheckCircle2 size={16} /> Submitted</span>
+                              ) : 'Submit Question for Review'}
+                            </button>
                           </div>
                         )}
                       </div>
                     );
-                  });
-                  })()}
-                  {(!selectedQuestion.fields || selectedQuestion.fields.length === 0) && (
-                    <div style={{ padding: '32px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '10px', color: '#64748b', fontSize: '14px', border: '1px dashed #cbd5e1' }}>
-                      <AlertCircle size={24} style={{ margin: '0 auto 12px auto', color: '#94a3b8' }} />
-                      No dynamic form inputs configured for this question yet.
+                  }
+
+                  // Render the new Supporting Documents UI
+                  return (
+                    <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
+                      <div style={{ marginBottom: '24px' }}>
+                        <h4 style={{ fontSize: '16px', color: '#1e293b', fontWeight: 700, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <BookOpen size={18} color="#4f46e5" /> Supporting Documents Required
+                        </h4>
+                        <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px' }}>
+                          {suppDocs.map(doc => {
+                            // Check if this doc has uploaded files
+                            const docResp = qResp?.supportingDocumentResponses?.find(r => r.documentId === doc.id);
+                            const hasFiles = docResp && docResp.files && docResp.files.length > 0;
+                            return (
+                              <div key={doc.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '12px' }}>
+                                <div>
+                                  {hasFiles ? (
+                                    <CheckCircle2 size={18} color="#10b981" style={{ marginTop: '2px' }} />
+                                  ) : (
+                                    <div style={{ width: '16px', height: '16px', border: '2px solid #cbd5e1', borderRadius: '4px', marginTop: '4px' }}></div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>
+                                    {doc.title} {doc.mandatory && <span style={{ color: '#ef4444', fontSize: '12px', fontWeight: 'normal', marginLeft: '4px' }}>*Mandatory</span>}
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{doc.description}</div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: '24px' }}>
+                        <h4 style={{ fontSize: '16px', color: '#1e293b', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Upload size={18} color="#4f46e5" /> Upload Supporting Documents
+                        </h4>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          {suppDocs.map(doc => {
+                            const docResp = qResp?.supportingDocumentResponses?.find(r => r.documentId === doc.id);
+                            const uploadedFiles = docResp?.files || [];
+                            return (
+                              <div key={doc.id} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', backgroundColor: '#fff' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                                  <div>
+                                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>{doc.title}</div>
+                                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>Formats: {doc.acceptedFileTypes.join(', ')} | Max {doc.maxFileSize}MB</div>
+                                  </div>
+                                    {(() => {
+                                      const hasApproved = uploadedFiles.some(f => f.evaluationStatus === 'APPROVED');
+                                      const hasResubmitOrRejected = uploadedFiles.some(f => f.evaluationStatus === 'RESUBMISSION_REQUIRED' || f.evaluationStatus === 'REJECTED');
+                                      const canUpload = (!isQuestionReadOnly && !hasApproved) || hasResubmitOrRejected;
+                                      
+                                      return (
+                                        <label className={`btn-outline btn-sm ${!canUpload ? 'disabled' : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: !canUpload ? 'not-allowed' : 'pointer', opacity: !canUpload ? 0.5 : 1 }}>
+                                          <Upload size={14} /> Upload
+                                          <input 
+                                            type="file" 
+                                            style={{ display: 'none' }} 
+                                            accept={doc.acceptedFileTypes.join(',')}
+                                            disabled={!canUpload}
+                                            multiple={doc.maxFiles > 1}
+                                            onChange={(e) => handleSupportingDocumentUpload(selectedQuestion.id, doc.id, e)}
+                                          />
+                                        </label>
+                                      );
+                                    })()}
+                                  </div>
+
+                                {uploadedFiles.length > 0 && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                                    {uploadedFiles.map(f => {
+                                      const isRejected = f.evaluationStatus === 'REJECTED';
+                                      const isResubmit = f.evaluationStatus === 'RESUBMISSION_REQUIRED';
+                                      const isApproved = f.evaluationStatus === 'APPROVED';
+                                      const isPending = !f.evaluationStatus || f.evaluationStatus === 'PENDING';
+                                      
+                                      // If it needs resubmission or is rejected, we allow deletion and re-uploading
+                                      const canEditFile = (!isQuestionReadOnly && !isApproved) || isResubmit || isRejected;
+
+                                      return (
+                                        <div key={f.fileId} className={`uploaded-file-info ${(isRejected || isResubmit) ? 'rejected-border' : ''}`}>
+                                          <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                              <a href={`http://localhost:5001${f.fileUrl}`} target="_blank" rel="noopener noreferrer" className="file-link">
+                                                <Paperclip size={14} />
+                                                <span>{f.fileName}</span>
+                                              </a>
+                                              {canEditFile && (
+                                                <button className="remove-file-btn" onClick={() => removeSupportingDocument(selectedQuestion.id, doc.id, f.fileId)}>
+                                                  <Trash2 size={16} />
+                                                </button>
+                                              )}
+                                            </div>
+                                            
+                                            {/* Status Badge & Remarks */}
+                                            {!isPending && (
+                                              <div style={{ marginTop: '8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                {isApproved && <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}><CheckCircle2 size={14} /> Approved</span>}
+                                                {isRejected && <span style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '4px' }}><XCircle size={14} /> Rejected: {f.evaluationRemarks}</span>}
+                                                {isResubmit && <span style={{ color: '#f97316', display: 'flex', alignItems: 'center', gap: '4px' }}><AlertCircle size={14} /> Resubmission Required: {f.evaluationRemarks}</span>}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {selectedQuestion.fields?.length > 0 && (
+                        <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                          <button 
+                            className="btn-primary" 
+                            onClick={() => submitQuestion(selectedQuestion.id)}
+                            disabled={allSubmitted || saving || isQApproved}
+                            style={{ 
+                              opacity: (allSubmitted || saving || isQApproved) ? 0.6 : 1, 
+                              cursor: (allSubmitted || saving || isQApproved) ? 'not-allowed' : 'pointer',
+                              backgroundColor: isQApproved ? '#10b981' : (allSubmitted ? '#10b981' : '#4f46e5')
+                            }}
+                          >
+                            {saving ? 'Submitting...' : isQApproved ? (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <CheckCircle2 size={16} /> Approved
+                              </span>
+                            ) : allSubmitted ? (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <CheckCircle2 size={16} /> Submitted
+                              </span>
+                            ) : 'Submit Question for Review'}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                
-                {/* Wizard Footer Navigation */}
+                  );
+                })()}
+
                 <div className="wizard-footer">
                   <button 
                     className="btn-outline" 

@@ -3,8 +3,6 @@ import app from './app';
 import { connectDB } from './config/db';
 import { seedSuperAdmin } from './utils/seed';
 
-
-
 const PORT = process.env.PORT || 5001;
 
 const startServer = async () => {

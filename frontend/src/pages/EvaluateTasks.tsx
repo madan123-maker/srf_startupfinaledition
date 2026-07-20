@@ -14,6 +14,8 @@ interface Assignment {
   status: string;
   evaluationStatus?: string;
   evaluationRemarks?: string;
+  awardedScore?: number;
+  maxScore?: number;
   updatedAt: string;
 }
 
@@ -92,15 +94,16 @@ const EvaluateTasks: React.FC = () => {
               <th>State / User</th>
               <th>Assigned Scope</th>
               <th>Submitted Date</th>
+              <th>Score</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="eval-empty">Loading tasks...</td></tr>
+              <tr><td colSpan={6} className="eval-empty">Loading tasks...</td></tr>
             ) : filteredTasks.length === 0 ? (
-              <tr><td colSpan={5} className="eval-empty">No submitted tasks found.</td></tr>
+              <tr><td colSpan={6} className="eval-empty">No submitted tasks found.</td></tr>
             ) : (
               filteredTasks.map((a) => (
                 <tr key={a._id} className={a.status === 'EVALUATED' ? 'is-evaluated' : ''}>
@@ -120,6 +123,15 @@ const EvaluateTasks: React.FC = () => {
                   </td>
                   <td className="eval-date">
                     {new Date(a.updatedAt).toLocaleDateString()}
+                  </td>
+                  <td>
+                    {a.status === 'EVALUATED' && a.maxScore !== undefined ? (
+                      <span className="eval-score-text" style={{ fontWeight: 700, color: '#334155' }}>
+                        {a.awardedScore || 0} / {a.maxScore}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#94a3b8' }}>—</span>
+                    )}
                   </td>
                   <td>
                     {a.status === 'EVALUATED' ? (

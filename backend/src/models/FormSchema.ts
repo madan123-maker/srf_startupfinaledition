@@ -8,15 +8,30 @@ export interface IFormField {
   options?: string[];
 }
 
+export interface ISupportingDocument {
+  id: string;
+  title: string;
+  description: string;
+  mandatory: boolean;
+  acceptedFileTypes: string[];
+  maxFiles: number;
+  maxFileSize: number;
+}
+
 export interface IQuestion {
   id: string;
   questionNumber: string;
   weightage: number;
+  maxScore: number;
+  scoringType: string;
+  scoringRules: any;
+  isEvaluatable: boolean;
   title: string;
   requiredDocuments: string;
   guidelinesRef: string;
   scoringCriteria: string;
   fields: IFormField[];
+  supportingDocuments?: ISupportingDocument[];
 }
 
 export interface IActionPoint {
@@ -47,15 +62,30 @@ const FormFieldSchema = new Schema({
   options: [{ type: String }]
 }, { _id: false });
 
+const SupportingDocumentSchema = new Schema({
+  id: { type: String, required: true },
+  title: { type: String, required: true },
+  description: { type: String, default: '' },
+  mandatory: { type: Boolean, default: true },
+  acceptedFileTypes: [{ type: String }],
+  maxFiles: { type: Number, default: 5 },
+  maxFileSize: { type: Number, default: 10 } // MB
+}, { _id: false });
+
 const QuestionSchema = new Schema({
   id: { type: String, required: true },
   questionNumber: { type: String, required: true },
   weightage: { type: Number, default: 0 },
+  maxScore: { type: Number, default: 0 },
+  scoringType: { type: String, default: 'Manual' },
+  scoringRules: { type: Schema.Types.Mixed, default: {} },
+  isEvaluatable: { type: Boolean, default: true },
   title: { type: String, required: true },
   requiredDocuments: { type: String, default: '' },
   guidelinesRef: { type: String, default: '' },
   scoringCriteria: { type: String, default: '' },
-  fields: [FormFieldSchema]
+  fields: [FormFieldSchema],
+  supportingDocuments: [SupportingDocumentSchema]
 }, { _id: false });
 
 const ActionPointSchema = new Schema({

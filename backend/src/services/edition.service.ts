@@ -1,5 +1,6 @@
 import { Edition, IEdition, EditionStatus } from '../models/Edition';
 import { Submission, SubmissionStatus } from '../models/Submission';
+import { RecycleBin, EntityType } from '../models/RecycleBin';
 
 export class EditionService {
   async createEdition(editionData: Partial<IEdition>, createdBy: string) {
@@ -19,7 +20,7 @@ export class EditionService {
 
   async getAllEditions() {
     // Get all editions
-    const editions = await Edition.find().sort({ createdAt: -1 }).lean();
+    const editions = await Edition.find().sort({ createdAt: 1 }).lean();
     
     // For each edition, aggregate submission metrics to show on the card
     const editionsWithStats = await Promise.all(editions.map(async (edition) => {
@@ -77,7 +78,7 @@ export class EditionService {
   async getPublicEditions() {
     // Standard users should only see published editions
     const editions = await Edition.find({ status: EditionStatus.PUBLISHED })
-                                 .sort({ publishedAt: -1 })
+                                 .sort({ createdAt: 1 })
                                  .lean();
     return editions;
   }
@@ -91,14 +92,29 @@ export class EditionService {
     return edition;
   }
 
-  async deleteEdition(editionId: string) {
+  async deleteEdition(editionId: string, deletedBy: string) {
     const cleanId = editionId.trim();
-    const edition = await Edition.findByIdAndDelete(cleanId);
+    
+    // First find it to save to recycle bin
+    const edition = await Edition.findById(cleanId).lean();
     if (!edition) {
       throw new Error(`Edition not found for id: ${cleanId}`);
     }
+
+    // Save to Recycle Bin
+    await RecycleBin.create({
+      originalId: edition._id.toString(),
+      entityType: EntityType.EDITION,
+      entityName: edition.name,
+      data: edition,
+      deletedBy
+    });
+
+    // Delete it from main collection
+    await Edition.findByIdAndDelete(cleanId);
     
     // Also delete any submissions tied to this edition
+    // In a real app we might want to recycle these too, but for now we just delete them
     await Submission.deleteMany({ editionId: cleanId });
     
     return { success: true, message: 'Edition deleted successfully' };

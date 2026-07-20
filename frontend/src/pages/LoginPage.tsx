@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, UserCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
+import logoUrl from '../assets/logo.png';
+
 interface LoginPageProps {
   isAdminLogin: boolean;
 }
@@ -60,11 +62,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
         </button>
 
         <div className="text-center" style={{ marginBottom: '32px', marginTop: '20px' }}>
-          <div style={{ display: 'inline-block', padding: '16px', background: 'rgba(15, 76, 129, 0.1)', borderRadius: '50%', marginBottom: '16px' }}>
-            {isAdminLogin ? <ShieldCheck size={48} color="var(--primary-color)" /> : <UserCircle size={48} color="var(--primary-color)" />}
+          <div style={{ display: 'inline-block', marginBottom: '16px' }}>
+            <img src={logoUrl} alt="AP Logo" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
           </div>
           <h2 style={{ fontSize: '28px', color: 'var(--primary-color)' }}>
-            {isAdminLogin ? 'Admin / Super Admin Login' : 'User Login'}
+            {isAdminLogin ? 'ADMIN LOGIN' : 'User Login'}
           </h2>
           <p style={{ color: 'var(--text-secondary)', marginTop: '8px' }}>
             Sign in to access the SRF Management Platform

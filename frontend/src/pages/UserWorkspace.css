@@ -518,3 +518,133 @@
   border-left: 3px solid #3b82f6;
   padding-left: 21px;
 }
+
+/* Elegant Details Box */
+.elegant-details-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: linear-gradient(145deg, #ffffff, #f8fafc);
+  padding: 18px 20px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  border-left: 4px solid #6366f1;
+}
+
+.elegant-detail-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.detail-icon {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.detail-icon.guidelines { color: #3b82f6; }
+.detail-icon.scoring { color: #f59e0b; }
+.detail-icon.evidence-icon { color: #e11d48; }
+
+.detail-label {
+  font-weight: 700;
+  color: #334155;
+}
+
+.elegant-detail-item.evidence {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.evidence-label {
+  color: #be123c;
+}
+
+.evidence-value {
+  color: #475569;
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+
+/* Elegant Radio Buttons */
+.elegant-radio-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.elegant-radio-card {
+  display: flex;
+  align-items: center;
+  padding: 14px 18px;
+  background-color: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  position: relative;
+  overflow: hidden;
+}
+
+.elegant-radio-card:hover {
+  border-color: #818cf8;
+  background-color: #f5f3ff;
+}
+
+.elegant-radio-card.selected {
+  border-color: #6366f1;
+  background-color: #eef2ff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+}
+
+.hidden-radio {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.radio-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.radio-circle {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.elegant-radio-card.selected .radio-circle {
+  border-color: #6366f1;
+}
+
+.elegant-radio-card.selected .radio-circle::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  background-color: #6366f1;
+  border-radius: 50%;
+}
+
+.radio-text {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: #334155;
+}
+
+.elegant-radio-card.selected .radio-text {
+  color: #1e1b4b;
+  font-weight: 600;
+}

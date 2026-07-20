@@ -55,8 +55,8 @@
 }
 
 .editions-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 24px;
 }
 
@@ -65,11 +65,12 @@
   background: white;
   border-radius: 16px;
   padding: 24px;
-  width: 450px;
+  width: 100%;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   border: 1px solid #f1f5f9;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
 }
 
 .edition-card:hover {
@@ -232,12 +233,14 @@
   background-color: #f8fafc;
   border: 2px dashed #cbd5e1;
   border-radius: 16px;
-  width: 450px;
+  width: 100%;
+  min-height: 260px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s;
+  box-sizing: border-box;
 }
 
 .create-new-card:hover {

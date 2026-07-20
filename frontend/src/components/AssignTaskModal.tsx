@@ -58,13 +58,14 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
 
   const token = localStorage.getItem('token');
 
-  // Fetch published editions
+  // Fetch editions based on role (Super Admins can see draft editions too)
   useEffect(() => {
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
     fetch('http://localhost:5001/api/editions', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
-      .then((data) => setEditions(data.filter((e: Edition) => e.status === 'PUBLISHED')));
+      .then((data) => setEditions(data.filter((e: Edition) => currentUser.role === 'SUPER_ADMIN' || e.status === 'PUBLISHED')));
   }, []);
 
   // Fetch existing assignments for this user

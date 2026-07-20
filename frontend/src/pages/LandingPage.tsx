@@ -1,54 +1,69 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserCircle, ShieldCheck, Building2 } from 'lucide-react';
+import logoUrl from '../assets/logo.png';
 import './LandingPage.css';
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="landing-container flex items-center justify-center min-h-screen">
-      <div className="landing-bg-overlay"></div>
-      <div className="glass-card text-center" style={{ maxWidth: '800px', zIndex: 1 }}>
-        <div className="logo-container">
-          <Building2 size={64} color="var(--primary-color)" />
+    <div className="landing-layout">
+      <nav className="landing-nav">
+        <div className="nav-left">
+          <img 
+            src={logoUrl} 
+            alt="AP Logo" 
+            className="nav-logo" 
+          />
+          <span className="nav-title">SRF Management Platform</span>
         </div>
-        
-        <h1 className="project-title" style={{ fontSize: '36px', marginBottom: '16px', color: 'var(--primary-color)' }}>
-          States' Startup Ranking Framework
-        </h1>
-        <h2 style={{ fontSize: '24px', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '40px' }}>
-          (SRF) Management Platform
-        </h2>
-        
-        <p style={{ marginBottom: '40px', fontSize: '18px', color: 'var(--text-primary)' }}>
-          A centralized, secure, and dynamically configurable enterprise platform to digitize the complete evaluation lifecycle of the States' Startup Ranking Framework.
-        </p>
+        <div className="nav-right">
+          <a href="#" className="nav-link">Home</a>
+          <a href="/login" className="nav-link" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Sign In</a>
+        </div>
+      </nav>
 
-        <div className="action-buttons flex justify-center" style={{ gap: '24px' }}>
-          <button 
-            className="btn btn-primary" 
-            onClick={() => navigate('/login')}
-            style={{ padding: '16px 32px', fontSize: '18px' }}
-          >
-            <UserCircle size={24} />
-            User Login
-          </button>
+      <main className="landing-main">
+        <div className="landing-bg-circles">
+          <div className="circle circle-1"></div>
+          <div className="circle circle-2"></div>
+          <div className="circle circle-3"></div>
+          <div className="circle circle-4"></div>
+        </div>
+
+        <div className="landing-content">
+          <div className="center-logo-container">
+            <img 
+              src={logoUrl} 
+              alt="AP Center Logo" 
+              className="center-logo"
+            />
+          </div>
           
-          <button 
-            className="btn btn-secondary" 
-            onClick={() => navigate('/admin-login')}
-            style={{ padding: '16px 32px', fontSize: '18px' }}
-          >
-            <ShieldCheck size={24} />
-            Admin / Super Admin
-          </button>
+          <div className="pill-badge">
+            DPIIT INITIATIVES 2026
+          </div>
+
+          <h1 className="main-heading">
+            Andhra Pradesh Startup Ranking<br />
+            Framework Repository
+          </h1>
+          
+          <p className="main-subheading">
+            A platform to collect assign SRF Questionaries to Andhra Pradesh State<br />
+            Officials, Manage multiple State Startup Ranking Framework.
+          </p>
+
+          <div className="button-group">
+            <button className="btn-primary" onClick={() => navigate('/login')}>
+              User Login
+            </button>
+            <button className="btn-outline" onClick={() => navigate('/admin-login')}>
+              Admin Login
+            </button>
+          </div>
         </div>
-        
-        <div style={{ marginTop: '40px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-          Government of India • Department for Promotion of Industry and Internal Trade
-        </div>
-      </div>
+      </main>
     </div>
   );
 };

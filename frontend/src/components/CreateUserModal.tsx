@@ -35,10 +35,11 @@ const AP_DISTRICTS = [
   'YSR (Kadapa)',
 ];
 
-const DEPARTMENTS = [
-  'DPIIT', 'Ministry of Commerce', 'SIDBI', 'Startup India Cell',
-  'State Nodal Agency', 'District Industries Centre', 'Other',
-];
+interface Department {
+  _id: string;
+  name: string;
+  code: string;
+}
 
 const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -52,6 +53,22 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onSuccess })
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [departmentsList, setDepartmentsList] = useState<Department[]>([]);
+
+  React.useEffect(() => {
+    const fetchDeps = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('http://localhost:5001/api/departments', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          setDepartmentsList(await res.json());
+        }
+      } catch (err) {}
+    };
+    fetchDeps();
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -123,12 +140,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onSuccess })
             <div className="cum-row">
               <div className="form-group">
                 <label>State / UT</label>
-                <input
-                  type="text"
-                  value="Andhra Pradesh"
-                  readOnly
-                  className="input-frozen"
-                />
+                <select name="state" value={formData.state} onChange={handleChange} required>
+                  <option value="Andhra Pradesh">Andhra Pradesh</option>
+                </select>
               </div>
               <div className="form-group">
                 <label>District</label>
@@ -158,9 +172,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onSuccess })
                 <label>Organization / Department</label>
                 <select name="organization" value={formData.organization} onChange={handleChange} required>
                   <option value="">Select Department</option>
-                  {DEPARTMENTS.map((d) => (
-                    <option key={d} value={d}>{d}</option>
+                  {departmentsList.map((d) => (
+                    <option key={d._id} value={d.name}>{d.name}</option>
                   ))}
+                  <option value="Other">Other</option>
                 </select>
               </div>
             </div>

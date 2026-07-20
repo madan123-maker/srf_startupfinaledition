@@ -13,6 +13,9 @@ import departmentRoutes from './routes/department.routes';
 import submissionRoutes from './routes/submission.routes';
 import schemaRoutes from './routes/schema.routes';
 import assignmentRoutes from './routes/assignment.routes';
+import recyclebinRoutes from './routes/recyclebin.routes';
+import evaluationRoutes from './routes/evaluation.routes';
+import notificationRoutes from './routes/notification.routes';
 
 const app: Application = express();
 
@@ -34,6 +37,9 @@ app.use('/api/departments', departmentRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/schemas', schemaRoutes);
 app.use('/api/assignments', assignmentRoutes);
+app.use('/api/recyclebin', recyclebinRoutes);
+app.use('/api/evaluations', evaluationRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', message: 'Server is healthy' });

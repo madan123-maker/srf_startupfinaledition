@@ -1,7 +1,8 @@
 .dashboard-container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 32px;
+  padding-top: 8px;
 }
 
 .dashboard-panel {
@@ -41,6 +42,12 @@
 .panel-subtitle {
   color: #64748b;
   font-size: 14px;
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .edition-select {

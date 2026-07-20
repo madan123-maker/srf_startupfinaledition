@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Save, Send, Upload, Paperclip, Trash2,
   Loader2, CheckCircle2, ChevronRight, BookOpen,
-  Layers, Target, HelpCircle, Circle
+  Layers, Target, Award, FileText, HelpCircle, Circle
 } from 'lucide-react';
 import './FocusedFormView.css';
 
@@ -31,6 +31,7 @@ interface ReformArea  { id: string; title: string; description: string; actionPo
 
 interface IFieldResponse {
   fieldId: string; value: any; fileUrl?: string; fileName?: string;
+  evaluationStatus?: string; evaluationRemarks?: string;
 }
 interface ISubmissionResponse { questionId: string; fieldResponses: IFieldResponse[]; }
 interface ISubmission {
@@ -85,7 +86,7 @@ const FocusedFormView: React.FC = () => {
         const { assignment: asgn, filteredSchema: fs } = await schemaRes.json();
         setAssignment(asgn);
         setFilteredSchema(fs);
-
+        
         // 2. Fetch/create submission for the edition
         const editionId = typeof asgn.editionId === 'object' ? asgn.editionId._id : asgn.editionId;
         const subRes = await fetch(
@@ -117,14 +118,17 @@ const FocusedFormView: React.FC = () => {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const getFieldValue = (questionId: string, fieldId: string): any => {
+  const getFieldResponse = (questionId: string, fieldId: string): IFieldResponse | undefined => {
     const qResp = responses.find((r) => r.questionId === questionId);
-    return qResp?.fieldResponses?.find((f) => f.fieldId === fieldId)?.value ?? '';
+    return qResp?.fieldResponses?.find((f) => f.fieldId === fieldId);
+  };
+
+  const getFieldValue = (questionId: string, fieldId: string): any => {
+    return getFieldResponse(questionId, fieldId)?.value ?? '';
   };
 
   const getFieldFile = (questionId: string, fieldId: string) => {
-    const qResp = responses.find((r) => r.questionId === questionId);
-    const fResp = qResp?.fieldResponses?.find((f) => f.fieldId === fieldId);
+    const fResp = getFieldResponse(questionId, fieldId);
     return fResp?.fileUrl ? { fileUrl: fResp.fileUrl, fileName: fResp.fileName } : null;
   };
 
@@ -245,53 +249,78 @@ const FocusedFormView: React.FC = () => {
     return parts;
   };
 
-  const isReadOnly = assignment?.status === 'SUBMITTED' || assignment?.status === 'EVALUATED';
+  const isGlobalReadOnly = assignment?.status === 'SUBMITTED' || (assignment?.status === 'EVALUATED' && assignment.evaluationStatus !== 'NEEDS_REVISION');
 
   const renderField = (question: Question, field: Field) => {
+    const fResp = getFieldResponse(question.id, field.id);
     const value = getFieldValue(question.id, field.id);
     const fileData = getFieldFile(question.id, field.id);
 
+    const fieldRequiresResubmission = fResp?.evaluationStatus === 'RESUBMISSION_REQUIRED';
+    const fieldIsReadOnly = assignment?.status === 'SUBMITTED' || (assignment?.status === 'EVALUATED' && !fieldRequiresResubmission);
+
+    const evalAlert = fieldRequiresResubmission ? (
+      <div className="ffv-field-eval-alert">
+        <strong>Needs Resubmission:</strong> {fResp.evaluationRemarks || 'Please update this file/field.'}
+      </div>
+    ) : null;
+
+    let fieldContent = null;
+
     switch (field.type) {
       case 'textarea':
-        return (
+      case 'Textarea':
+        fieldContent = (
           <textarea
             className="ffv-input ffv-textarea"
             value={value}
-            disabled={isReadOnly}
+            disabled={fieldIsReadOnly}
             placeholder={`Enter ${field.label.toLowerCase()}...`}
             onChange={(e) => handleFieldChange(question.id, field.id, e.target.value)}
           />
         );
+        break;
       case 'select':
-        return (
+      case 'Dropdown':
+        fieldContent = (
           <select
             className="ffv-input ffv-select"
             value={value}
-            disabled={isReadOnly}
+            disabled={fieldIsReadOnly}
             onChange={(e) => handleFieldChange(question.id, field.id, e.target.value)}
           >
             <option value="">— Select —</option>
             {field.options?.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         );
+        break;
       case 'radio':
-        return (
-          <div className="ffv-radio-group">
+      case 'Radio Button':
+        fieldContent = (
+          <div className="elegant-radio-group">
             {field.options?.map((opt) => (
-              <label key={opt} className="ffv-radio-label">
+              <label key={opt} className={`elegant-radio-card ${value === opt ? 'selected' : ''}`}>
                 <input
-                  type="radio" name={`${question.id}-${field.id}`} value={opt}
+                  type="radio" 
+                  name={`${question.id}-${field.id}`} 
+                  value={opt}
                   checked={value === opt}
-                  disabled={isReadOnly}
+                  disabled={fieldIsReadOnly}
                   onChange={() => handleFieldChange(question.id, field.id, opt)}
+                  className="hidden-radio"
                 />
-                <span>{opt}</span>
+                <div className="radio-content">
+                  <div className="radio-circle"></div>
+                  <span className="radio-text">{opt}</span>
+                </div>
               </label>
             ))}
           </div>
         );
+        break;
       case 'checkbox':
-        return (
+      case 'Checkbox':
+        fieldContent = (
           <div className="ffv-radio-group">
             {field.options?.map((opt) => {
               const vals: string[] = Array.isArray(value) ? value : [];
@@ -299,7 +328,7 @@ const FocusedFormView: React.FC = () => {
                 <label key={opt} className="ffv-radio-label">
                   <input
                     type="checkbox" value={opt} checked={vals.includes(opt)}
-                    disabled={isReadOnly}
+                    disabled={fieldIsReadOnly}
                     onChange={(e) => {
                       const next = e.target.checked ? [...vals, opt] : vals.filter((v) => v !== opt);
                       handleFieldChange(question.id, field.id, next);
@@ -311,8 +340,11 @@ const FocusedFormView: React.FC = () => {
             })}
           </div>
         );
+        break;
       case 'file':
-        return (
+      case 'File Upload':
+      case 'PDF Upload':
+        fieldContent = (
           <div className="ffv-file-area">
             {fileData ? (
               <div className="ffv-file-uploaded">
@@ -320,14 +352,14 @@ const FocusedFormView: React.FC = () => {
                 <a href={fileData.fileUrl} target="_blank" rel="noopener noreferrer" className="ffv-file-link">
                   {fileData.fileName || 'Uploaded file'}
                 </a>
-                {!isReadOnly && (
+                {!fieldIsReadOnly && (
                   <button className="ffv-file-remove" onClick={() => handleRemoveFile(question.id, field.id)}>
                     <Trash2 size={13} /> Remove
                   </button>
                 )}
               </div>
             ) : (
-              !isReadOnly && (
+              !fieldIsReadOnly && (
                 <label className="ffv-upload-btn">
                   <Upload size={14} /> Upload Document
                   <input
@@ -341,18 +373,27 @@ const FocusedFormView: React.FC = () => {
             )}
           </div>
         );
+        break;
       default:
-        return (
+        fieldContent = (
           <input
             className="ffv-input"
-            type={field.type === 'number' ? 'number' : 'text'}
+            type={(field.type === 'number' || field.type === 'Number Field') ? 'number' : (field.type === 'URL Field' ? 'url' : 'text')}
             value={value}
-            disabled={isReadOnly}
+            disabled={fieldIsReadOnly}
             placeholder={`Enter ${field.label.toLowerCase()}...`}
             onChange={(e) => handleFieldChange(question.id, field.id, e.target.value)}
           />
         );
+        break;
     }
+
+    return (
+      <div className="ffv-field-wrapper">
+        {evalAlert}
+        {fieldContent}
+      </div>
+    );
   };
 
 
@@ -452,27 +493,48 @@ const FocusedFormView: React.FC = () => {
               )}
 
               {/* Question header */}
-              <div className="ffv-q-header">
-                <div className="ffv-q-num-badge">Q{currentQuestion.questionNumber}</div>
-                <div className="ffv-q-meta">
-                  <h2 className="ffv-q-title">{currentQuestion.title}</h2>
+              <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '20px', marginBottom: '16px' }}>
+                <div style={{ fontWeight: 800, fontSize: '22px', color: '#1e1b4b', marginBottom: '16px', lineHeight: '1.4' }}>
+                  <span style={{ color: '#6366f1', marginRight: '8px' }}>Q{currentQuestion.questionNumber}.</span>
+                  {currentQuestion.title}
                   {currentQuestion.weightage > 0 && (
-                    <span className="ffv-q-weight">{currentQuestion.weightage} pts</span>
+                    <span style={{ marginLeft: '12px', fontSize: '14px', backgroundColor: '#e0e7ff', color: '#4338ca', padding: '4px 10px', borderRadius: '12px', verticalAlign: 'middle' }}>
+                      {currentQuestion.weightage} pts
+                    </span>
+                  )}
+                </div>
+                
+                <div className="elegant-details-box">
+                  {currentQuestion.guidelinesRef && (
+                    <div className="elegant-detail-item">
+                      <BookOpen size={16} className="detail-icon guidelines" />
+                      <span className="detail-label">Guidelines:</span> 
+                      {currentQuestion.guidelinesRef.toLowerCase().includes('page') 
+                        ? (() => {
+                            const match = currentQuestion.guidelinesRef.match(/page\s*(\d+)/i);
+                            const href = match ? `/guidelines.pdf#page=${match[1]}` : `/guidelines.pdf`;
+                            return <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>{currentQuestion.guidelinesRef}</a>;
+                          })()
+                        : <span style={{ color: '#475569' }}>{currentQuestion.guidelinesRef}</span>}
+                    </div>
+                  )}
+                  {currentQuestion.scoringCriteria && (
+                    <div className="elegant-detail-item">
+                      <Award size={16} className="detail-icon scoring" />
+                      <span className="detail-label">Scoring Criteria:</span> <span style={{ color: '#475569' }}>{currentQuestion.scoringCriteria}</span>
+                    </div>
+                  )}
+                  {currentQuestion.requiredDocuments && (
+                    <div className="elegant-detail-item evidence">
+                      <FileText size={16} className="detail-icon evidence-icon" />
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span className="detail-label evidence-label">Required Evidence:</span> 
+                        <span className="evidence-value">{currentQuestion.requiredDocuments}</span>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
-
-              {/* Info strips */}
-              {currentQuestion.requiredDocuments && (
-                <div className="ffv-info-strip docs">
-                  <strong>Required Documents:</strong> {currentQuestion.requiredDocuments}
-                </div>
-              )}
-              {currentQuestion.scoringCriteria && (
-                <div className="ffv-info-strip scoring">
-                  <strong>Scoring Criteria:</strong> {currentQuestion.scoringCriteria}
-                </div>
-              )}
 
               {/* Fields */}
               <div className="ffv-fields">
@@ -518,7 +580,7 @@ const FocusedFormView: React.FC = () => {
           {allQuestions.filter(isQuestionAnswered).length} / {allQuestions.length} questions answered
         </div>
         <div className="ffv-action-btns">
-          {!isReadOnly && (
+          {!isGlobalReadOnly && (
             <button className="ffv-btn-draft" onClick={saveSubmission} disabled={saving}>
               {saving ? <Loader2 size={15} className="ffv-spin" /> : <Save size={15} />}
               Save Draft
@@ -527,14 +589,14 @@ const FocusedFormView: React.FC = () => {
           <button
             className="ffv-btn-submit"
             onClick={() => {
-              if (isReadOnly) return;
+              if (isGlobalReadOnly) return;
               if (window.confirm('Submit this task? You won\'t be able to edit it after submission.')) {
                 submitAssignment();
               }
             }}
-            disabled={saving || isReadOnly}
+            disabled={saving || isGlobalReadOnly}
           >
-            {isReadOnly ? <CheckCircle2 size={15} /> : <Send size={15} />}
+            {isGlobalReadOnly ? <CheckCircle2 size={15} /> : <Send size={15} />}
             {assignment.status === 'SUBMITTED' ? 'Task Submitted' : assignment.status === 'EVALUATED' ? 'Task Evaluated' : 'Submit Task'}
           </button>
         </div>

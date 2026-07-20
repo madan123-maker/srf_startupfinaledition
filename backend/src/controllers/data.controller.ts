@@ -68,7 +68,13 @@ export const exportAdmins = async (req: Request, res: Response) => {
 
 export const exportSubmissions = async (req: Request, res: Response) => {
   try {
-    const submissions = await Submission.find().populate('userId', 'name email').populate('editionId', 'name').lean();
+    const { editionId } = req.query;
+    const filter: any = {};
+    if (editionId && editionId !== 'all') {
+      filter.editionId = editionId;
+    }
+
+    const submissions = await Submission.find(filter).populate('userId', 'name email').populate('editionId', 'name').lean();
     
     // Flatten data for CSV
     const flatData = submissions.map((sub: any) => ({

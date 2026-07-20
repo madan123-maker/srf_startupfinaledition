@@ -66,7 +66,7 @@ const EditionsDashboard: React.FC = () => {
   };
 
   const deleteEdition = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this edition? This action cannot be undone.')) return;
+    if (!window.confirm('Are you sure you want to delete this edition? This item will be stored in the recycle bin for 30 days before permanent removal.')) return;
     
     try {
       const token = localStorage.getItem('token');

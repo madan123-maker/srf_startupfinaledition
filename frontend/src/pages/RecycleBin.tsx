@@ -8,6 +8,8 @@ interface RecycleBinStats {
   assignments: number;
   applications: number;
   users: number;
+  reformAreas: number;
+  actionPoints: number;
 }
 
 interface DeletedItem {
@@ -15,7 +17,7 @@ interface DeletedItem {
   originalId: string;
   entityType: string;
   entityName: string;
-  deletedBy: { _id: string; name: string };
+  deletedBy?: { _id: string; name?: string; email?: string; role?: string };
   deletedAt: string;
 }
 
@@ -25,7 +27,7 @@ const TABS = [
 
 const RecycleBin: React.FC = () => {
   const [stats, setStats] = useState<RecycleBinStats>({
-    total: 0, editions: 0, assignments: 0, applications: 0, users: 0
+    total: 0, editions: 0, assignments: 0, applications: 0, users: 0, reformAreas: 0, actionPoints: 0
   });
   
   const [items, setItems] = useState<DeletedItem[]>([]);
@@ -84,12 +86,12 @@ const RecycleBin: React.FC = () => {
       result = result.filter(item => item.entityType === typeMap[activeTab]);
     }
 
-    // Filter by Search (entityName or deletedBy name)
+    // Filter by Search (entityName or deletedBy name/email)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(item => 
         item.entityName.toLowerCase().includes(q) || 
-        (item.deletedBy?.name || '').toLowerCase().includes(q)
+        (item.deletedBy?.name || item.deletedBy?.email || 'admin user').toLowerCase().includes(q)
       );
     }
 
@@ -166,6 +168,8 @@ const RecycleBin: React.FC = () => {
     if (tabName === 'Assignments') return `Assignments (${stats.assignments})`;
     if (tabName === 'Applications') return `Applications (${stats.applications})`;
     if (tabName === 'Users') return `Users (${stats.users})`;
+    if (tabName === 'Reform Areas') return `Reform Areas (${stats.reformAreas})`;
+    if (tabName === 'Action Points') return `Action Points (${stats.actionPoints})`;
     return `${tabName} (0)`; // Mock 0 for others until fully wired
   };
 
@@ -275,7 +279,7 @@ const RecycleBin: React.FC = () => {
                   <tr key={item._id}>
                     <td className="font-medium text-slate-800">{item.entityName}</td>
                     <td>{item.entityType}</td>
-                    <td>{item.deletedBy?.name || 'Unknown'}</td>
+                    <td>{item.deletedBy?.name || item.deletedBy?.email || 'Admin User'}</td>
                     <td>{new Date(item.deletedAt).toLocaleString()}</td>
                     <td>
                       <div className="rb-actions">

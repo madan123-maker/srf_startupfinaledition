@@ -57,7 +57,7 @@ export const deleteEdition = async (req: AuthRequest, res: Response) => {
     if (!req.user || req.user.role !== 'SUPER_ADMIN') {
       return res.status(403).json({ error: 'Only Super Admins can delete Editions.' });
     }
-    const result = await editionService.deleteEdition(req.params.id);
+    const result = await editionService.deleteEdition(req.params.id, req.user.id);
     return res.status(200).json(result);
   } catch (error: any) {
     return res.status(400).json({ error: error.message || 'Failed to delete edition' });

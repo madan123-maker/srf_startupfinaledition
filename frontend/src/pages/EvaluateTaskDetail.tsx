@@ -4,7 +4,7 @@ import { ArrowLeft, CheckCircle2, XCircle, AlertCircle, Loader2, Paperclip, Chec
 import './EvaluateTaskDetail.css';
 
 interface Field { id: string; label: string; type: string; options?: string[]; required?: boolean; }
-interface Question { id: string; questionNumber: string; title: string; fields: Field[]; points?: number; }
+interface Question { id: string; questionNumber: string; title: string; fields: Field[]; points?: number; weightage?: number; }
 interface ActionPoint { id: string; title: string; questions: Question[]; }
 interface ReformArea { id: string; title: string; actionPoints: ActionPoint[]; }
 
@@ -30,6 +30,8 @@ const EvaluateTaskDetail: React.FC = () => {
   const [evalStatus, setEvalStatus] = useState<string>('');
   const [remarks, setRemarks] = useState('');
   const [saving, setSaving] = useState(false);
+  const [fieldEvaluations, setFieldEvaluations] = useState<Record<string, {status: string, remarks: string}>>({});
+  const [questionScores, setQuestionScores] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -45,6 +47,24 @@ const EvaluateTaskDetail: React.FC = () => {
           setResponses(data.submission?.responses || []);
           if (data.assignment.evaluationStatus) setEvalStatus(data.assignment.evaluationStatus);
           if (data.assignment.evaluationRemarks) setRemarks(data.assignment.evaluationRemarks);
+
+          const initialFieldEvals: Record<string, {status: string, remarks: string}> = {};
+          const initialScores: Record<string, number> = {};
+          (data.submission?.responses || []).forEach((r: any) => {
+            if (r.score !== undefined) {
+              initialScores[r.questionId] = r.score;
+            }
+            r.fieldResponses?.forEach((fr: any) => {
+              if (fr.evaluationStatus && fr.evaluationStatus !== 'PENDING') {
+                initialFieldEvals[`${r.questionId}_${fr.fieldId}`] = {
+                  status: fr.evaluationStatus,
+                  remarks: fr.evaluationRemarks || ''
+                };
+              }
+            });
+          });
+          setFieldEvaluations(initialFieldEvals);
+          setQuestionScores(initialScores);
         }
       } catch (err) { console.error('Failed to load detail', err); }
       finally { setLoading(false); }
@@ -53,14 +73,41 @@ const EvaluateTaskDetail: React.FC = () => {
   }, [id]);
 
   const handleSaveEvaluation = async () => {
-    if (!evalStatus) return alert('Please select an evaluation status (Approve, Reject, or Needs Revision).');
+    // Auto-calculate global status based on field evaluations
+    let computedStatus = 'APPROVED';
+    const evals = Object.values(fieldEvaluations);
+    
+    if (evals.some(e => e.status === 'REJECTED')) {
+      computedStatus = 'REJECTED';
+    } else if (evals.some(e => e.status === 'RESUBMISSION_REQUIRED')) {
+      computedStatus = 'NEEDS_REVISION';
+    } else if (evals.length === 0) {
+      computedStatus = 'APPROVED'; // Default if no file fields exist or were evaluated
+    }
+
+    const allQuestions = schema ? schema.areas.flatMap(a => a.actionPoints.flatMap(ap => ap.questions)) : [];
+    let computedMaxScore = 0;
+    let computedAwardedScore = 0;
+    
+    allQuestions.forEach(q => {
+      computedMaxScore += (q.weightage || 0);
+      computedAwardedScore += (questionScores[q.id] || 0);
+    });
+
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`http://localhost:5001/api/assignments/${id}/evaluate`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ evaluationStatus: evalStatus, evaluationRemarks: remarks })
+        body: JSON.stringify({ 
+          evaluationStatus: computedStatus, 
+          evaluationRemarks: remarks, 
+          fieldEvaluations,
+          questionScores,
+          awardedScore: computedAwardedScore,
+          maxScore: computedMaxScore
+        })
       });
       if (res.ok) {
         navigate('/admin/evaluate-tasks');
@@ -88,10 +135,26 @@ const EvaluateTaskDetail: React.FC = () => {
     return fr && fr.fileUrl ? fr : null;
   };
 
+  const handleFieldEvalChange = (qId: string, fId: string, status: string) => {
+    setFieldEvaluations(prev => ({
+      ...prev,
+      [`${qId}_${fId}`]: { ...(prev[`${qId}_${fId}`] || {}), status }
+    }));
+  };
+
+  const handleFieldRemarkChange = (qId: string, fId: string, remarks: string) => {
+    setFieldEvaluations(prev => ({
+      ...prev,
+      [`${qId}_${fId}`]: { ...(prev[`${qId}_${fId}`] || {}), remarks }
+    }));
+  };
+
   if (loading) return <div style={{padding: 40}}>Loading details...</div>;
   if (!assignment || !schema) return <div style={{padding: 40}}>Task not found.</div>;
 
   const allQuestions = schema.areas.flatMap(a => a.actionPoints.flatMap(ap => ap.questions));
+  
+  const isFrozen = assignment.status === 'EVALUATED';
 
   return (
     <div className="etd-container">
@@ -105,22 +168,58 @@ const EvaluateTaskDetail: React.FC = () => {
             <h1>Task Evaluation</h1>
             <p>Reviewing submission for <strong>{assignment.userId?.state}</strong> ({assignment.userId?.name})</p>
           </div>
-          <div className="etd-status-badge">
-            Status: {assignment.status}
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+            <div className="etd-status-badge">
+              Status: {assignment.status}
+            </div>
+            {!isFrozen && (
+              <button 
+                className="etd-save-btn" 
+                onClick={handleSaveEvaluation}
+                disabled={saving}
+                style={{ margin: 0, padding: '10px 16px' }}
+              >
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                Save Evaluation
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="etd-layout">
+      <div className="etd-layout" style={{ justifyContent: 'center' }}>
         {/* Left: User Submission View */}
-        <div className="etd-main">
+        <div className="etd-main" style={{ maxWidth: '900px' }}>
           <div className="etd-section-title">User's Submitted Data</div>
           <div className="etd-scroll-area">
             {allQuestions.map(q => (
               <div key={q.id} className="etd-q-card">
                 <div className="etd-q-num">Q{q.questionNumber}</div>
-                <div className="etd-q-content">
-                  <h3>{q.title}</h3>
+                <div className="etd-q-content" style={{ width: '100%' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                    <h3 style={{ margin: 0, flex: 1, paddingRight: '16px' }}>{q.title}</h3>
+                    {(q.weightage || 0) > 0 && (
+                      <div className="etd-q-score-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Score:</span>
+                        <input 
+                          type="number" 
+                          disabled={isFrozen}
+                          max={q.weightage || 0}
+                          min={0}
+                          value={questionScores[q.id] ?? ''}
+                          onChange={e => {
+                            let val = parseInt(e.target.value);
+                            if (isNaN(val)) val = 0;
+                            if (val > (q.weightage || 0)) val = q.weightage || 0;
+                            if (val < 0) val = 0;
+                            setQuestionScores(prev => ({...prev, [q.id]: val}));
+                          }}
+                          style={{ width: '50px', textAlign: 'center', padding: '4px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 600 }}
+                        /> 
+                        <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>/ {q.weightage || 0} pts</span>
+                      </div>
+                    )}
+                  </div>
                   <div className="etd-fields">
                     {q.fields.map(f => {
                       const file = getFieldFile(q.id, f.id);
@@ -129,9 +228,24 @@ const EvaluateTaskDetail: React.FC = () => {
                         <div key={f.id} className="etd-field">
                           <div className="etd-field-label">{f.label}</div>
                           {file ? (
-                            <a href={file.fileUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
-                              <Paperclip size={14} /> {file.fileName || 'View Document'}
-                            </a>
+                            <div className="etd-file-eval-box">
+                              <a href={file.fileUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
+                                <Paperclip size={14} /> {file.fileName || 'View Document'}
+                              </a>
+                              <div className="etd-field-eval-controls">
+                                <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[`${q.id}_${f.id}`]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(q.id, f.id, 'APPROVED') }}>Approve</button>
+                                <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[`${q.id}_${f.id}`]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(q.id, f.id, 'RESUBMISSION_REQUIRED') }}>Resubmit</button>
+                                <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[`${q.id}_${f.id}`]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(q.id, f.id, 'REJECTED') }}>Reject</button>
+                              </div>
+                              <input 
+                                type="text" 
+                                className="etd-fe-remark" 
+                                placeholder="Remarks for this file..." 
+                                value={fieldEvaluations[`${q.id}_${f.id}`]?.remarks || ''}
+                                onChange={(e) => handleFieldRemarkChange(q.id, f.id, e.target.value)}
+                                disabled={isFrozen}
+                              />
+                            </div>
                           ) : (
                             <div className="etd-field-val">
                               {Array.isArray(val) ? val.join(', ') : val}
@@ -147,51 +261,6 @@ const EvaluateTaskDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* Right: Evaluation Panel */}
-        <div className="etd-sidebar">
-          <div className="etd-section-title">Evaluation</div>
-          
-          <div className="etd-eval-form">
-            <label className="etd-label">Decision</label>
-            <div className="etd-decision-btns">
-              <button 
-                className={`etd-d-btn approve ${evalStatus === 'APPROVED' ? 'active' : ''}`}
-                onClick={() => setEvalStatus('APPROVED')}
-              >
-                <CheckCircle2 size={16} /> Approve
-              </button>
-              <button 
-                className={`etd-d-btn revision ${evalStatus === 'NEEDS_REVISION' ? 'active' : ''}`}
-                onClick={() => setEvalStatus('NEEDS_REVISION')}
-              >
-                <AlertCircle size={16} /> Needs Revision
-              </button>
-              <button 
-                className={`etd-d-btn reject ${evalStatus === 'REJECTED' ? 'active' : ''}`}
-                onClick={() => setEvalStatus('REJECTED')}
-              >
-                <XCircle size={16} /> Reject
-              </button>
-            </div>
-
-            <label className="etd-label" style={{marginTop: 20}}>Remarks (Optional)</label>
-            <textarea 
-              className="etd-remarks" 
-              placeholder="Leave feedback for the user..."
-              value={remarks}
-              onChange={e => setRemarks(e.target.value)}
-            />
-
-            <button 
-              className="etd-save-btn" 
-              onClick={handleSaveEvaluation}
-              disabled={saving}
-            >
-              {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-              Save Evaluation
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

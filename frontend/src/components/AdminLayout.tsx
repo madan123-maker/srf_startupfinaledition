@@ -18,6 +18,7 @@ import {
   LogOut,
   Copy
 } from 'lucide-react';
+import EditProfileModal from './EditProfileModal';
 import './AdminLayout.css';
 
 const AdminLayout: React.FC = () => {
@@ -34,6 +35,49 @@ const AdminLayout: React.FC = () => {
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5001/api/notifications/my', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch notifications', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleNotificationsClick = async () => {
+    setShowNotifications(!showNotifications);
+    setShowProfileMenu(false);
+    
+    if (notifications.some(n => !n.isRead)) {
+      try {
+        const token = localStorage.getItem('token');
+        await fetch('http://localhost:5001/api/notifications/mark-read', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      } catch (err) {
+        console.error('Failed to mark read', err);
+      }
+    }
+  };
 
   useEffect(() => {
     const fetchTotalEditions = async () => {
@@ -127,6 +171,8 @@ const AdminLayout: React.FC = () => {
     }
   };
 
+
+
   return (
     <div className="admin-layout">
       {/* Sidebar */}
@@ -205,12 +251,54 @@ const AdminLayout: React.FC = () => {
           </div>
           
           <div className="header-actions">
-            <button className="icon-btn">
-              <Bell size={20} />
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button className="icon-btn" onClick={handleNotificationsClick}>
+                <Bell size={20} />
+                {notifications.some(n => !n.isRead) && (
+                  <span style={{
+                    position: 'absolute', top: '-2px', right: '-2px', 
+                    background: '#ef4444', color: 'white', fontSize: '10px', 
+                    borderRadius: '50%', padding: '2px 5px'
+                  }}>
+                    {notifications.filter(n => !n.isRead).length}
+                  </span>
+                )}
+              </button>
+              {showNotifications && (
+                <div className="profile-popover" style={{ width: '350px', maxHeight: '400px', overflowY: 'auto' }}>
+                  <div className="popover-header">
+                    <strong>Notifications</strong>
+                  </div>
+                  <div className="popover-body" style={{ padding: 0 }}>
+                    {notifications.length === 0 ? (
+                      <p style={{ textAlign: 'center', color: '#64748b', padding: '1rem' }}>No new notifications at this time.</p>
+                    ) : (
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                        {notifications.map((notif: any) => (
+                          <li key={notif._id} style={{ 
+                            padding: '1rem', 
+                            borderBottom: '1px solid #e2e8f0',
+                            background: notif.isRead ? '#ffffff' : '#f0f9ff',
+                            cursor: notif.link ? 'pointer' : 'default'
+                          }} onClick={() => {
+                            if (notif.link) {
+                              navigate(notif.link);
+                              setShowNotifications(false);
+                            }
+                          }}>
+                            <p style={{ margin: 0, fontSize: '13px', color: '#334155' }}>{notif.message}</p>
+                            <span style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(notif.createdAt).toLocaleString()}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             
             <div className="user-profile-container">
-              <div className="user-profile" onClick={() => setShowProfileMenu(!showProfileMenu)}>
+              <div className="user-profile" onClick={() => { setShowProfileMenu(!showProfileMenu); setShowNotifications(false); }}>
                 <div className="avatar">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</div>
                 <div className="user-info">
                   <span className="user-name">{user.name || 'Admin User'}</span>
@@ -220,14 +308,15 @@ const AdminLayout: React.FC = () => {
               
               {showProfileMenu && (
                 <div className="profile-popover">
-                  <div className="popover-header">
+                  <div className="popover-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <strong>User Details</strong>
+                    <button onClick={() => { setShowProfileMenu(false); setIsEditingProfile(true); }} style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', fontSize: '12px' }}>Edit</button>
                   </div>
                   <div className="popover-body">
-                    <p><strong>Name:</strong> {user.name || 'N/A'}</p>
+                    {user.name && <p><strong>Name:</strong> {user.name}</p>}
                     <p><strong>Email:</strong> {user.email || 'N/A'}</p>
                     <p><strong>Role:</strong> {user.role}</p>
-                    <p><strong>State:</strong> {user.state || 'N/A'}</p>
+                    {user.state && user.role !== 'SUPER_ADMIN' && <p><strong>State:</strong> {user.state}</p>}
                   </div>
                 </div>
               )}
@@ -337,6 +426,14 @@ const AdminLayout: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+        
+        {isEditingProfile && (
+          <EditProfileModal 
+            user={user}
+            onClose={() => setIsEditingProfile(false)}
+            onSuccess={() => setIsEditingProfile(false)}
+          />
         )}
       </main>
     </div>

@@ -19,6 +19,7 @@ interface User {
   name: string;
   email: string;
   state: string;
+  role: string;
 }
 
 const ReassignTasks: React.FC = () => {
@@ -245,7 +246,10 @@ const ReassignTasks: React.FC = () => {
                   className="rt-select"
                 >
                   <option value="">-- Select User --</option>
-                  {users.map(u => (
+                  {users.filter(u => {
+                    const currentAssignment = assignments.find(a => a._id === selectedAssignmentId);
+                    return (u.role === 'USER' || u.role === 'user') && u._id !== currentAssignment?.userId?._id;
+                  }).map(u => (
                     <option key={u._id} value={u._id}>
                       {u.name} ({u.email}) - {u.state || 'No State'}
                     </option>

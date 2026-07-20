@@ -195,6 +195,22 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
     }));
   };
 
+  const updateArea = (areaId: string, updates: Partial<ReformArea>) => {
+    setAreas(areas.map(area => area.id === areaId ? { ...area, ...updates } : area));
+  };
+
+  const updateActionPoint = (areaId: string, apId: string, updates: Partial<ActionPoint>) => {
+    setAreas(areas.map(area => {
+      if (area.id === areaId) {
+        return {
+          ...area,
+          actionPoints: area.actionPoints.map(ap => ap.id === apId ? { ...ap, ...updates } : ap)
+        };
+      }
+      return area;
+    }));
+  };
+
   const updateQuestion = (updates: Partial<Question>) => {
     if (!selectedAreaId || !selectedActionPointId || !selectedQuestionId) return;
     setAreas(areas.map(area => {
@@ -281,8 +297,24 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
 
   const removeArea = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this Reform Area? This item will be stored in the recycle bin for 30 days before permanent removal.')) return;
     setAreas(areas.filter(a => a.id !== id));
     if (selectedAreaId === id) setSelectedAreaId(null);
+  };
+
+  const removeActionPoint = (e: React.MouseEvent, areaId: string, apId: string) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this Action Point? This item will be stored in the recycle bin for 30 days before permanent removal.')) return;
+    setAreas(areas.map(area => {
+      if (area.id === areaId) {
+        return {
+          ...area,
+          actionPoints: area.actionPoints.filter(ap => ap.id !== apId)
+        };
+      }
+      return area;
+    }));
+    if (selectedActionPointId === apId) setSelectedActionPointId(null);
   };
 
   const selectedArea = areas.find(a => a.id === selectedAreaId);
@@ -329,8 +361,15 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
                     <button className="icon-btn delete-btn" onClick={(e) => removeArea(e, area.id)}><X size={12} /></button>
                   </div>
                 </div>
-                <div className="schema-card-subtitle" style={{ fontWeight: 600, color: '#475569' }}>
-                  {area.title.replace(/^\d+\.\s*/, '')}
+                <div className="schema-card-subtitle" style={{ fontWeight: 600, color: '#475569', marginTop: '8px' }}>
+                  <input 
+                    type="text" 
+                    value={area.title} 
+                    onChange={(e) => updateArea(area.id, { title: e.target.value })} 
+                    style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '4px 8px', fontSize: '13px' }}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder="Reform Area Name"
+                  />
                 </div>
               </div>
             ))}
@@ -356,11 +395,18 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
                     <div className="schema-card-actions" style={{ display: 'flex', gap: '4px', marginTop: 0 }}>
                       <button className="icon-btn"><ChevronUp size={12} /></button>
                       <button className="icon-btn"><ChevronDown size={12} /></button>
-                      <button className="icon-btn delete-btn"><X size={12} /></button>
+                      <button className="icon-btn delete-btn" onClick={(e) => removeActionPoint(e, selectedArea!.id, ap.id)}><X size={12} /></button>
                     </div>
                   </div>
                   <div style={{ fontWeight: 600, fontSize: '13.5px', color: '#1e293b', lineHeight: '1.4' }}>
-                    {ap.title}
+                    <input 
+                      type="text" 
+                      value={ap.title} 
+                      onChange={(e) => updateActionPoint(selectedArea!.id, ap.id, { title: e.target.value })} 
+                      style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', fontWeight: 600 }}
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder="Action Point Name"
+                    />
                   </div>
                 </div>
                 

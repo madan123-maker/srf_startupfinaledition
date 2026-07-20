@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { RefreshCw, ChevronLeft, FileText } from 'lucide-react';
+import { RefreshCw, ChevronLeft, FileText, Download, Edit } from 'lucide-react';
 import SchemaEditor from '../components/SchemaEditor/SchemaEditor';
 import './EditionWorkspace.css';
 
@@ -18,6 +18,10 @@ interface Submission {
   status: string;
   totalScore: number;
   createdAt: string;
+  userId?: {
+    name: string;
+    email: string;
+  };
 }
 
 const EditionWorkspace: React.FC = () => {
@@ -28,6 +32,10 @@ const EditionWorkspace: React.FC = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('applications');
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   
   // Role check for Schema Editor
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -90,6 +98,14 @@ const EditionWorkspace: React.FC = () => {
       fetchData();
     }
   }, [id]);
+
+  // Derive filtered submissions
+  const filteredSubmissions = submissions.filter((sub) => {
+    const matchesSearch = sub.stateName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          sub._id.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter ? sub.status === statusFilter : true;
+    return matchesSearch && matchesStatus;
+  });
 
   if (loading) {
     return <div className="workspace-loading">Loading Workspace...</div>;
@@ -171,21 +187,30 @@ const EditionWorkspace: React.FC = () => {
               <h3 className="app-title">Applications</h3>
               <div className="filter-controls">
                 <div className="search-box">
-                  <input type="text" placeholder="Search applicant / ID..." />
+                  <input 
+                    type="text" 
+                    placeholder="Search state / ID..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
                 </div>
-                <select className="filter-select">
-                  <option>All Statuses</option>
-                  <option>Pending</option>
-                  <option>Approved</option>
-                </select>
-                <select className="filter-select">
-                  <option>All Categories</option>
+                <select 
+                  className="filter-select"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="DRAFT">Draft</option>
+                  <option value="SUBMITTED">Submitted</option>
+                  <option value="UNDER_REVIEW">Under Review</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="REJECTED">Rejected</option>
                 </select>
               </div>
             </div>
 
             <div className="applications-list">
-              {submissions.length === 0 ? (
+              {filteredSubmissions.length === 0 ? (
                 <div className="empty-state">
                   <FileText size={48} color="#cbd5e1" />
                   <h4>No applications found</h4>
@@ -196,6 +221,7 @@ const EditionWorkspace: React.FC = () => {
                   <thead>
                     <tr>
                       <th>State</th>
+                      <th>User</th>
                       <th>Status</th>
                       <th>Score</th>
                       <th>Submitted Date</th>
@@ -203,23 +229,47 @@ const EditionWorkspace: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {submissions.map((sub) => (
+                    {filteredSubmissions.map((sub) => (
                       <tr key={sub._id}>
                         <td>{sub.stateName}</td>
+                        <td>
+                          {sub.userId ? (
+                            <div>
+                              <div style={{ fontWeight: 600, color: '#1e293b' }}>{sub.userId.name}</div>
+                              <div style={{ fontSize: '12px', color: '#64748b' }}>{sub.userId.email}</div>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#94a3b8' }}>N/A</span>
+                          )}
+                        </td>
                         <td>
                           <span className={`status-badge ${sub.status.toLowerCase()}`}>
                             {sub.status.replace('_', ' ')}
                           </span>
                         </td>
-                        <td>{sub.totalScore}</td>
+                        <td>
+                          <div style={{ fontWeight: 'bold', color: '#4338ca', backgroundColor: '#e0e7ff', padding: '4px 10px', borderRadius: '12px', display: 'inline-block', fontSize: '13px' }}>
+                            {sub.totalScore || 0} pts
+                          </div>
+                        </td>
                         <td>{new Date(sub.createdAt).toLocaleDateString()}</td>
                         <td>
-                          <button 
-                            className="btn-secondary btn-sm"
-                            onClick={() => navigate(`/admin/editions/${edition._id}/submissions/${sub._id}`)}
-                          >
-                            View
-                          </button>
+                          <div className="action-buttons-group" style={{ display: 'flex', gap: '8px' }}>
+                            <button 
+                              className="btn-secondary btn-sm"
+                              onClick={() => navigate(`/admin/editions/${edition._id}/submissions/${sub._id}`)}
+                              title="View"
+                            >
+                              View
+                            </button>
+                            <button 
+                              className="btn-secondary btn-sm"
+                              title="Download"
+                              onClick={() => alert('Download starting...')}
+                            >
+                              <Download size={14} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

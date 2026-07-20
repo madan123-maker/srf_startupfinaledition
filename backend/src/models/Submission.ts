@@ -13,14 +13,57 @@ export interface IFieldResponse {
   value: any;
   fileUrl?: string;
   fileName?: string;
-  evaluationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status?: 'DRAFT' | 'SUBMITTED';
+  evaluationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMISSION_REQUIRED';
   evaluationRemarks?: string;
   googleDriveFileId?: string;
+  history?: {
+    fileUrl: string;
+    fileName: string;
+    evaluationStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMISSION_REQUIRED';
+    evaluationRemarks?: string;
+    submittedAt: Date;
+  }[];
 }
 
 export interface ISubmissionResponse {
   questionId: string;
+  isApplying?: boolean;
+  score?: number;
   fieldResponses: IFieldResponse[];
+  additionalFiles?: {
+    fileId: string;
+    fileUrl: string;
+    fileName: string;
+    status: 'DRAFT' | 'SUBMITTED';
+    evaluationStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMISSION_REQUIRED';
+    evaluationRemarks?: string;
+    history?: {
+      fileUrl: string;
+      fileName: string;
+      evaluationStatus: string;
+      evaluationRemarks?: string;
+      submittedAt: Date;
+    }[];
+  }[];
+  supportingDocumentResponses?: {
+    documentId: string;
+    files: {
+      fileId: string;
+      fileUrl: string;
+      fileName: string;
+      status: 'DRAFT' | 'SUBMITTED';
+      evaluationStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMISSION_REQUIRED';
+      evaluationRemarks?: string;
+      history?: {
+        fileUrl: string;
+        fileName: string;
+        evaluationStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMISSION_REQUIRED';
+        evaluationRemarks?: string;
+        submittedAt: Date;
+      }[];
+    }[];
+  }[];
 }
 
 export interface ISubmission extends Document {
@@ -71,15 +114,70 @@ const SubmissionSchema: Schema = new Schema(
     responses: [
       {
         questionId: { type: String, required: true },
+        isApplying: { type: Boolean },
+        score: { type: Number, default: 0 },
         fieldResponses: [
           {
             fieldId: { type: String, required: true },
             value: { type: mongoose.Schema.Types.Mixed },
             fileUrl: { type: String },
             fileName: { type: String },
-            evaluationStatus: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
+            status: { type: String, enum: ['DRAFT', 'SUBMITTED'], default: 'DRAFT' },
+            evaluationStatus: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED', 'RESUBMISSION_REQUIRED'], default: 'PENDING' },
             evaluationRemarks: { type: String },
-            googleDriveFileId: { type: String }
+            googleDriveFileId: { type: String },
+            history: [
+              {
+                fileUrl: { type: String, required: true },
+                fileName: { type: String, required: true },
+                evaluationStatus: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED', 'RESUBMISSION_REQUIRED'], required: true },
+                evaluationRemarks: { type: String },
+                submittedAt: { type: Date, default: Date.now }
+              }
+            ]
+          }
+        ],
+        additionalFiles: [
+          {
+            fileId: { type: String, required: true },
+            fileUrl: { type: String, required: true },
+            fileName: { type: String, required: true },
+            status: { type: String, enum: ['DRAFT', 'SUBMITTED'], default: 'DRAFT' },
+            evaluationStatus: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED', 'RESUBMISSION_REQUIRED'], default: 'PENDING' },
+            evaluationRemarks: { type: String },
+            history: [
+              {
+                fileUrl: { type: String, required: true },
+                fileName: { type: String, required: true },
+                evaluationStatus: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED', 'RESUBMISSION_REQUIRED'], required: true },
+                evaluationRemarks: { type: String },
+                submittedAt: { type: Date, default: Date.now }
+              }
+            ]
+          }
+        ],
+        supportingDocumentResponses: [
+          {
+            documentId: { type: String, required: true },
+            files: [
+              {
+                fileId: { type: String, required: true },
+                fileUrl: { type: String, required: true },
+                fileName: { type: String, required: true },
+                status: { type: String, enum: ['DRAFT', 'SUBMITTED'], default: 'DRAFT' },
+                evaluationStatus: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED', 'RESUBMISSION_REQUIRED'], default: 'PENDING' },
+                evaluationRemarks: { type: String },
+                history: [
+                  {
+                    fileUrl: { type: String, required: true },
+                    fileName: { type: String, required: true },
+                    evaluationStatus: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED', 'RESUBMISSION_REQUIRED'], required: true },
+                    evaluationRemarks: { type: String },
+                    submittedAt: { type: Date, default: Date.now }
+                  }
+                ]
+              }
+            ]
           }
         ]
       }

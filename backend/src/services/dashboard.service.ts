@@ -30,13 +30,14 @@ export class DashboardService {
 
     // Optional: District Compliance Progress - since we don't have a districts model yet, 
     // we'll return dummy compliance data for the charts as requested by the dashboard structure.
-    const districtCompliance = [
+    // However, if there are no applications, don't show the dummy data.
+    const districtCompliance = totalApplications > 0 ? [
       { name: 'Bengaluru', progress: 85 },
       { name: 'Mysuru', progress: 60 },
       { name: 'Hubballi', progress: 45 },
       { name: 'Mangaluru', progress: 70 },
       { name: 'Belagavi', progress: 30 },
-    ];
+    ] : [];
 
     return {
       executiveCommand: {
