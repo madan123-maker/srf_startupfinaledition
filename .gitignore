@@ -71,3 +71,5 @@ backend/uploads/
 *.njsproj
 *.sln
 *.sw?
+
+SRF_6.0_Framework_VF.pdf

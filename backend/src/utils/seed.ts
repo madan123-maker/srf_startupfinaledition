@@ -18,13 +18,13 @@ export const seedSuperAdmin = async () => {
       const hashedPassword = await bcrypt.hash('Admin@123', salt);
       
       const newAdmin = await User.create({
-        email: 'superadmin@srf.gov.in',
+        email: 'srfpapis@gmail.com',
         passwordHash: hashedPassword,
         role: Role.SUPER_ADMIN,
         isActive: true,
       });
       adminId = newAdmin._id;
-      console.log('Default Super Admin seeded successfully (email: superadmin@srf.gov.in)');
+      console.log('Default Super Admin seeded successfully (email: srfpapis@gmail.com)');
     } else {
       adminId = superAdminExists._id;
       console.log('Super Admin already exists.');
