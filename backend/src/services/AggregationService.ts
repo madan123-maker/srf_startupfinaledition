@@ -51,10 +51,15 @@ export class AggregationService {
           const max = q.maxScore || q.weightage || 0;
           let awarded = 0;
 
-          // Find awarded score from Evaluation
+          // Find awarded score from Evaluation or Submission response
           const ans = evaluation?.answers.find(a => a.questionId === q.id);
+          const qResp = submission.responses.find(r => r.questionId === q.id);
+
           if (ans && ans.awardedScore !== null && ans.awardedScore !== undefined) {
             awarded = ans.awardedScore;
+            evaluatedQuestionsCount++;
+          } else if (qResp && qResp.score !== undefined && qResp.score !== null) {
+            awarded = qResp.score;
             evaluatedQuestionsCount++;
           }
 

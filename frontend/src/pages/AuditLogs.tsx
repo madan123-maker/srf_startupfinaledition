@@ -17,6 +17,18 @@ const AuditLogs: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const userStr = localStorage.getItem('user');
+  const currentUser = userStr ? JSON.parse(userStr) : null;
+
+  if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
+    return (
+      <div className="audit-logs-container" style={{ padding: '3rem', textAlign: 'center' }}>
+        <h2 style={{ fontSize: '20px', color: '#1e293b', marginBottom: '0.5rem' }}>Access Denied</h2>
+        <p style={{ color: '#64748b' }}>Only Super Admins have permission to view Audit Logs.</p>
+      </div>
+    );
+  }
+
   // Filters state
   const [filters, setFilters] = useState({
     search: '',

@@ -38,3 +38,11 @@ export const adminOnly = (req: AuthRequest, res: Response, next: NextFunction) =
     res.status(403).json({ error: 'Not authorized as an admin' });
   }
 };
+
+export const superAdminOnly = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.user && req.user.role === 'SUPER_ADMIN') {
+    next();
+  } else {
+    res.status(403).json({ error: 'Not authorized. Super Admin access required.' });
+  }
+};

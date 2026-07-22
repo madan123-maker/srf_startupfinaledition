@@ -296,16 +296,19 @@ export default function AdminSubmissionView() {
                           </div>
                           
                           {(() => {
-                            if (!summary) return null;
                             let qSummary = null;
-                            for (const area of summary.reformAreas) {
-                              for (const ap of area.actionPoints) {
-                                const qs = ap.questions.find((x: any) => x.id === q.id);
-                                if (qs) { qSummary = qs; break; }
+                            if (summary?.reformAreas) {
+                              for (const area of summary.reformAreas) {
+                                for (const ap of area.actionPoints) {
+                                  const qs = ap.questions.find((x: any) => x.id === q.id);
+                                  if (qs) { qSummary = qs; break; }
+                                }
+                                if (qSummary) break;
                               }
-                              if (qSummary) break;
                             }
-                            if (!qSummary) return null;
+                            
+                            const awardedVal = qSummary ? qSummary.awarded : (qResp?.score ?? 0);
+                            const maxVal = qSummary ? qSummary.max : (q.maxScore || q.weightage || 1);
                             
                             return (
                               <div style={{ 
@@ -317,7 +320,7 @@ export default function AdminSubmissionView() {
                                   Awarded Score
                                 </span>
                                 <div style={{ fontSize: '24px', fontWeight: 800, color: '#4338ca', marginTop: '4px' }}>
-                                  {qSummary.awarded} <span style={{ fontSize: '14px', color: '#94a3b8' }}>/ {qSummary.max}</span>
+                                  {awardedVal} <span style={{ fontSize: '14px', color: '#94a3b8' }}>/ {maxVal}</span>
                                 </div>
                               </div>
                             );

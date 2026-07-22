@@ -20,8 +20,14 @@ const DataManagement: React.FC = () => {
   const [downloading, setDownloading] = useState<string | null>(null);
   
   const [editions, setEditions] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [selectedEdition, setSelectedEdition] = useState('all');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Custom Filters State
+  const [filterUser, setFilterUser] = useState('all');
+  const [filterEdition, setFilterEdition] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -56,8 +62,24 @@ const DataManagement: React.FC = () => {
       }
     };
 
+    const fetchUsers = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('http://localhost:5001/api/users', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setUsers(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch users', error);
+      }
+    };
+
     fetchStats();
     fetchEditions();
+    fetchUsers();
   }, []);
 
   const handleDownload = async (endpoint: string, filename: string, overrideEditionId?: string) => {
@@ -80,10 +102,7 @@ const DataManagement: React.FC = () => {
         throw new Error(data.error || 'Failed to download data');
       }
 
-      // Convert response to blob
       const blob = await response.blob();
-      
-      // Create a temporary link element to trigger the download
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -91,11 +110,44 @@ const DataManagement: React.FC = () => {
       document.body.appendChild(a);
       a.click();
       
-      // Cleanup
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error: any) {
       alert(`Download failed: ${error.message}`);
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const handleFilteredDownload = async () => {
+    setDownloading('filtered');
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+      if (filterUser !== 'all') params.append('userId', filterUser);
+      if (filterEdition !== 'all') params.append('editionId', filterEdition);
+      if (filterStatus !== 'all') params.append('status', filterStatus);
+
+      const response = await fetch(`http://localhost:5001/api/data/export/filtered-submissions?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'No records found for selected filters.');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `filtered_report_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert(`Download failed: ${err.message}`);
     } finally {
       setDownloading(null);
     }
@@ -130,11 +182,79 @@ const DataManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Exports Section */}
+      {/* Custom Filtered Export Section */}
+      <div className="dm-export-section" style={{ marginBottom: '24px' }}>
+        <div className="dm-section-header">
+          <h3>Custom Filtered Export (User, Edition & Status)</h3>
+          <p>Filter data by specific Nodal Officer / User, Edition, and Approval Status (Approved, Rejected, Resubmission Required) to download a custom CSV report.</p>
+        </div>
+
+        <div className="dm-filters-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px', marginTop: '16px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Filter by User / Nodal Officer</label>
+            <select 
+              value={filterUser} 
+              onChange={(e) => setFilterUser(e.target.value)}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', background: '#ffffff', color: '#1e293b' }}
+            >
+              <option value="all">All Users / Nodal Officers</option>
+              {users.map(u => (
+                <option key={u._id} value={u._id}>
+                  {u.name || u.email} ({u.state || u.role})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Filter by Edition</label>
+            <select 
+              value={filterEdition} 
+              onChange={(e) => setFilterEdition(e.target.value)}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', background: '#ffffff', color: '#1e293b' }}
+            >
+              <option value="all">All Editions</option>
+              {editions.map(ed => (
+                <option key={ed._id} value={ed._id}>
+                  {ed.name} (v{ed.version})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Filter by Status</label>
+            <select 
+              value={filterStatus} 
+              onChange={(e) => setFilterStatus(e.target.value)}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', background: '#ffffff', color: '#1e293b' }}
+            >
+              <option value="all">All Statuses</option>
+              <option value="APPROVED">APPROVED</option>
+              <option value="REJECTED">REJECTED</option>
+              <option value="RESUBMISSION_REQUIRED">RESUBMISSION REQUIRED</option>
+              <option value="UNDER_REVIEW">UNDER REVIEW</option>
+              <option value="DRAFT">DRAFT</option>
+            </select>
+          </div>
+        </div>
+
+        <button 
+          className="dm-btn dm-btn-purple"
+          onClick={handleFilteredDownload}
+          disabled={downloading === 'filtered'}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#4f46e5', color: '#ffffff', border: 'none', padding: '12px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+        >
+          <FileSpreadsheet size={18} />
+          {downloading === 'filtered' ? 'Generating Filtered CSV...' : 'Download Filtered CSV Report'}
+        </button>
+      </div>
+
+      {/* Global Exports Section */}
       <div className="dm-export-section">
         <div className="dm-section-header">
-          <h3>Export & Downloads</h3>
-          <p>Download real-time data of all user submissions and documents.</p>
+          <h3>Global Export & Downloads</h3>
+          <p>Download full system data collections.</p>
         </div>
         
         <div className="dm-buttons-row">

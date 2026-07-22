@@ -47,11 +47,12 @@ const UserLayout: React.FC = () => {
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 60000); // Polling every 1 minute
+    const interval = setInterval(fetchNotifications, 10000); // Polling every 10 seconds
     return () => clearInterval(interval);
   }, []);
 
   const handleNotificationsClick = async () => {
+    fetchNotifications();
     setShowNotifications(!showNotifications);
     setShowProfileMenu(false);
     

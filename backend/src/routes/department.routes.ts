@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '../controllers/department.controller';
-import { protect, adminOnly } from '../middleware/auth.middleware';
+import { protect, superAdminOnly } from '../middleware/auth.middleware';
 
 const router = Router();
 
-router.use(protect as any, adminOnly as any);
+router.use(protect as any, superAdminOnly as any);
 
 router.get('/', getDepartments);
 router.post('/', createDepartment);

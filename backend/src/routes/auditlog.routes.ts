@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { getAuditLogs } from '../controllers/auditlog.controller';
-import { protect, adminOnly } from '../middleware/auth.middleware';
+import { protect, superAdminOnly } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// Only Admins can view audit logs
-router.get('/', protect as any, adminOnly as any, getAuditLogs);
+// Only Super Admins can view audit logs
+router.get('/', protect as any, superAdminOnly as any, getAuditLogs);
 
 export default router;

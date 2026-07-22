@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Submission, SubmissionStatus } from '../models/Submission';
 import { User } from '../models/User';
+import { Assignment } from '../models/Assignment';
 import { FormSchemaModel } from '../models/FormSchema';
 import { EvaluationService } from '../services/EvaluationService';
 import { Notification } from '../models/Notification';
@@ -8,9 +9,71 @@ import { Notification } from '../models/Notification';
 export const getSubmissionsByEdition = async (req: Request, res: Response) => {
   try {
     const { editionId } = req.params;
-    const submissions = await Submission.find({ editionId }).populate('userId', 'name email').sort({ createdAt: -1 });
+
+    // Fetch submissions for this edition
+    const submissions = await Submission.find({ editionId }).populate('userId', 'name email state').sort({ createdAt: -1 });
+
+    // Fetch assignments for this edition to check reform area tasks and evaluation scores
+    const assignments = await Assignment.find({ editionId }).populate('userId', 'name email state');
+
+    // Filter evaluated assignments that have awarded scores
+    const evaluatedAssignments = assignments.filter((a) => a.status === 'EVALUATED' && a.awardedScore !== undefined);
+
+    if (evaluatedAssignments.length > 0) {
+      // Group evaluated assignments by reformAreaId (or scope if not reformAreaId)
+      const groups: Record<string, typeof evaluatedAssignments> = {};
+      evaluatedAssignments.forEach((a) => {
+        const key = a.reformAreaId || a.scope || 'WHOLE_EDITION';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(a);
+      });
+
+      // For each group, determine highest score and pick all top scorers (including ties)
+      const topAssignments: typeof evaluatedAssignments = [];
+      Object.values(groups).forEach((group) => {
+        const maxScore = Math.max(...group.map((a) => a.awardedScore || 0));
+        const topScorers = group.filter((a) => (a.awardedScore || 0) === maxScore);
+        topAssignments.push(...topScorers);
+      });
+
+      // Map top assignments into the standard submission response format
+      const topSubmissions = topAssignments.map((a) => {
+        const matchingSub = submissions.find(
+          (s) => s.userId && (s.userId as any)._id?.toString() === (a.userId as any)?._id?.toString()
+        );
+        const userObj: any = a.userId;
+        return {
+          _id: matchingSub ? matchingSub._id : a._id,
+          stateName: userObj?.state || matchingSub?.stateName || 'Andhra Pradesh',
+          status: a.status || (matchingSub ? matchingSub.status : 'EVALUATED'),
+          totalScore: a.awardedScore !== undefined ? a.awardedScore : (matchingSub ? matchingSub.totalScore : 0),
+          createdAt: matchingSub ? matchingSub.createdAt : (a as any).createdAt || a.assignedAt || new Date(),
+          userId: userObj
+            ? {
+                _id: userObj._id,
+                name: userObj.name || userObj.email.split('@')[0],
+                email: userObj.email,
+                state: userObj.state,
+              }
+            : undefined,
+        };
+      });
+
+      return res.status(200).json(topSubmissions);
+    }
+
+    // Check if any direct submissions have totalScore evaluated > 0
+    const evaluatedSubmissions = submissions.filter((s) => (s.status as string) === 'EVALUATED' || s.status === SubmissionStatus.APPROVED);
+    if (evaluatedSubmissions.length > 0) {
+      const maxScore = Math.max(...evaluatedSubmissions.map((s) => s.totalScore || 0));
+      const topScorers = evaluatedSubmissions.filter((s) => (s.totalScore || 0) === maxScore);
+      return res.status(200).json(topScorers);
+    }
+
+    // Fallback: If no evaluations completed yet, return all submissions as normal
     return res.status(200).json(submissions);
   } catch (error: any) {
+    console.error('Error fetching submissions by edition:', error);
     return res.status(500).json({ error: error.message || 'Failed to fetch submissions' });
   }
 };
@@ -67,7 +130,7 @@ export const updateMySubmission = async (req: any, res: Response) => {
     }
 
     // Check if any field requires resubmission or is rejected
-    const hasResubmission = submission.responses.some(q => 
+    const hasResubmission = submission.responses.some(q =>
       q.fieldResponses.some((f: any) => f.evaluationStatus === 'RESUBMISSION_REQUIRED' || f.evaluationStatus === 'REJECTED') ||
       q.additionalFiles?.some((f: any) => f.evaluationStatus === 'RESUBMISSION_REQUIRED' || f.evaluationStatus === 'REJECTED') ||
       q.supportingDocumentResponses?.some((d: any) => d.files.some((f: any) => f.evaluationStatus === 'RESUBMISSION_REQUIRED' || f.evaluationStatus === 'REJECTED'))
@@ -88,7 +151,7 @@ export const updateMySubmission = async (req: any, res: Response) => {
             if (oldF) {
               // Preserve history
               newF.history = oldF.history || [];
-              
+
               // If frontend is uploading a new file after rejection or resubmission request:
               if ((oldF.evaluationStatus === 'REJECTED' || oldF.evaluationStatus === 'RESUBMISSION_REQUIRED') && newF.fileUrl && newF.fileUrl !== oldF.fileUrl) {
                 newF.history.push({
@@ -107,57 +170,57 @@ export const updateMySubmission = async (req: any, res: Response) => {
               }
             }
           }
-          
-            if (newQ.additionalFiles) {
-              for (const newAF of newQ.additionalFiles) {
-                const oldAF = oldQ.additionalFiles?.find((af: any) => af.fileId === newAF.fileId);
-                if (oldAF) {
-                  newAF.history = oldAF.history || [];
-                  if ((oldAF.evaluationStatus === 'REJECTED' || oldAF.evaluationStatus === 'RESUBMISSION_REQUIRED') && newAF.fileUrl && newAF.fileUrl !== oldAF.fileUrl) {
-                    newAF.history.push({
-                      fileUrl: oldAF.fileUrl,
-                      fileName: oldAF.fileName || 'Unknown',
-                      evaluationStatus: oldAF.evaluationStatus,
-                      evaluationRemarks: oldAF.evaluationRemarks,
-                      submittedAt: new Date()
-                    });
-                    newAF.evaluationStatus = 'PENDING';
-                    newAF.evaluationRemarks = '';
-                  } else if (newAF.evaluationStatus === undefined) {
-                    newAF.evaluationStatus = oldAF.evaluationStatus;
-                    newAF.evaluationRemarks = oldAF.evaluationRemarks;
-                  }
+
+          if (newQ.additionalFiles) {
+            for (const newAF of newQ.additionalFiles) {
+              const oldAF = oldQ.additionalFiles?.find((af: any) => af.fileId === newAF.fileId);
+              if (oldAF) {
+                newAF.history = oldAF.history || [];
+                if ((oldAF.evaluationStatus === 'REJECTED' || oldAF.evaluationStatus === 'RESUBMISSION_REQUIRED') && newAF.fileUrl && newAF.fileUrl !== oldAF.fileUrl) {
+                  newAF.history.push({
+                    fileUrl: oldAF.fileUrl,
+                    fileName: oldAF.fileName || 'Unknown',
+                    evaluationStatus: oldAF.evaluationStatus,
+                    evaluationRemarks: oldAF.evaluationRemarks,
+                    submittedAt: new Date()
+                  });
+                  newAF.evaluationStatus = 'PENDING';
+                  newAF.evaluationRemarks = '';
+                } else if (newAF.evaluationStatus === undefined) {
+                  newAF.evaluationStatus = oldAF.evaluationStatus;
+                  newAF.evaluationRemarks = oldAF.evaluationRemarks;
                 }
               }
             }
+          }
 
-            if (newQ.supportingDocumentResponses) {
-              for (const newDoc of newQ.supportingDocumentResponses) {
-                const oldDoc = oldQ.supportingDocumentResponses?.find((doc: any) => doc.documentId === newDoc.documentId);
-                if (oldDoc) {
-                  for (const newFile of newDoc.files) {
-                    const oldFile = oldDoc.files.find((f: any) => f.fileId === newFile.fileId);
-                    if (oldFile) {
-                      newFile.history = oldFile.history || [];
-                      if ((oldFile.evaluationStatus === 'REJECTED' || oldFile.evaluationStatus === 'RESUBMISSION_REQUIRED') && newFile.fileUrl && newFile.fileUrl !== oldFile.fileUrl) {
-                        newFile.history.push({
-                          fileUrl: oldFile.fileUrl,
-                          fileName: oldFile.fileName || 'Unknown',
-                          evaluationStatus: oldFile.evaluationStatus,
-                          evaluationRemarks: oldFile.evaluationRemarks,
-                          submittedAt: new Date()
-                        });
-                        newFile.evaluationStatus = 'PENDING';
-                        newFile.evaluationRemarks = '';
-                      } else if (newFile.evaluationStatus === undefined) {
-                        newFile.evaluationStatus = oldFile.evaluationStatus;
-                        newFile.evaluationRemarks = oldFile.evaluationRemarks;
-                      }
+          if (newQ.supportingDocumentResponses) {
+            for (const newDoc of newQ.supportingDocumentResponses) {
+              const oldDoc = oldQ.supportingDocumentResponses?.find((doc: any) => doc.documentId === newDoc.documentId);
+              if (oldDoc) {
+                for (const newFile of newDoc.files) {
+                  const oldFile = oldDoc.files.find((f: any) => f.fileId === newFile.fileId);
+                  if (oldFile) {
+                    newFile.history = oldFile.history || [];
+                    if ((oldFile.evaluationStatus === 'REJECTED' || oldFile.evaluationStatus === 'RESUBMISSION_REQUIRED') && newFile.fileUrl && newFile.fileUrl !== oldFile.fileUrl) {
+                      newFile.history.push({
+                        fileUrl: oldFile.fileUrl,
+                        fileName: oldFile.fileName || 'Unknown',
+                        evaluationStatus: oldFile.evaluationStatus,
+                        evaluationRemarks: oldFile.evaluationRemarks,
+                        submittedAt: new Date()
+                      });
+                      newFile.evaluationStatus = 'PENDING';
+                      newFile.evaluationRemarks = '';
+                    } else if (newFile.evaluationStatus === undefined) {
+                      newFile.evaluationStatus = oldFile.evaluationStatus;
+                      newFile.evaluationRemarks = oldFile.evaluationRemarks;
                     }
                   }
                 }
               }
             }
+          }
         }
       }
       submission.responses = responses;
@@ -256,39 +319,39 @@ export const evaluateDocument = async (req: any, res: Response) => {
           }
           if (questionNode) break;
         }
-        
+
         if (questionNode) {
           const response = updated.responses.find(r => r.questionId === questionId);
           if (response) {
             let scoreToAward = 0;
-            
+
             // Auto-scoring logic based on supporting documents if they exist
             if (response.supportingDocumentResponses && response.supportingDocumentResponses.length > 0) {
-                // Determine if all required documents are APPROVED
-                // Note: since we don't have the exact mandatory schema here easily, we rely on checking if ANY file is REJECTED or if no files are APPROVED yet
-                // For a simpler strict rule: if ANY file in supportingDocumentResponses is REJECTED, score is 0. Else if at least one is APPROVED, award full score.
-                const hasRejectedSuppDoc = response.supportingDocumentResponses.some((docResp: any) => 
-                    docResp.files?.some((f: any) => f.evaluationStatus === 'REJECTED' || f.evaluationStatus === 'RESUBMISSION_REQUIRED')
-                );
-                const hasApprovedSuppDoc = response.supportingDocumentResponses.some((docResp: any) => 
-                    docResp.files?.some((f: any) => f.evaluationStatus === 'APPROVED')
-                );
-                
-                if (hasRejectedSuppDoc) {
-                    scoreToAward = 0;
-                } else if (hasApprovedSuppDoc) {
-                    scoreToAward = (questionNode.maxScore || questionNode.weightage || 0);
-                }
+              // Determine if all required documents are APPROVED
+              // Note: since we don't have the exact mandatory schema here easily, we rely on checking if ANY file is REJECTED or if no files are APPROVED yet
+              // For a simpler strict rule: if ANY file in supportingDocumentResponses is REJECTED, score is 0. Else if at least one is APPROVED, award full score.
+              const hasRejectedSuppDoc = response.supportingDocumentResponses.some((docResp: any) =>
+                docResp.files?.some((f: any) => f.evaluationStatus === 'REJECTED' || f.evaluationStatus === 'RESUBMISSION_REQUIRED')
+              );
+              const hasApprovedSuppDoc = response.supportingDocumentResponses.some((docResp: any) =>
+                docResp.files?.some((f: any) => f.evaluationStatus === 'APPROVED')
+              );
+
+              if (hasRejectedSuppDoc) {
+                scoreToAward = 0;
+              } else if (hasApprovedSuppDoc) {
+                scoreToAward = (questionNode.maxScore || questionNode.weightage || 0);
+              }
             } else {
-                // Fallback to legacy fields
-                const hasApprovedField = response.fieldResponses?.some((f: any) => f.evaluationStatus === 'APPROVED');
-                const hasApprovedAdditional = response.additionalFiles?.some((f: any) => f.evaluationStatus === 'APPROVED');
-                scoreToAward = (hasApprovedField || hasApprovedAdditional) ? (questionNode.maxScore || questionNode.weightage || 0) : 0;
+              // Fallback to legacy fields
+              const hasApprovedField = response.fieldResponses?.some((f: any) => f.evaluationStatus === 'APPROVED');
+              const hasApprovedAdditional = response.additionalFiles?.some((f: any) => f.evaluationStatus === 'APPROVED');
+              scoreToAward = (hasApprovedField || hasApprovedAdditional) ? (questionNode.maxScore || questionNode.weightage || 0) : 0;
             }
-            
+
             const evaluationService = new EvaluationService();
             await evaluationService.submitQuestionScore(id, req.user.id, questionId, scoreToAward, `Auto-scored from document evaluation (${status})`);
-            
+
             // Refetch updated submission since evaluationService might have updated totalScore
             const finalUpdated = await Submission.findById(id).populate('userId', 'name email');
             return res.status(200).json(finalUpdated);

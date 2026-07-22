@@ -154,19 +154,19 @@ const ManageUsers: React.FC = () => {
                 <th>ROLE</th>
                 <th>ORGANIZATION</th>
                 <th>STATE</th>
-                <th>ACTIONS</th>
+                {user.role === 'SUPER_ADMIN' && <th>ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="empty-state">
+                  <td colSpan={user.role === 'SUPER_ADMIN' ? 7 : 6} className="empty-state">
                     <div className="empty-content"><p>Loading users...</p></div>
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="empty-state">
+                  <td colSpan={user.role === 'SUPER_ADMIN' ? 7 : 6} className="empty-state">
                     <div className="empty-content">
                       <Users size={40} color="#cbd5e1" />
                       <p>No users found.</p>
@@ -195,37 +195,34 @@ const ManageUsers: React.FC = () => {
                     </td>
                     <td>{appUser.organization || 'DPIIT'}</td>
                     <td>{appUser.state || <span style={{ color: '#94a3b8' }}>—</span>}</td>
-                    <td>
-                      <div className="actions-cell">
-                        {appUser.role === 'USER' && user.role === 'SUPER_ADMIN' && (
-                          <button
-                            className="btn-action-assign"
-                            onClick={() => setAssignUser(appUser)}
+                    {user.role === 'SUPER_ADMIN' && (
+                      <td>
+                        <div className="actions-cell">
+                          {appUser.role === 'USER' && (
+                            <button
+                              className="btn-action-assign"
+                              onClick={() => setAssignUser(appUser)}
+                            >
+                              Assign
+                            </button>
+                          )}
+                          <button 
+                            className="btn-action-edit"
+                            onClick={() => handleEditUser(appUser)}
                           >
-                            Assign
+                            Edit
                           </button>
-                        )}
-                        <button 
-                          className="btn-action-edit"
-                          onClick={() => handleEditUser(appUser)}
-                        >
-                          Edit
-                        </button>
-                        {appUser.role !== 'SUPER_ADMIN' && user.role === 'SUPER_ADMIN' && (
-                          <>
+                          {appUser.role !== 'SUPER_ADMIN' && (
                             <button
                               className="btn-action-delete"
                               onClick={() => handleDeleteUser(appUser._id, appUser.name || appUser.email)}
                             >
                               Delete
                             </button>
-                            <button className="btn-action-deactivate">
-                              Deactivate
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}

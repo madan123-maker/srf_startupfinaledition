@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { Message } from '../models/Message';
 import { User } from '../models/User';
+import { Notification } from '../models/Notification';
 
 export const getContacts = async (req: AuthRequest, res: Response) => {
   try {
@@ -69,6 +70,26 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       receiverId,
       content,
     });
+
+    // Create Notification for receiver
+    try {
+      const sender = await User.findById(currentUserId).select('name role state email');
+      const receiver = await User.findById(receiverId).select('role');
+      if (sender && receiver) {
+        const senderName = sender.name || sender.state || sender.email || 'Someone';
+        const targetLink = receiver.role === 'USER' ? '/user-dashboard/messages' : '/admin/messages';
+        const snippet = content.length > 35 ? content.substring(0, 35) + '...' : content;
+        
+        await Notification.create({
+          userId: receiverId,
+          message: `New message from ${senderName}: "${snippet}"`,
+          link: targetLink,
+          isRead: false
+        });
+      }
+    } catch (notifErr) {
+      console.error('Failed to send notification for message:', notifErr);
+    }
 
     res.status(201).json(newMessage);
   } catch (error) {

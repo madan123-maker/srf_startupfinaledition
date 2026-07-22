@@ -16,6 +16,18 @@ const ManageDepartments: React.FC = () => {
   const [filteredDepartments, setFilteredDepartments] = useState<Department[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const userStr = localStorage.getItem('user');
+  const currentUser = userStr ? JSON.parse(userStr) : null;
+
+  if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
+    return (
+      <div className="departments-container" style={{ padding: '3rem', textAlign: 'center' }}>
+        <h2 style={{ fontSize: '20px', color: '#1e293b', marginBottom: '0.5rem' }}>Access Denied</h2>
+        <p style={{ color: '#64748b' }}>Only Super Admins have permission to manage departments.</p>
+      </div>
+    );
+  }
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [departmentToEdit, setDepartmentToEdit] = useState<Department | null>(null);

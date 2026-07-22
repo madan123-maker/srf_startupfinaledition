@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getSystemStats, exportUsers, exportAdmins, exportSubmissions } from '../controllers/data.controller';
+import { getSystemStats, exportUsers, exportAdmins, exportSubmissions, exportFilteredSubmissions } from '../controllers/data.controller';
 import { protect, adminOnly } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -9,5 +9,6 @@ router.get('/stats', protect as any, adminOnly as any, getSystemStats);
 router.get('/export/users', protect as any, adminOnly as any, exportUsers);
 router.get('/export/admins', protect as any, adminOnly as any, exportAdmins);
 router.get('/export/submissions', protect as any, adminOnly as any, exportSubmissions);
+router.get('/export/filtered-submissions', protect as any, adminOnly as any, exportFilteredSubmissions);
 
 export default router;

@@ -107,6 +107,12 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
 
   const handleAssign = async () => {
     if (!selectedEditionId) return showToast('Please select an edition.', 'error');
+
+    const chosenEdition = editions.find((ed) => ed._id === selectedEditionId);
+    if (chosenEdition && chosenEdition.status === 'PUBLISHED') {
+      return showToast('Published editions cannot be assigned to users. Only unpublished editions can be assigned.', 'error');
+    }
+
     if (selectedScope === 'REFORM_AREA' && !selectedReformArea) return showToast('Please select a Reform Area.', 'error');
     if (selectedScope === 'ACTION_POINT' && !selectedActionPoint) return showToast('Please select an Action Point.', 'error');
     if (selectedScope === 'QUESTION' && !selectedQuestion) return showToast('Please select a Question.', 'error');
@@ -198,11 +204,28 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
             {/* Step 1: Edition */}
             <div className="atm-field">
               <label>Edition</label>
-              <select value={selectedEditionId} onChange={(e) => setSelectedEditionId(e.target.value)}>
+              <select
+                value={selectedEditionId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const chosen = editions.find((ed) => ed._id === val);
+                  if (chosen && chosen.status === 'PUBLISHED') {
+                    showToast('Published editions cannot be assigned to users. Only unpublished editions can be assigned.', 'error');
+                    setSelectedEditionId('');
+                    return;
+                  }
+                  setSelectedEditionId(val);
+                }}
+              >
                 <option value="">— Select Edition —</option>
-                {editions.map((ed) => (
-                  <option key={ed._id} value={ed._id}>{ed.name} (v{ed.version})</option>
-                ))}
+                {editions.map((ed) => {
+                  const isPublished = ed.status === 'PUBLISHED';
+                  return (
+                    <option key={ed._id} value={ed._id} disabled={isPublished}>
+                      {ed.name} (v{ed.version}){isPublished ? ' (Published)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -287,7 +310,7 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
             <button
               className="atm-assign-btn"
               onClick={handleAssign}
-              disabled={saving || !selectedEditionId}
+              disabled={saving || !selectedEditionId || editions.find(e => e._id === selectedEditionId)?.status === 'PUBLISHED'}
             >
               <Plus size={16} />
               {saving ? 'Assigning...' : 'Assign Task'}
@@ -307,6 +330,7 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
               <div className="atm-assignment-list">
                 {existingAssignments.map((a) => {
                   const crumbs = getScopeBreadcrumb(a);
+                  const isEdPublished = (a.editionId as any)?.status === 'PUBLISHED';
                   return (
                     <div key={a._id} className="atm-assignment-chip">
                       <div className="atm-chip-scope-badge">{SCOPE_LABELS[a.scope as Scope]}</div>
@@ -317,6 +341,11 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
                             {i < crumbs.length - 1 && <ChevronRight size={12} className="atm-chevron" />}
                           </span>
                         ))}
+                        {isEdPublished && (
+                          <span style={{ marginLeft: '6px', fontSize: '11px', color: '#10b981', fontWeight: 600 }}>
+                            (Published)
+                          </span>
+                        )}
                       </div>
                       <button className="atm-chip-remove" onClick={() => handleRemove(a._id)}>
                         <Trash2 size={13} />

@@ -1,6 +1,8 @@
 import { Edition, IEdition, EditionStatus } from '../models/Edition';
 import { Submission, SubmissionStatus } from '../models/Submission';
 import { RecycleBin, EntityType } from '../models/RecycleBin';
+import { User } from '../models/User';
+import { Notification } from '../models/Notification';
 
 export class EditionService {
   async createEdition(editionData: Partial<IEdition>, createdBy: string) {
@@ -64,6 +66,7 @@ export class EditionService {
     }
 
     // Toggle between DRAFT and PUBLISHED
+    const previousStatus = edition.status;
     edition.status = edition.status === EditionStatus.PUBLISHED ? EditionStatus.DRAFT : EditionStatus.PUBLISHED;
     
     // Only set publishedAt if it's being published and doesn't already have one
@@ -72,6 +75,26 @@ export class EditionService {
     }
 
     await edition.save();
+
+    // Trigger notifications if newly published
+    if (previousStatus !== EditionStatus.PUBLISHED && edition.status === EditionStatus.PUBLISHED) {
+      try {
+        const allUsers = await User.find({ status: { $ne: 'DEACTIVATED' } }).select('_id role');
+        const notifications = allUsers.map(u => ({
+          userId: u._id,
+          message: `Edition "${edition.name}" has been published!`,
+          link: u.role === 'USER' ? '/user-dashboard' : '/admin/editions',
+          isRead: false,
+          createdAt: new Date()
+        }));
+        if (notifications.length > 0) {
+          await Notification.insertMany(notifications);
+        }
+      } catch (notifErr) {
+        console.error('Failed to create publish notifications:', notifErr);
+      }
+    }
+
     return edition;
   }
 

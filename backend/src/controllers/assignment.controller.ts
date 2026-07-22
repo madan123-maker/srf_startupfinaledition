@@ -2,8 +2,11 @@ import { Response } from 'express';
 import { Assignment } from '../models/Assignment';
 import { FormSchemaModel } from '../models/FormSchema';
 import { Submission } from '../models/Submission';
+import { Edition } from '../models/Edition';
+import { Evaluation } from '../models/Evaluation';
 import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { Notification } from '../models/Notification';
 
 // ─── Create Assignment (Super Admin only) ────────────────────────────────────
 export const createAssignment = async (req: AuthRequest, res: Response) => {
@@ -28,6 +31,15 @@ export const createAssignment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'userId, editionId, and scope are required.' });
     }
 
+    const edition = await Edition.findById(editionId);
+    if (!edition) {
+      return res.status(404).json({ error: 'Edition not found.' });
+    }
+
+    if (edition.status === 'PUBLISHED') {
+      return res.status(400).json({ error: 'Published editions cannot be assigned to users. Only unpublished editions can be assigned.' });
+    }
+
     const assignment = await Assignment.create({
       userId,
       editionId,
@@ -40,6 +52,18 @@ export const createAssignment = async (req: AuthRequest, res: Response) => {
       questionTitle: questionTitle || undefined,
       assignedBy: req.user.id,
     });
+
+    try {
+      const taskLabel = questionTitle || actionPointTitle || reformAreaTitle || 'Full Edition Task';
+      await Notification.create({
+        userId,
+        message: `New Task Assigned (${scope}): ${taskLabel}`,
+        link: '/user-dashboard/assigned-tasks',
+        isRead: false
+      });
+    } catch (notifErr) {
+      console.error('Notification creation failed for task assignment:', notifErr);
+    }
 
     return res.status(201).json({ message: 'Task assigned successfully.', assignment });
   } catch (error: any) {
@@ -292,11 +316,11 @@ export const submitAssignment = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// ─── Get Submitted Assignments (Admin view) ──────────────────────────────────
+// ─── Get Submitted Assignments (Admin & Super Admin view) ──────────────────────
 export const getSubmittedAssignments = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Only Admins can view submitted tasks.' });
+    if (!req.user || (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN')) {
+      return res.status(403).json({ error: 'Only Admins and Super Admins can view submitted tasks.' });
     }
 
     const assignments = await Assignment.find({ status: { $in: ['SUBMITTED', 'EVALUATED'] } })
@@ -311,11 +335,11 @@ export const getSubmittedAssignments = async (req: AuthRequest, res: Response) =
   }
 };
 
-// ─── Get Assignment Details for Admin (Admin view) ───────────────────────────
+// ─── Get Assignment Details for Admin (Admin & Super Admin view) ─────────────
 export const getAdminAssignmentDetails = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Only Admins can view these details.' });
+    if (!req.user || (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN')) {
+      return res.status(403).json({ error: 'Only Admins and Super Admins can view these details.' });
     }
 
     const { id } = req.params;
@@ -327,8 +351,11 @@ export const getAdminAssignmentDetails = async (req: AuthRequest, res: Response)
       return res.status(404).json({ error: 'Assignment not found.' });
     }
 
+    const rawEditionId = (assignment.editionId as any)?._id || assignment.editionId;
+    const rawUserId = (assignment.userId as any)?._id || assignment.userId;
+
     // Get the filtered schema
-    const schema = await FormSchemaModel.findOne({ editionId: assignment.editionId });
+    const schema = await FormSchemaModel.findOne({ editionId: rawEditionId });
     if (!schema) return res.status(404).json({ error: 'Schema not found.' });
 
     let filteredAreas = schema.toObject().areas;
@@ -356,11 +383,9 @@ export const getAdminAssignmentDetails = async (req: AuthRequest, res: Response)
     }
 
     // Get the user's submission to see their filled data
-    // Assuming we use mongoose to find the Submission model dynamically since we didn't import it at the top
-    const Submission = mongoose.model('Submission');
     const submission = await Submission.findOne({ 
-      editionId: assignment.editionId, 
-      userId: assignment.userId 
+      editionId: rawEditionId, 
+      userId: rawUserId 
     });
 
     return res.status(200).json({
@@ -374,11 +399,11 @@ export const getAdminAssignmentDetails = async (req: AuthRequest, res: Response)
   }
 };
 
-// ─── Evaluate Assignment (Admin action) ──────────────────────────────────────
+// ─── Evaluate Assignment (Admin & Super Admin action) ─────────────────────────
 export const evaluateAssignment = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Only Admins can evaluate tasks.' });
+    if (!req.user || (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN')) {
+      return res.status(403).json({ error: 'Only Admins and Super Admins can evaluate tasks.' });
     }
 
     const { id } = req.params;
@@ -406,10 +431,24 @@ export const evaluateAssignment = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Assignment not found.' });
     }
 
+    try {
+      await Notification.create({
+        userId: assignment.userId,
+        message: `Your task evaluation status has been updated: ${evaluationStatus}`,
+        link: '/user-dashboard/assigned-tasks',
+        isRead: false
+      });
+    } catch (notifErr) {
+      console.error('Notification creation failed for evaluation:', notifErr);
+    }
+
     if ((fieldEvaluations && Object.keys(fieldEvaluations).length > 0) || (questionScores && Object.keys(questionScores).length > 0) || awardedScore !== undefined) {
+      const rawEditionId = (assignment.editionId as any)?._id || assignment.editionId;
+      const rawUserId = (assignment.userId as any)?._id || assignment.userId;
+
       const submission = await Submission.findOne({ 
-        editionId: assignment.editionId, 
-        userId: assignment.userId 
+        editionId: rawEditionId, 
+        userId: rawUserId 
       });
 
       if (submission) {
@@ -431,10 +470,33 @@ export const evaluateAssignment = async (req: AuthRequest, res: Response) => {
         if (questionScores) {
           submission.responses.forEach(qResp => {
             if (questionScores[qResp.questionId] !== undefined) {
-              qResp.score = questionScores[qResp.questionId];
+              qResp.score = Number(questionScores[qResp.questionId]);
               changed = true;
             }
           });
+
+          try {
+            const answersArr = Object.entries(questionScores).map(([qId, score]) => ({
+              questionId: qId,
+              awardedScore: Number(score),
+              evaluatorRemarks: evaluationRemarks || '',
+              evaluatorAction: evaluationStatus === 'APPROVED' ? 'Accept' : 'Reject'
+            }));
+
+            await Evaluation.findOneAndUpdate(
+              { submissionId: submission._id, evaluatorId: req.user.id },
+              {
+                submissionId: submission._id,
+                evaluatorId: req.user.id,
+                round: 'Round 1',
+                status: 'Completed',
+                answers: answersArr
+              },
+              { upsert: true, new: true }
+            );
+          } catch (evalErr) {
+            console.error('Failed to sync Evaluation document:', evalErr);
+          }
         }
 
         if (awardedScore !== undefined) {
@@ -488,6 +550,17 @@ export const reassignAssignment = async (req: AuthRequest, res: Response) => {
         { editionId: assignment.editionId, userId: oldUserId },
         { $set: { userId: userId } }
       );
+
+      try {
+        await Notification.create({
+          userId,
+          message: `A task has been reassigned to you by Super Admin.`,
+          link: '/user-dashboard/assigned-tasks',
+          isRead: false
+        });
+      } catch (notifErr) {
+        console.error('Notification creation failed for reassignment:', notifErr);
+      }
     }
 
     return res.status(200).json({ message: 'Task reassigned successfully.', assignment });

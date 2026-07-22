@@ -57,11 +57,12 @@ const AdminLayout: React.FC = () => {
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 60000);
+    const interval = setInterval(fetchNotifications, 10000); // Poll every 10s
     return () => clearInterval(interval);
   }, []);
 
   const handleNotificationsClick = async () => {
+    fetchNotifications();
     setShowNotifications(!showNotifications);
     setShowProfileMenu(false);
     
@@ -197,10 +198,12 @@ const AdminLayout: React.FC = () => {
             <Users size={20} />
             <span>Manage Users</span>
           </NavLink>
-          <NavLink to="/admin/audit-logs" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <FileText size={20} />
-            <span>Audit Logs</span>
-          </NavLink>
+          {user.role === 'SUPER_ADMIN' && (
+            <NavLink to="/admin/audit-logs" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+              <FileText size={20} />
+              <span>Audit Logs</span>
+            </NavLink>
+          )}
           <NavLink to="/admin/data" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Database size={20} />
             <span>Data Management</span>
@@ -209,17 +212,19 @@ const AdminLayout: React.FC = () => {
             <MessageSquare size={20} />
             <span>Messages</span>
           </NavLink>
-          <NavLink to="/admin/departments" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <Briefcase size={20} />
-            <span>Manage Departments</span>
-          </NavLink>
+          {user.role === 'SUPER_ADMIN' && (
+            <NavLink to="/admin/departments" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+              <Briefcase size={20} />
+              <span>Manage Departments</span>
+            </NavLink>
+          )}
           {user.role === 'SUPER_ADMIN' && (
             <NavLink to="/admin/tasks" end className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
               <GitMerge size={20} />
               <span>Reassign Tasks</span>
             </NavLink>
           )}
-          {user.role === 'ADMIN' && (
+          {(user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
             <NavLink to="/admin/evaluate-tasks" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
               <CheckCircle size={20} />
               <span>Evaluate Tasks</span>

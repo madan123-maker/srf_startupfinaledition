@@ -224,12 +224,13 @@ const EvaluateTaskDetail: React.FC = () => {
                     {q.fields.map(f => {
                       const file = getFieldFile(q.id, f.id);
                       const val = getFieldValue(q.id, f.id);
+                      const fileLinkUrl = file && file.fileUrl ? (file.fileUrl.startsWith('http') ? file.fileUrl : `http://localhost:5001${file.fileUrl}`) : '#';
                       return (
                         <div key={f.id} className="etd-field">
                           <div className="etd-field-label">{f.label}</div>
                           {file ? (
                             <div className="etd-file-eval-box">
-                              <a href={file.fileUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
+                              <a href={fileLinkUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
                                 <Paperclip size={14} /> {file.fileName || 'View Document'}
                               </a>
                               <div className="etd-field-eval-controls">
