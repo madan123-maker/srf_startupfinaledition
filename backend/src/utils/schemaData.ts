@@ -17,11 +17,7 @@ export const SEED_SCHEMA = {
               requiredDocuments: "Date of official implementation of the State/UT Startup Policy\nG.O. / Notification and Policy Document",
               guidelinesRef: "Page 10",
               scoringCriteria: "Yes: 1, No: 0",
-              fields: [
-                { id: "f_1_1_1", type: "Radio Button", label: "Does your State/UT have an active Startup Policy?", required: true, options: ["Yes", "No"] },
-                { id: "f_1_1_2", type: "Date Picker", label: "Date of official implementation", required: true },
-                { id: "f_1_1_3", type: "File Upload", label: "Upload G.O. / Notification", required: true }
-              ]
+              fields: []
             },
             {
               id: "q_1_2",

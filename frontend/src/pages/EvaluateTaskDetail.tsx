@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, XCircle, AlertCircle, Loader2, Paperclip, Check } from 'lucide-react';
+import { ArrowLeft, Loader2, Paperclip, Check } from 'lucide-react';
 import './EvaluateTaskDetail.css';
 
 interface Field { id: string; label: string; type: string; options?: string[]; required?: boolean; }
@@ -27,7 +27,6 @@ const EvaluateTaskDetail: React.FC = () => {
   const [schema, setSchema] = useState<{ areas: ReformArea[] } | null>(null);
   const [responses, setResponses] = useState<any[]>([]);
   
-  const [evalStatus, setEvalStatus] = useState<string>('');
   const [remarks, setRemarks] = useState('');
   const [saving, setSaving] = useState(false);
   const [fieldEvaluations, setFieldEvaluations] = useState<Record<string, {status: string, remarks: string}>>({});
@@ -45,7 +44,6 @@ const EvaluateTaskDetail: React.FC = () => {
           setAssignment(data.assignment);
           setSchema(data.filteredSchema);
           setResponses(data.submission?.responses || []);
-          if (data.assignment.evaluationStatus) setEvalStatus(data.assignment.evaluationStatus);
           if (data.assignment.evaluationRemarks) setRemarks(data.assignment.evaluationRemarks);
 
           const initialFieldEvals: Record<string, {status: string, remarks: string}> = {};
@@ -136,17 +134,25 @@ const EvaluateTaskDetail: React.FC = () => {
   };
 
   const handleFieldEvalChange = (qId: string, fId: string, status: string) => {
-    setFieldEvaluations(prev => ({
-      ...prev,
-      [`${qId}_${fId}`]: { ...(prev[`${qId}_${fId}`] || {}), status }
-    }));
+    setFieldEvaluations(prev => {
+      const key = `${qId}_${fId}`;
+      const existing = prev[key] || { status: '', remarks: '' };
+      return {
+        ...prev,
+        [key]: { ...existing, status }
+      };
+    });
   };
 
   const handleFieldRemarkChange = (qId: string, fId: string, remarks: string) => {
-    setFieldEvaluations(prev => ({
-      ...prev,
-      [`${qId}_${fId}`]: { ...(prev[`${qId}_${fId}`] || {}), remarks }
-    }));
+    setFieldEvaluations(prev => {
+      const key = `${qId}_${fId}`;
+      const existing = prev[key] || { status: '', remarks: '' };
+      return {
+        ...prev,
+        [key]: { ...existing, remarks }
+      };
+    });
   };
 
   if (loading) return <div style={{padding: 40}}>Loading details...</div>;

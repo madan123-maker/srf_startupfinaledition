@@ -117,8 +117,45 @@ export const seedSuperAdmin = async () => {
     }
     console.log('Initial departments seeded successfully!');
 
+    // Ensure Q1.1 is present across all form schemas
+    await ensureQuestion11AllSchemas();
+
   } catch (error) {
     console.error('Error seeding Super Admin:', error);
+  }
+};
+
+export const ensureQuestion11AllSchemas = async () => {
+  try {
+    const schemas = await FormSchemaModel.find({});
+
+    for (const schema of schemas) {
+      if (schema.areas && schema.areas.length > 0) {
+        const ap1 = schema.areas[0]?.actionPoints?.[0];
+        if (ap1 && ap1.questions) {
+          let targetQ = ap1.questions.find((q: any) => q.id === 'q_1_1');
+          if (!targetQ) {
+            targetQ = {
+              id: "q_1_1",
+              questionNumber: "1.1",
+              weightage: 1,
+              title: "Does your State/UT have an active Startup Policy?",
+              requiredDocuments: "Date of official implementation of the State/UT Startup Policy\nG.O. / Notification and Policy Document",
+              guidelinesRef: "Page 10",
+              scoringCriteria: "Yes: 1, No: 0",
+              fields: []
+            } as any;
+            ap1.questions.unshift(targetQ as any);
+          } else {
+            targetQ.fields = [];
+          }
+          schema.markModified('areas');
+          await schema.save();
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error updating Q1.1 fields across schemas:', err);
   }
 };
 

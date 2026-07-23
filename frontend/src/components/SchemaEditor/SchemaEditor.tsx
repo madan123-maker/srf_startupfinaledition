@@ -317,6 +317,29 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
     if (selectedActionPointId === apId) setSelectedActionPointId(null);
   };
 
+  const removeQuestion = (e: React.MouseEvent, areaId: string, apId: string, questionId: string) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this Question? This item will be stored in the recycle bin for 30 days before permanent removal.')) return;
+    setAreas(areas.map(area => {
+      if (area.id === areaId) {
+        return {
+          ...area,
+          actionPoints: area.actionPoints.map(ap => {
+            if (ap.id === apId) {
+              return {
+                ...ap,
+                questions: ap.questions.filter(q => q.id !== questionId)
+              };
+            }
+            return ap;
+          })
+        };
+      }
+      return area;
+    }));
+    if (selectedQuestionId === questionId) setSelectedQuestionId(null);
+  };
+
   const selectedArea = areas.find(a => a.id === selectedAreaId);
   const selectedActionPoint = selectedArea?.actionPoints.find(ap => ap.id === selectedActionPointId);
   const selectedQuestion = selectedActionPoint?.questions.find(q => q.id === selectedQuestionId);
@@ -416,9 +439,22 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
                       key={q.id}
                       className={`question-item ${selectedQuestionId === q.id ? 'active' : ''}`}
                       onClick={() => { setSelectedActionPointId(ap.id); setSelectedQuestionId(q.id); }}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                     >
-                      <span><span className="q-badge">Q {q.questionNumber}</span> {q.title.length > 30 ? q.title.substring(0, 30) + '...' : q.title}</span>
-                      <span style={{ color: '#3b82f6', fontWeight: 600 }}>[{q.weightage}M]</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: '8px' }}>
+                        <span className="q-badge">Q {q.questionNumber}</span> {q.title.length > 25 ? q.title.substring(0, 25) + '...' : q.title}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <span style={{ color: '#3b82f6', fontWeight: 600, fontSize: '12px' }}>[{q.weightage}M]</span>
+                        <button 
+                          className="icon-btn delete-btn" 
+                          onClick={(e) => removeQuestion(e, selectedArea!.id, ap.id, q.id)}
+                          title="Delete Question"
+                          style={{ padding: '2px', height: '20px', width: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                   <button className="btn-reset" style={{ width: '100%', padding: '6px', fontSize: '12px', marginTop: '8px' }} onClick={() => addQuestion(ap.id)}>+ Add Question</button>

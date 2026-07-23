@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, FileText, Loader2, AlertCircle, Download, Eye, BookOpen, Award, RotateCcw } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, FileText, Loader2, AlertCircle, Download, Eye, BookOpen, Award, RotateCcw, Paperclip } from 'lucide-react';
 import './AdminSubmissionView.css';
 
 interface FieldResponse {
@@ -9,7 +9,7 @@ interface FieldResponse {
   fileUrl?: string;
   fileName?: string;
   status?: 'DRAFT' | 'SUBMITTED';
-  evaluationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  evaluationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMISSION_REQUIRED';
   evaluationRemarks?: string;
   googleDriveFileId?: string;
   history?: {
@@ -23,6 +23,8 @@ interface FieldResponse {
 
 interface QuestionResponse {
   questionId: string;
+  score?: number;
+  isApplying?: boolean;
   fieldResponses: FieldResponse[];
   additionalFiles?: {
     fileId: string;
@@ -39,6 +41,19 @@ interface QuestionResponse {
       submittedAt: string;
     }[];
   }[];
+  supportingDocumentResponses?: {
+    documentId: string;
+    files: {
+      fileId: string;
+      fileUrl: string;
+      fileName: string;
+      status?: string;
+      evaluationStatus?: string;
+      evaluationRemarks?: string;
+      submittedAt?: string;
+      history?: any[];
+    }[];
+  }[];
 }
 
 interface Submission {
@@ -47,6 +62,7 @@ interface Submission {
   stateName: string;
   status: string;
   totalScore: number;
+  isConsolidated?: boolean;
   responses: QuestionResponse[];
   createdAt: string;
 }
@@ -54,11 +70,14 @@ interface Submission {
 export default function AdminSubmissionView() {
   const { editionId, id } = useParams();
   const navigate = useNavigate();
-  const [submission, setSubmission] = useState<any>(null);
+  const [submission, setSubmission] = useState<Submission | null>(null);
   const [schema, setSchema] = useState<any>(null);
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const canEvaluate = currentUser?.role !== 'SUPER_ADMIN' && !submission?.isConsolidated;
 
   // Fetch both the Submission and the Edition (Schema)
   useEffect(() => {
@@ -198,9 +217,7 @@ export default function AdminSubmissionView() {
     }
   };
 
-  const getQuestionResponses = (questionId: string) => {
-    return submission?.responses.find(r => r.questionId === questionId)?.fieldResponses || [];
-  };
+
 
   const handleDownload = async (url: string, fileName: string) => {
     try {
@@ -266,10 +283,10 @@ export default function AdminSubmissionView() {
         </div>
       </div>
 
-      <div className="submission-content">
-        {schema?.areas?.map((area: any) => (
-          <div key={area.id} className="area-section">
-            <h3 className="area-title">{area.title}</h3>
+        {schema?.areas?.map((area: any) => {
+          return (
+            <div key={area.id} className="area-section">
+              <h3 className="area-title">{area.title}</h3>
             
             {area.actionPoints?.map((ap: any) => (
               <div key={ap.id} className="action-point-section">
@@ -278,13 +295,6 @@ export default function AdminSubmissionView() {
                 {ap.questions?.map((q: any) => {
                   const qResp = submission?.responses?.find((r: any) => r.questionId === q.id);
                   const fieldResponses = qResp?.fieldResponses || [];
-                  
-                  // Check if there are any submitted fields, supporting documents, or additional files
-                  const submittedFields = fieldResponses.filter((r: any) => (r.value !== undefined && r.value !== '') || r.fileUrl);
-                  const hasSupportingDocs = qResp?.supportingDocumentResponses?.some((doc: any) => doc.files?.some((f: any) => f.fileUrl));
-                  const hasAdditionalFiles = qResp?.additionalFiles?.some((af: any) => af.fileUrl);
-
-                  if (submittedFields.length === 0 && !hasSupportingDocs && !hasAdditionalFiles) return null; // Skip unanswered questions
                   
                   return (
                     <div key={q.id} className="question-card" style={{ padding: '24px' }}>
@@ -307,7 +317,21 @@ export default function AdminSubmissionView() {
                               }
                             }
                             
-                            const awardedVal = qSummary ? qSummary.awarded : (qResp?.score ?? 0);
+                            let awardedVal = 0;
+                            if (qSummary && qSummary.awarded > 0) {
+                              awardedVal = qSummary.awarded;
+                            } else if (qResp && qResp.score !== undefined && qResp.score !== null && qResp.score > 0) {
+                              awardedVal = qResp.score;
+                            } else if (fieldResponses && fieldResponses.length > 0) {
+                              const hasYesOrApproved = fieldResponses.some((f: any) =>
+                                (typeof f.value === 'string' && (f.value.toLowerCase() === 'yes' || f.value.toLowerCase() === 'true')) ||
+                                f.evaluationStatus === 'APPROVED'
+                              );
+                              if (hasYesOrApproved) {
+                                awardedVal = q.maxScore || q.weightage || 1;
+                              }
+                            }
+
                             const maxVal = qSummary ? qSummary.max : (q.maxScore || q.weightage || 1);
                             
                             return (
@@ -361,10 +385,22 @@ export default function AdminSubmissionView() {
                       
                       <div className="responses-grid">
                         {q.fields?.map((field: any) => {
-                          const resp = submittedFields.find((r: any) => r.fieldId === field.id);
-                          if (!resp) return null;
+                          const resp = fieldResponses.find((r: any) => r.fieldId === field.id);
+                          const isFile = field.type === 'File Upload' || field.type === 'PDF Upload' || field.type === 'Image Upload';
 
-                          const isFile = field.type === 'File Upload' || field.type === 'PDF Upload';
+                          if (!resp) {
+                            if (field.type === 'Heading' || field.type === 'Sub Heading' || field.type === 'Instruction' || field.type === 'Description') {
+                              return null;
+                            }
+                            return (
+                              <div key={field.id} className="response-item">
+                                <span className="field-label">{field.label}</span>
+                                <div className="field-value">
+                                  <span className="empty-val">{isFile ? 'No document uploaded' : 'Not provided'}</span>
+                                </div>
+                              </div>
+                            );
+                          }
 
                           return (
                             <div key={field.id} className="response-item">
@@ -424,29 +460,33 @@ export default function AdminSubmissionView() {
                                           </div>
                                         )}
                                         {(!resp.evaluationStatus || resp.evaluationStatus === 'PENDING') && (
-                                          <div className="action-buttons" style={{ display: 'flex', gap: '6px', flexWrap: 'nowrap', marginTop: '8px', width: '100%' }}>
-                                            <button 
-                                              className="btn-approve"
-                                              style={{ flex: 1, padding: '6px 8px', fontSize: '11px', justifyContent: 'center' }}
-                                              onClick={() => handleEvaluateDocument(q.id, field.id, 'APPROVED')}
-                                            >
-                                              Approve & Save to Drive
-                                            </button>
-                                            <button 
-                                              className="btn-reject"
-                                              style={{ flex: 1, padding: '6px 8px', fontSize: '11px', justifyContent: 'center' }}
-                                              onClick={() => handleEvaluateDocument(q.id, field.id, 'REJECTED')}
-                                            >
-                                              Reject
-                                            </button>
-                                            <button 
-                                              className="btn-outline"
-                                              style={{ flex: 1, padding: '6px 8px', fontSize: '11px', borderColor: '#ea580c', color: '#ea580c', justifyContent: 'center' }}
-                                              onClick={() => handleEvaluateDocument(q.id, field.id, 'RESUBMISSION_REQUIRED')}
-                                            >
-                                              Ask Resubmit
-                                            </button>
-                                          </div>
+                                          canEvaluate ? (
+                                            <div className="action-buttons" style={{ display: 'flex', gap: '6px', flexWrap: 'nowrap', marginTop: '8px', width: '100%' }}>
+                                              <button 
+                                                className="btn-approve"
+                                                style={{ flex: 1, padding: '6px 8px', fontSize: '11px', justifyContent: 'center' }}
+                                                onClick={() => handleEvaluateDocument(q.id, field.id, 'APPROVED')}
+                                              >
+                                                Approve & Save to Drive
+                                              </button>
+                                              <button 
+                                                className="btn-reject"
+                                                style={{ flex: 1, padding: '6px 8px', fontSize: '11px', justifyContent: 'center' }}
+                                                onClick={() => handleEvaluateDocument(q.id, field.id, 'REJECTED')}
+                                              >
+                                                Reject
+                                              </button>
+                                              <button 
+                                                className="btn-outline"
+                                                style={{ flex: 1, padding: '6px 8px', fontSize: '11px', borderColor: '#ea580c', color: '#ea580c', justifyContent: 'center' }}
+                                                onClick={() => handleEvaluateDocument(q.id, field.id, 'RESUBMISSION_REQUIRED')}
+                                              >
+                                                Ask Resubmit
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', marginTop: '6px' }}>Pending Evaluation</div>
+                                          )
                                         )}
                                       </div>
                                     </div>
@@ -533,17 +573,21 @@ export default function AdminSubmissionView() {
                                                 </div>
                                               )}
                                               {(!file.evaluationStatus || file.evaluationStatus === 'PENDING') && (
-                                                <div className="action-buttons" style={{ display: 'flex', gap: '6px', flexWrap: 'nowrap', marginTop: '8px', width: '100%' }}>
-                                                  <button className="btn-approve" onClick={() => handleEvaluateSupportingDocument(q.id, docResp.documentId, file.fileId, 'APPROVED')} style={{ flex: 1, padding: '6px 8px', fontSize: '11px', justifyContent: 'center' }}>
-                                                    Approve
-                                                  </button>
-                                                  <button className="btn-reject" onClick={() => handleEvaluateSupportingDocument(q.id, docResp.documentId, file.fileId, 'REJECTED')} style={{ flex: 1, padding: '6px 8px', fontSize: '11px', justifyContent: 'center' }}>
-                                                    Reject
-                                                  </button>
-                                                  <button className="btn-outline" onClick={() => handleEvaluateSupportingDocument(q.id, docResp.documentId, file.fileId, 'RESUBMISSION_REQUIRED')} style={{ flex: 1, padding: '6px 8px', fontSize: '11px', borderColor: '#ea580c', color: '#ea580c', justifyContent: 'center' }}>
-                                                    Ask Resubmit
-                                                  </button>
-                                                </div>
+                                                canEvaluate ? (
+                                                  <div className="action-buttons" style={{ display: 'flex', gap: '6px', flexWrap: 'nowrap', marginTop: '8px', width: '100%' }}>
+                                                    <button className="btn-approve" onClick={() => handleEvaluateSupportingDocument(q.id, docResp.documentId, file.fileId, 'APPROVED')} style={{ flex: 1, padding: '6px 8px', fontSize: '11px', justifyContent: 'center' }}>
+                                                      Approve
+                                                    </button>
+                                                    <button className="btn-reject" onClick={() => handleEvaluateSupportingDocument(q.id, docResp.documentId, file.fileId, 'REJECTED')} style={{ flex: 1, padding: '6px 8px', fontSize: '11px', justifyContent: 'center' }}>
+                                                      Reject
+                                                    </button>
+                                                    <button className="btn-outline" onClick={() => handleEvaluateSupportingDocument(q.id, docResp.documentId, file.fileId, 'RESUBMISSION_REQUIRED')} style={{ flex: 1, padding: '6px 8px', fontSize: '11px', borderColor: '#ea580c', color: '#ea580c', justifyContent: 'center' }}>
+                                                      Ask Resubmit
+                                                    </button>
+                                                  </div>
+                                                ) : (
+                                                  <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', marginTop: '6px' }}>Pending Evaluation</div>
+                                                )
                                               )}
                                             </div>
                                           </div>
@@ -583,14 +627,18 @@ export default function AdminSubmissionView() {
                                         </div>
                                       )}
                                       {(!af.evaluationStatus || af.evaluationStatus === 'PENDING') && (
-                                        <div className="action-buttons">
-                                          <button className="btn-approve" onClick={() => handleEvaluateDocument(q.id, af.fileId, 'APPROVED', true)}>
-                                            Approve
-                                          </button>
-                                          <button className="btn-reject" onClick={() => handleEvaluateDocument(q.id, af.fileId, 'REJECTED', true)}>
-                                            Reject
-                                          </button>
-                                        </div>
+                                        canEvaluate ? (
+                                          <div className="action-buttons">
+                                            <button className="btn-approve" onClick={() => handleEvaluateDocument(q.id, af.fileId, 'APPROVED', true)}>
+                                              Approve
+                                            </button>
+                                            <button className="btn-reject" onClick={() => handleEvaluateDocument(q.id, af.fileId, 'REJECTED', true)}>
+                                              Reject
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', marginTop: '6px' }}>Pending Evaluation</div>
+                                        )
                                       )}
                                     </div>
                                   </div>
@@ -620,8 +668,8 @@ export default function AdminSubmissionView() {
               </div>
             ))}
           </div>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }

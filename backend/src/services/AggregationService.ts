@@ -1,20 +1,31 @@
 import { Evaluation } from '../models/Evaluation';
 import { FormSchemaModel } from '../models/FormSchema';
 import { Submission } from '../models/Submission';
+import { buildConsolidatedSubmission } from '../controllers/submission.controller';
 
 export class AggregationService {
   /**
    * Calculates the hierarchical score summary for a submission.
    */
   async getScoreSummary(submissionId: string) {
-    const submission = await Submission.findById(submissionId);
+    let submission: any = null;
+    let evaluation: any = null;
+    let editionId: string = '';
+
+    if (submissionId.startsWith('consolidated-')) {
+      editionId = submissionId.replace('consolidated-', '');
+      submission = await buildConsolidatedSubmission(editionId);
+    } else {
+      submission = await Submission.findById(submissionId);
+      if (!submission) throw new Error('Submission not found');
+      editionId = submission.editionId;
+      evaluation = await Evaluation.findOne({ submissionId }).sort({ createdAt: -1 });
+    }
+
     if (!submission) throw new Error('Submission not found');
 
-    const formSchema = await FormSchemaModel.findOne({ editionId: submission.editionId });
+    const formSchema = await FormSchemaModel.findOne({ editionId });
     if (!formSchema) throw new Error('FormSchema not found');
-
-    // For now, get the most recent or active evaluation
-    const evaluation = await Evaluation.findOne({ submissionId }).sort({ createdAt: -1 });
 
     const summary = {
       overall: { awarded: 0, max: 0 },
@@ -52,8 +63,8 @@ export class AggregationService {
           let awarded = 0;
 
           // Find awarded score from Evaluation or Submission response
-          const ans = evaluation?.answers.find(a => a.questionId === q.id);
-          const qResp = submission.responses.find(r => r.questionId === q.id);
+          const ans = evaluation?.answers.find((a: any) => a.questionId === q.id);
+          const qResp = submission.responses.find((r: any) => r.questionId === q.id);
 
           if (ans && ans.awardedScore !== null && ans.awardedScore !== undefined) {
             awarded = ans.awardedScore;

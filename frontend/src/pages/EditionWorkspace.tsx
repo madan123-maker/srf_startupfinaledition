@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { RefreshCw, ChevronLeft, FileText, Download, Edit } from 'lucide-react';
+import { RefreshCw, ChevronLeft, FileText, Download } from 'lucide-react';
 import SchemaEditor from '../components/SchemaEditor/SchemaEditor';
 import './EditionWorkspace.css';
 

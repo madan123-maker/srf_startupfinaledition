@@ -2,75 +2,183 @@ import { Request, Response } from 'express';
 import { Submission, SubmissionStatus } from '../models/Submission';
 import { User } from '../models/User';
 import { Assignment } from '../models/Assignment';
+import { Evaluation } from '../models/Evaluation';
 import { FormSchemaModel } from '../models/FormSchema';
 import { EvaluationService } from '../services/EvaluationService';
 import { Notification } from '../models/Notification';
 
+export const buildConsolidatedSubmission = async (editionId: string) => {
+  const schema = await FormSchemaModel.findOne({ editionId });
+  const submissions = await Submission.find({ editionId }).populate('userId', 'name email state');
+  const assignments = await Assignment.find({ editionId }).populate('userId', 'name email state');
+  const subIds = submissions.map((s) => s._id);
+  const evaluations = await Evaluation.find({ submissionId: { $in: subIds } });
+
+  const consolidatedResponses: any[] = [];
+  const reformAreaWinners: Record<string, { user: any; score: number; maxScore: number }> = {};
+  let grandTotalScore = 0;
+
+  if (schema && schema.areas && schema.areas.length > 0) {
+    for (const area of schema.areas) {
+      const areaQuestionIds: string[] = [];
+      area.actionPoints.forEach((ap) => {
+        ap.questions.forEach((q) => areaQuestionIds.push(q.id));
+      });
+
+      const userScores: Record<string, { user: any; totalScore: number; responsesMap: Map<string, any> }> = {};
+
+      // Process assignments for this area
+      const areaAssignments = assignments.filter(
+        (a) => (a.reformAreaId === area.id || a.scope === 'EDITION' || a.scope === 'REFORM_AREA') && a.status === 'EVALUATED'
+      );
+
+      areaAssignments.forEach((a) => {
+        const uObj: any = a.userId;
+        const uId = uObj?._id?.toString() || uObj?.toString();
+        if (!uId) return;
+        if (!userScores[uId]) {
+          userScores[uId] = { user: uObj, totalScore: 0, responsesMap: new Map() };
+        }
+        userScores[uId].totalScore = Math.max(userScores[uId].totalScore, a.awardedScore || 0);
+      });
+
+      // Process submission responses for questions in this area
+      submissions.forEach((sub) => {
+        const uObj: any = sub.userId;
+        const uId = uObj?._id?.toString() || uObj?.toString();
+        if (!uId) return;
+        if (!userScores[uId]) {
+          userScores[uId] = { user: uObj, totalScore: 0, responsesMap: new Map() };
+        }
+
+        const userEval = evaluations.find((ev) => ev.submissionId.toString() === sub._id.toString());
+        let areaScoreFromSub = 0;
+
+        areaQuestionIds.forEach((qId) => {
+          const qResp = sub.responses.find((r) => r.questionId === qId);
+          const evalAns = userEval?.answers.find((ans) => ans.questionId === qId);
+          let qScore = 0;
+          if (evalAns && evalAns.awardedScore !== null && evalAns.awardedScore !== undefined && evalAns.awardedScore > 0) {
+            qScore = evalAns.awardedScore;
+          } else if (qResp && qResp.score !== undefined && qResp.score !== null && qResp.score > 0) {
+            qScore = qResp.score;
+          } else if (qResp && qResp.fieldResponses) {
+            const hasYesOrApproved = qResp.fieldResponses.some((f: any) =>
+              (typeof f.value === 'string' && (f.value.toLowerCase() === 'yes' || f.value.toLowerCase() === 'true')) ||
+              f.evaluationStatus === 'APPROVED'
+            );
+            if (hasYesOrApproved) {
+              const qDef = area.actionPoints.flatMap((ap) => ap.questions).find((q) => q.id === qId);
+              qScore = qDef?.maxScore || qDef?.weightage || 1;
+            }
+          }
+
+          areaScoreFromSub += qScore;
+
+          if (qResp) {
+            if ((!qResp.score || qResp.score === 0) && qScore > 0) {
+              qResp.score = qScore;
+            }
+            userScores[uId].responsesMap.set(qId, qResp);
+          }
+        });
+
+        userScores[uId].totalScore = Math.max(userScores[uId].totalScore, areaScoreFromSub);
+      });
+
+      const candidates = Object.values(userScores);
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => b.totalScore - a.totalScore);
+        const winner = candidates[0];
+        const winnerId = (winner.user as any)?._id?.toString() || (winner.user as any)?.toString();
+
+        const areaMax = area.actionPoints.reduce(
+          (acc, ap) => acc + ap.questions.reduce((qAcc, q) => qAcc + (q.maxScore || q.weightage || 0), 0),
+          0
+        );
+
+        reformAreaWinners[area.id] = {
+          user: winner.user,
+          score: winner.totalScore,
+          maxScore: areaMax,
+        };
+
+        grandTotalScore += winner.totalScore;
+
+        areaQuestionIds.forEach((qId) => {
+          let qResp = winner.responsesMap.get(qId);
+          if (!qResp) {
+            const winnerSub = submissions.find((s) => {
+              const sUId = (s.userId as any)?._id?.toString() || s.userId?.toString();
+              return sUId === winnerId;
+            });
+            qResp = winnerSub?.responses?.find((r) => r.questionId === qId);
+          }
+          if (!qResp) {
+            for (const sub of submissions) {
+              const r = sub.responses?.find((r) => r.questionId === qId);
+              if (r) {
+                qResp = r;
+                break;
+              }
+            }
+          }
+
+          const respObj = qResp
+            ? { ...JSON.parse(JSON.stringify(qResp)) }
+            : { questionId: qId, fieldResponses: [] };
+
+          respObj.topUser = winner.user;
+          respObj.reformAreaId = area.id;
+          respObj.reformAreaTitle = area.title;
+
+          if (!consolidatedResponses.some((cr) => cr.questionId === qId)) {
+            consolidatedResponses.push(respObj);
+          }
+        });
+      }
+    }
+  }
+
+  const firstSub = submissions[0];
+  const firstUser = firstSub ? (firstSub.userId as any) : null;
+  const stateName = firstSub?.stateName || firstUser?.state || 'Andhra Pradesh';
+
+  return {
+    _id: `consolidated-${editionId}`,
+    isConsolidated: true,
+    editionId,
+    stateName,
+    status: 'APPROVED',
+    totalScore: grandTotalScore,
+    responses: consolidatedResponses,
+    reformAreaWinners,
+    userId: firstUser || { name: 'Top Performers', email: 'consolidated@srf.gov' },
+    createdAt: firstSub ? firstSub.createdAt : new Date(),
+  };
+};
+
+export const getConsolidatedEditionSubmission = async (req: Request, res: Response) => {
+  try {
+    const { editionId } = req.params;
+    const result = await buildConsolidatedSubmission(editionId);
+    return res.status(200).json(result);
+  } catch (error: any) {
+    console.error('Error fetching consolidated submission:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch consolidated submission' });
+  }
+};
+
 export const getSubmissionsByEdition = async (req: Request, res: Response) => {
   try {
     const { editionId } = req.params;
+    const consolidated = await buildConsolidatedSubmission(editionId);
 
-    // Fetch submissions for this edition
+    if (consolidated.responses.length > 0) {
+      return res.status(200).json([consolidated]);
+    }
+
     const submissions = await Submission.find({ editionId }).populate('userId', 'name email state').sort({ createdAt: -1 });
-
-    // Fetch assignments for this edition to check reform area tasks and evaluation scores
-    const assignments = await Assignment.find({ editionId }).populate('userId', 'name email state');
-
-    // Filter evaluated assignments that have awarded scores
-    const evaluatedAssignments = assignments.filter((a) => a.status === 'EVALUATED' && a.awardedScore !== undefined);
-
-    if (evaluatedAssignments.length > 0) {
-      // Group evaluated assignments by reformAreaId (or scope if not reformAreaId)
-      const groups: Record<string, typeof evaluatedAssignments> = {};
-      evaluatedAssignments.forEach((a) => {
-        const key = a.reformAreaId || a.scope || 'WHOLE_EDITION';
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(a);
-      });
-
-      // For each group, determine highest score and pick all top scorers (including ties)
-      const topAssignments: typeof evaluatedAssignments = [];
-      Object.values(groups).forEach((group) => {
-        const maxScore = Math.max(...group.map((a) => a.awardedScore || 0));
-        const topScorers = group.filter((a) => (a.awardedScore || 0) === maxScore);
-        topAssignments.push(...topScorers);
-      });
-
-      // Map top assignments into the standard submission response format
-      const topSubmissions = topAssignments.map((a) => {
-        const matchingSub = submissions.find(
-          (s) => s.userId && (s.userId as any)._id?.toString() === (a.userId as any)?._id?.toString()
-        );
-        const userObj: any = a.userId;
-        return {
-          _id: matchingSub ? matchingSub._id : a._id,
-          stateName: userObj?.state || matchingSub?.stateName || 'Andhra Pradesh',
-          status: a.status || (matchingSub ? matchingSub.status : 'EVALUATED'),
-          totalScore: a.awardedScore !== undefined ? a.awardedScore : (matchingSub ? matchingSub.totalScore : 0),
-          createdAt: matchingSub ? matchingSub.createdAt : (a as any).createdAt || a.assignedAt || new Date(),
-          userId: userObj
-            ? {
-                _id: userObj._id,
-                name: userObj.name || userObj.email.split('@')[0],
-                email: userObj.email,
-                state: userObj.state,
-              }
-            : undefined,
-        };
-      });
-
-      return res.status(200).json(topSubmissions);
-    }
-
-    // Check if any direct submissions have totalScore evaluated > 0
-    const evaluatedSubmissions = submissions.filter((s) => (s.status as string) === 'EVALUATED' || s.status === SubmissionStatus.APPROVED);
-    if (evaluatedSubmissions.length > 0) {
-      const maxScore = Math.max(...evaluatedSubmissions.map((s) => s.totalScore || 0));
-      const topScorers = evaluatedSubmissions.filter((s) => (s.totalScore || 0) === maxScore);
-      return res.status(200).json(topScorers);
-    }
-
-    // Fallback: If no evaluations completed yet, return all submissions as normal
     return res.status(200).json(submissions);
   } catch (error: any) {
     console.error('Error fetching submissions by edition:', error);
@@ -81,6 +189,11 @@ export const getSubmissionsByEdition = async (req: Request, res: Response) => {
 export const getSubmissionById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (id.startsWith('consolidated-')) {
+      const editionId = id.replace('consolidated-', '');
+      const result = await buildConsolidatedSubmission(editionId);
+      return res.status(200).json(result);
+    }
     const submission = await Submission.findById(id).populate('userId', 'name email');
     if (!submission) {
       return res.status(404).json({ error: 'Submission not found' });
@@ -255,6 +368,9 @@ export const uploadSubmissionFile = async (req: any, res: Response) => {
 export const evaluateDocument = async (req: any, res: Response) => {
   try {
     const { id } = req.params;
+    if (id.startsWith('consolidated-')) {
+      return res.status(400).json({ error: 'Cannot evaluate documents on a consolidated submission' });
+    }
     const { questionId, fieldId, documentId, status, remarks, isAdditionalFile, isSupportingDocument } = req.body;
 
     let updateFields: any = {};

@@ -5,6 +5,7 @@ import {
   updateMySubmission,
   evaluateDocument,
   getSubmissionById,
+  getConsolidatedEditionSubmission,
 } from '../controllers/submission.controller';
 import { protect, adminOnly } from '../middleware/auth.middleware';
 import multer from 'multer';
@@ -86,6 +87,7 @@ router.get('/edition/:editionId/my-submission', protect as any, getMySubmission)
 router.put('/:id', protect as any, updateMySubmission);
 
 // ─── Protected Admin routes ────────────────────────────────────────────────
+router.get('/edition/:editionId/consolidated', protect as any, adminOnly as any, getConsolidatedEditionSubmission);
 router.get('/edition/:editionId', protect as any, adminOnly as any, getSubmissionsByEdition);
 router.get('/:id', protect as any, adminOnly as any, getSubmissionById);
 router.post('/:id/evaluate-document', protect as any, adminOnly as any, evaluateDocument);

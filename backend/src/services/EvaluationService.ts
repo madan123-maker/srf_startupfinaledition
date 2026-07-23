@@ -8,6 +8,9 @@ export class EvaluationService {
   private manualScoring = new ManualScoring();
 
   async submitQuestionScore(submissionId: string, evaluatorId: string, questionId: string, awardedScore: number, remarks: string) {
+    if (submissionId.startsWith('consolidated-')) {
+      throw new Error('Cannot evaluate a consolidated submission directly');
+    }
     const submission = await Submission.findById(submissionId);
     if (!submission) throw new Error('Submission not found');
 
