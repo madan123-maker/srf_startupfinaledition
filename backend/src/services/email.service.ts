@@ -1,5 +1,21 @@
 import nodemailer from 'nodemailer';
 
+export interface MailOptions {
+  from?: string;
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+}
+
+const getEmailEndpoint = () => process.env.EMAIL_API_ENDPOINT || 'https://mail-service-1.vercel.app/send-email';
+
+const getEmailCredentials = () => ({
+  service: 'gmail',
+  user: process.env.EMAIL_USER || process.env.SMTP_USER || '',
+  pass: process.env.EMAIL_PASSWORD || process.env.SMTP_PASS || '',
+});
+
 // Create reusable transporter using Gmail SMTP
 const createTransporter = () => {
   return nodemailer.createTransport({
@@ -7,10 +23,141 @@ const createTransporter = () => {
     port: Number(process.env.SMTP_PORT) || 587,
     secure: false, // true for 465, false for other ports
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS, // Gmail App Password (not regular password)
+      user: process.env.EMAIL_USER || process.env.SMTP_USER,
+      pass: process.env.EMAIL_PASSWORD || process.env.SMTP_PASS, // Gmail App Password
     },
   });
+};
+
+/**
+ * Modern HTML Template for emails
+ */
+export const emailUITemplate = (content: string, title = 'SRF Platform'): string => {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+        .wrapper { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01); border: 1px solid #e2e8f0; }
+        .header { background: linear-gradient(135deg, #2563eb, #4f46e5); padding: 36px 32px; text-align: center; }
+        .header h1 { color: #ffffff; font-size: 24px; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.5px; }
+        .header p { color: rgba(255, 255, 255, 0.85); font-size: 14px; margin: 0; }
+        .body { padding: 36px 32px; font-size: 15px; line-height: 1.6; color: #334155; }
+        .footer { text-align: center; padding: 24px 32px; background: #f1f5f9; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; }
+        .footer p { margin: 4px 0; }
+      </style>
+    </head>
+    <body>
+      <div class="wrapper">
+        <div class="header">
+          <h1>🏛️ ${title}</h1>
+          <p>States' Startup Ranking Framework</p>
+        </div>
+        <div class="body">
+          ${content}
+        </div>
+        <div class="footer">
+          <p>© ${new Date().getFullYear()} ${title}. All rights reserved.</p>
+          <p>This is an automated message, please do not reply directly to this email.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+/**
+ * Send email using the external API endpoint
+ */
+export const sendEmailViaAPI = async (mailOptions: MailOptions) => {
+  const endpoint = getEmailEndpoint();
+  const credentials = getEmailCredentials();
+
+  const defaultFromName = process.env.SMTP_FROM_NAME || 'SRF Platform';
+  const defaultFromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
+
+  const payloadMailOptions = {
+    from: mailOptions.from || `"${defaultFromName}" <${defaultFromEmail}>`,
+    to: mailOptions.to,
+    subject: mailOptions.subject,
+    html: mailOptions.html,
+    ...(mailOptions.text ? { text: mailOptions.text } : {})
+  };
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        credentials,
+        mailOptions: payloadMailOptions,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || result.status === false) {
+      throw new Error(`Email API error: ${result.error || result.message || 'Unknown error'}`);
+    }
+
+    return result;
+  } catch (error: any) {
+    console.error('Email sending failed via API:', error);
+    throw new Error(`Failed to send email: ${error.message}`);
+  }
+};
+
+/**
+ * Send email trying API first, falling back to SMTP Nodemailer if API fails
+ */
+export const sendEmail = async (mailOptions: MailOptions) => {
+  const fromName = process.env.SMTP_FROM_NAME || 'SRF Platform';
+  const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
+
+  const fullMailOptions: MailOptions = {
+    from: mailOptions.from || `"${fromName}" <${fromEmail}>`,
+    ...mailOptions,
+  };
+
+  try {
+    return await sendEmailViaAPI(fullMailOptions);
+  } catch (apiError) {
+    console.warn('API email delivery failed, attempting fallback via Nodemailer SMTP:', apiError);
+    const transporter = createTransporter();
+    return await transporter.sendMail(fullMailOptions);
+  }
+};
+
+/**
+ * Send Welcome Email
+ */
+export const sendWelcomeEmail = async (email: string, userName = 'User') => {
+  try {
+    const welcomeContent = `
+      <h2 style="color: #0f172a; margin-top: 0;">Welcome, ${userName}! 🎉</h2>
+      <p>We are thrilled to have you join our platform. Your account has been created and is ready to use.</p>
+      <p style="margin-top: 24px;">If you have any questions or need assistance getting started, feel free to reach out to our team.</p>
+      <p style="margin-top: 24px; font-weight: 600;">Best regards,<br>Softpage Team</p>
+    `;
+
+    const mailOptions: MailOptions = {
+      from: `"Softpage Team" <${process.env.EMAIL_USER || process.env.SMTP_USER}>`,
+      to: email,
+      subject: 'Welcome to Softpage!',
+      html: emailUITemplate(welcomeContent, 'Softpage')
+    };
+
+    const response = await sendEmailViaAPI(mailOptions);
+    return { success: true, message: 'Welcome email sent successfully', ...response };
+  } catch (error: any) {
+    console.error('Send welcome email error:', error);
+    throw new Error(`Failed to send welcome email: ${error.message}`);
+  }
 };
 
 export const sendAdminCredentials = async (
@@ -18,12 +165,10 @@ export const sendAdminCredentials = async (
   adminName: string,
   password: string
 ) => {
-  const transporter = createTransporter();
-  
   const fromName = process.env.SMTP_FROM_NAME || 'SRF Platform';
-  const fromEmail = process.env.SMTP_USER;
+  const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
 
-  const mailOptions = {
+  const mailOptions: MailOptions = {
     from: `"${fromName}" <${fromEmail}>`,
     to: toEmail,
     subject: 'Your SRF Platform Admin Account Has Been Created',
@@ -85,7 +230,7 @@ export const sendAdminCredentials = async (
     `,
   };
 
-  await transporter.sendMail(mailOptions);
+  await sendEmail(mailOptions);
 };
 
 export const sendUserCredentials = async (
@@ -93,11 +238,10 @@ export const sendUserCredentials = async (
   userName: string,
   password: string
 ) => {
-  const transporter = createTransporter();
   const fromName = process.env.SMTP_FROM_NAME || 'SRF Platform';
-  const fromEmail = process.env.SMTP_USER;
+  const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
 
-  const mailOptions = {
+  const mailOptions: MailOptions = {
     from: `"${fromName}" <${fromEmail}>`,
     to: toEmail,
     subject: 'Your SRF Platform User Account Has Been Created',
@@ -156,15 +300,14 @@ export const sendUserCredentials = async (
     `,
   };
 
-  await transporter.sendMail(mailOptions);
+  await sendEmail(mailOptions);
 };
 
 export const sendOtpEmail = async (toEmail: string, otp: string) => {
-  const transporter = createTransporter();
   const fromName = process.env.SMTP_FROM_NAME || 'SRF Platform';
-  const fromEmail = process.env.SMTP_USER;
+  const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
 
-  const mailOptions = {
+  const mailOptions: MailOptions = {
     from: `"${fromName}" <${fromEmail}>`,
     to: toEmail,
     subject: 'Your Password Reset OTP - SRF Platform',
@@ -210,5 +353,5 @@ export const sendOtpEmail = async (toEmail: string, otp: string) => {
     `,
   };
 
-  await transporter.sendMail(mailOptions);
+  await sendEmail(mailOptions);
 };
