@@ -115,9 +115,7 @@ const ManageUsers: React.FC = () => {
                 <Users size={16} />
                 + Create User
               </button>
-              <button className="btn-bulk-import">
-                <span style={{ color: '#f59e0b' }}>📁</span> Bulk Import Users
-              </button>
+
             </>
           )}
         </div>

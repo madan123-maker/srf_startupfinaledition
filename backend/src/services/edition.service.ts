@@ -24,27 +24,65 @@ export class EditionService {
     // Get all editions
     const editions = await Edition.find().sort({ createdAt: 1 }).lean();
     
+    // Import dynamically to avoid circular dependencies if any
+    const { buildConsolidatedSubmission } = require('../controllers/submission.controller');
+
     // For each edition, aggregate submission metrics to show on the card
     const editionsWithStats = await Promise.all(editions.map(async (edition) => {
-      const stats = await Submission.aggregate([
-        { $match: { editionId: edition._id } },
-        { 
-          $group: { 
-            _id: null,
-            totalSubmissions: { $sum: 1 },
-            pending: { $sum: { $cond: [{ $eq: ['$status', SubmissionStatus.UNDER_REVIEW] }, 1, 0] } },
-            approved: { $sum: { $cond: [{ $eq: ['$status', SubmissionStatus.APPROVED] }, 1, 0] } },
-            rejected: { $sum: { $cond: [{ $eq: ['$status', SubmissionStatus.REJECTED] }, 1, 0] } },
-            avgScore: { $avg: '$totalScore' }
+      let statsToUse: any = { totalSubmissions: 0, pending: 0, approved: 0, rejected: 0, avgScore: 0 };
+      
+      try {
+        const consolidated = await buildConsolidatedSubmission(edition._id.toString());
+        if (consolidated && consolidated.responses && consolidated.responses.length > 0) {
+          if (consolidated.status === 'APPROVED' || consolidated.status === 'REJECTED') {
+            statsToUse = {
+              totalSubmissions: 1,
+              pending: consolidated.status === 'UNDER_REVIEW' ? 1 : 0,
+              approved: consolidated.status === 'APPROVED' ? 1 : 0,
+              rejected: consolidated.status === 'REJECTED' ? 1 : 0,
+              avgScore: consolidated.totalScore || 0
+            };
+          } else {
+            statsToUse = { totalSubmissions: '-', pending: '-', approved: '-', rejected: '-', avgScore: '-' };
           }
+          return {
+            ...edition,
+            stats: statsToUse
+          };
         }
-      ]);
+      } catch (e) {
+        console.error('Error fetching consolidated stats for edition:', e);
+      }
 
-      const defaultStats = { totalSubmissions: 0, pending: 0, approved: 0, rejected: 0, avgScore: 0 };
+      // Fallback to regular aggregation if no consolidated responses
+      const allSubmissions = await Submission.find({ editionId: edition._id }).select('status').lean();
+      if (allSubmissions.length > 0) {
+        const allEvaluated = allSubmissions.every(s => s.status === 'APPROVED' || s.status === 'REJECTED');
+        if (allEvaluated) {
+          const stats = await Submission.aggregate([
+            { $match: { editionId: edition._id } },
+            { 
+              $group: { 
+                _id: null,
+                totalSubmissions: { $sum: 1 },
+                pending: { $sum: { $cond: [{ $eq: ['$status', SubmissionStatus.UNDER_REVIEW] }, 1, 0] } },
+                approved: { $sum: { $cond: [{ $eq: ['$status', SubmissionStatus.APPROVED] }, 1, 0] } },
+                rejected: { $sum: { $cond: [{ $eq: ['$status', SubmissionStatus.REJECTED] }, 1, 0] } },
+                avgScore: { $avg: '$totalScore' }
+              }
+            }
+          ]);
+          if (stats.length > 0) {
+            statsToUse = stats[0];
+          }
+        } else {
+          statsToUse = { totalSubmissions: '-', pending: '-', approved: '-', rejected: '-', avgScore: '-' };
+        }
+      }
       
       return {
         ...edition,
-        stats: stats.length > 0 ? stats[0] : defaultStats
+        stats: statsToUse
       };
     }));
 

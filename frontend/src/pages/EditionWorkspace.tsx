@@ -42,12 +42,18 @@ const EditionWorkspace: React.FC = () => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isSuperAdmin = user.role === 'SUPER_ADMIN';
 
-  const [metrics, setMetrics] = useState({
-    total: 0,
-    pending: 0,
-    approved: 0,
-    rejected: 0,
-    additionalDocs: 0
+  const [metrics, setMetrics] = useState<{
+    total: number | string;
+    pending: number | string;
+    approved: number | string;
+    rejected: number | string;
+    additionalDocs: number | string;
+  }>({
+    total: '-',
+    pending: '-',
+    approved: '-',
+    rejected: '-',
+    additionalDocs: '-'
   });
 
   const fetchData = async () => {
@@ -73,19 +79,35 @@ const EditionWorkspace: React.FC = () => {
         
         // Calculate metrics
         let pending = 0, approved = 0, rejected = 0;
+        let allEvaluated = subData.length > 0;
+        
         subData.forEach((s: Submission) => {
           if (s.status === 'UNDER_REVIEW') pending++;
           if (s.status === 'APPROVED') approved++;
           if (s.status === 'REJECTED') rejected++;
+          
+          if (s.status !== 'APPROVED' && s.status !== 'REJECTED') {
+            allEvaluated = false;
+          }
         });
         
-        setMetrics({
-          total: subData.length,
-          pending,
-          approved,
-          rejected,
-          additionalDocs: 0 // Placeholder as it's not in the model yet
-        });
+        if (allEvaluated) {
+          setMetrics({
+            total: subData.length,
+            pending,
+            approved,
+            rejected,
+            additionalDocs: 0 // Placeholder as it's not in the model yet
+          });
+        } else {
+          setMetrics({
+            total: '-',
+            pending: '-',
+            approved: '-',
+            rejected: '-',
+            additionalDocs: '-'
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to fetch workspace data', error);

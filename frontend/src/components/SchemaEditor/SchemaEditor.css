@@ -82,7 +82,7 @@
 /* 3-Column Layout */
 .schema-workspace {
   display: grid;
-  grid-template-columns: 260px 360px 1fr;
+  grid-template-columns: 300px 360px 1fr;
   gap: 20px;
   flex: 1;
   min-height: 0; /* Crucial to trigger flex item shrink & internal scroll */
@@ -166,6 +166,9 @@
   font-weight: 700;
   color: #4f46e5;
   margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .schema-card-subtitle {

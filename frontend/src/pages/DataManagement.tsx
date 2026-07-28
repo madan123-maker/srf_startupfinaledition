@@ -142,7 +142,7 @@ const DataManagement: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `filtered_report_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `filtered_report_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -187,7 +187,7 @@ const DataManagement: React.FC = () => {
       <div className="dm-export-section" style={{ marginBottom: '24px' }}>
         <div className="dm-section-header">
           <h3>Custom Filtered Export (User, Edition & Status)</h3>
-          <p>Filter data by specific Nodal Officer / User, Edition, and Approval Status (Approved, Rejected, Resubmission Required) to download a custom CSV report.</p>
+          <p>Filter data by specific Nodal Officer / User, Edition, and Approval Status (Approved, Rejected, Resubmission Required) to download a comprehensive Excel report.</p>
         </div>
 
         <div className="dm-filters-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px', marginTop: '16px' }}>
@@ -199,7 +199,7 @@ const DataManagement: React.FC = () => {
               style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', background: '#ffffff', color: '#1e293b' }}
             >
               <option value="all">All Users / Nodal Officers</option>
-              {users.map(u => (
+              {users.filter(u => u.role === 'USER').map(u => (
                 <option key={u._id} value={u._id}>
                   {u.name || u.email} ({u.state || u.role})
                 </option>
@@ -247,7 +247,7 @@ const DataManagement: React.FC = () => {
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#4f46e5', color: '#ffffff', border: 'none', padding: '12px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
         >
           <FileSpreadsheet size={18} />
-          {downloading === 'filtered' ? 'Generating Filtered CSV...' : 'Download Filtered CSV Report'}
+          {downloading === 'filtered' ? 'Generating Filtered Excel Report...' : 'Download Filtered Excel Report'}
         </button>
       </div>
 
@@ -255,7 +255,7 @@ const DataManagement: React.FC = () => {
       <div className="dm-export-section">
         <div className="dm-section-header">
           <h3>Global Export & Downloads</h3>
-          <p>Download full system data collections.</p>
+          <p>Download full system data collections in Excel format.</p>
         </div>
         
         <div className="dm-buttons-row">
@@ -275,7 +275,7 @@ const DataManagement: React.FC = () => {
                   onClick={() => {
                     setIsDropdownOpen(false);
                     setSelectedEdition('all');
-                    handleDownload('submissions', 'all_submissions.csv', 'all');
+                    handleDownload('submissions', 'all_submissions.xlsx', 'all');
                   }}
                 >
                   All Editions
@@ -287,7 +287,7 @@ const DataManagement: React.FC = () => {
                     onClick={() => {
                       setIsDropdownOpen(false);
                       setSelectedEdition(ed._id);
-                      handleDownload('submissions', `submissions_${ed._id}.csv`, ed._id);
+                      handleDownload('submissions', `submissions_${ed._id}.xlsx`, ed._id);
                     }}
                   >
                     {ed.name} (v{ed.version})
@@ -299,29 +299,29 @@ const DataManagement: React.FC = () => {
           
           <button 
             className="dm-btn dm-btn-purple"
-            onClick={() => handleDownload('submissions', 'applications_report.csv')}
+            onClick={() => handleDownload('submissions', 'applications_report.xlsx')}
             disabled={downloading === 'submissions'}
           >
             <FileSpreadsheet size={16} />
-            Applications Report (CSV)
+            Applications Report (Excel)
           </button>
           
           <button 
             className="dm-btn dm-btn-blue"
-            onClick={() => handleDownload('users', 'registered_users.csv')}
+            onClick={() => handleDownload('users', 'registered_users.xlsx')}
             disabled={downloading === 'users'}
           >
             <Users size={16} />
-            Export Users (CSV)
+            Export Users (Excel)
           </button>
           
           <button 
             className="dm-btn dm-btn-orange"
-            onClick={() => handleDownload('admins', 'system_admins.csv')}
+            onClick={() => handleDownload('admins', 'system_admins.xlsx')}
             disabled={downloading === 'admins'}
           >
             <ShieldAlert size={16} />
-            Export Admins (CSV)
+            Export Admins (Excel)
           </button>
         </div>
       </div>

@@ -10,11 +10,11 @@ interface Edition {
   version: string;
   status: string;
   stats: {
-    totalSubmissions: number;
-    pending: number;
-    approved: number;
-    rejected: number;
-    avgScore: number;
+    totalSubmissions: number | string;
+    pending: number | string;
+    approved: number | string;
+    rejected: number | string;
+    avgScore: number | string;
   };
 }
 

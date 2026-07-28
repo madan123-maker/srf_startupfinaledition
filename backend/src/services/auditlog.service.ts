@@ -23,9 +23,10 @@ export class AuditLogService {
     const query: any = {};
 
     if (filters.search) {
+      const safeSearch = filters.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { userName: { $regex: filters.search, $options: 'i' } },
-        { action: { $regex: filters.search, $options: 'i' } },
+        { userName: { $regex: `\\b${safeSearch}\\b`, $options: 'i' } },
+        { action: { $regex: `\\b${safeSearch}\\b`, $options: 'i' } },
       ];
     }
     
