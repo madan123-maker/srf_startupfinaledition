@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { RefreshCw, ChevronLeft, FileText, Download } from 'lucide-react';
@@ -55,7 +56,7 @@ const EditionWorkspace: React.FC = () => {
       const token = localStorage.getItem('token');
       
       // Fetch Edition Details
-      const editionRes = await fetch(`http://localhost:5001/api/editions/${id}`, {
+      const editionRes = await fetch(`${API_BASE_URL}/api/editions/${id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (editionRes.ok) {
@@ -63,7 +64,7 @@ const EditionWorkspace: React.FC = () => {
       }
 
       // Fetch Submissions
-      const subRes = await fetch(`http://localhost:5001/api/submissions/edition/${id}`, {
+      const subRes = await fetch(`${API_BASE_URL}/api/submissions/edition/${id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (subRes.ok) {

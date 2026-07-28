@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Download, FileSpreadsheet, Users, ShieldAlert } from 'lucide-react';
 import './DataManagement.css';
@@ -33,7 +34,7 @@ const DataManagement: React.FC = () => {
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5001/api/data/stats', {
+        const response = await fetch('${API_BASE_URL}/api/data/stats', {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         if (response.ok) {
@@ -50,7 +51,7 @@ const DataManagement: React.FC = () => {
     const fetchEditions = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5001/api/editions', {
+        const response = await fetch('${API_BASE_URL}/api/editions', {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         if (response.ok) {
@@ -65,7 +66,7 @@ const DataManagement: React.FC = () => {
     const fetchUsers = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5001/api/users', {
+        const response = await fetch('${API_BASE_URL}/api/users', {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         if (response.ok) {
@@ -87,7 +88,7 @@ const DataManagement: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       
-      let fetchUrl = `http://localhost:5001/api/data/export/${endpoint}`;
+      let fetchUrl = `${API_BASE_URL}/api/data/export/${endpoint}`;
       const targetEdition = overrideEditionId !== undefined ? overrideEditionId : selectedEdition;
       if (endpoint === 'submissions' && targetEdition !== 'all') {
         fetchUrl += `?editionId=${targetEdition}`;
@@ -128,7 +129,7 @@ const DataManagement: React.FC = () => {
       if (filterEdition !== 'all') params.append('editionId', filterEdition);
       if (filterStatus !== 'all') params.append('status', filterStatus);
 
-      const response = await fetch(`http://localhost:5001/api/data/export/filtered-submissions?${params.toString()}`, {
+      const response = await fetch(`${API_BASE_URL}/api/data/export/filtered-submissions?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 

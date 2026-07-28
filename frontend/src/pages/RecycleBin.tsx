@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Search, RotateCcw, Trash2 } from 'lucide-react';
 import './RecycleBin.css';
@@ -49,8 +50,8 @@ const RecycleBin: React.FC = () => {
         const headers = { 'Authorization': `Bearer ${token}` };
         
         const [statsRes, itemsRes] = await Promise.all([
-          fetch('http://localhost:5001/api/recyclebin/stats', { headers }),
-          fetch('http://localhost:5001/api/recyclebin', { headers })
+          fetch('${API_BASE_URL}/api/recyclebin/stats', { headers }),
+          fetch('${API_BASE_URL}/api/recyclebin', { headers })
         ]);
         
         if (statsRes.ok) setStats(await statsRes.json());
@@ -113,7 +114,7 @@ const RecycleBin: React.FC = () => {
     
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5001/api/recyclebin/${id}/restore`, {
+      const res = await fetch(`${API_BASE_URL}/api/recyclebin/${id}/restore`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -121,7 +122,7 @@ const RecycleBin: React.FC = () => {
       if (res.ok) {
         setItems(prev => prev.filter(i => i._id !== id));
         // Soft reload stats
-        fetch('http://localhost:5001/api/recyclebin/stats', {
+        fetch('${API_BASE_URL}/api/recyclebin/stats', {
           headers: { 'Authorization': `Bearer ${token}` }
         }).then(r => r.json()).then(setStats);
       } else {
@@ -138,7 +139,7 @@ const RecycleBin: React.FC = () => {
     
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5001/api/recyclebin/${id}/permanent`, {
+      const res = await fetch(`${API_BASE_URL}/api/recyclebin/${id}/permanent`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -146,7 +147,7 @@ const RecycleBin: React.FC = () => {
       if (res.ok) {
         setItems(prev => prev.filter(i => i._id !== id));
         // Soft reload stats
-        fetch('http://localhost:5001/api/recyclebin/stats', {
+        fetch('${API_BASE_URL}/api/recyclebin/stats', {
           headers: { 'Authorization': `Bearer ${token}` }
         }).then(r => r.json()).then(setStats);
       }

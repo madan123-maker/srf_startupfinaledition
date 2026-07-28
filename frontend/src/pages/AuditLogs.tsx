@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Search, Download } from 'lucide-react';
 import './AuditLogs.css';
@@ -51,7 +52,7 @@ const AuditLogs: React.FC = () => {
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
 
-      const response = await fetch(`http://localhost:5001/api/audit-logs?${params.toString()}`, {
+      const response = await fetch(`${API_BASE_URL}/api/audit-logs?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {

@@ -29,7 +29,7 @@ const EvaluateTasks: React.FC = () => {
 
   const fetchSubmittedTasks = async () => {
     try {
-      const res = await fetch('http://localhost:5001/api/assignments/submitted', {
+      const res = await fetch('${API_BASE_URL}/api/assignments/submitted', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {

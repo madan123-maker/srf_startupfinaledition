@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Paperclip, Check } from 'lucide-react';
@@ -36,7 +37,7 @@ const EvaluateTaskDetail: React.FC = () => {
     const fetchDetails = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch(`http://localhost:5001/api/assignments/${id}/admin-details`, {
+        const res = await fetch(`${API_BASE_URL}/api/assignments/${id}/admin-details`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
@@ -95,7 +96,7 @@ const EvaluateTaskDetail: React.FC = () => {
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5001/api/assignments/${id}/evaluate`, {
+      const res = await fetch(`${API_BASE_URL}/api/assignments/${id}/evaluate`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ 
@@ -230,7 +231,7 @@ const EvaluateTaskDetail: React.FC = () => {
                     {q.fields.map(f => {
                       const file = getFieldFile(q.id, f.id);
                       const val = getFieldValue(q.id, f.id);
-                      const fileLinkUrl = file && file.fileUrl ? (file.fileUrl.startsWith('http') ? file.fileUrl : `http://localhost:5001${file.fileUrl}`) : '#';
+                      const fileLinkUrl = file && file.fileUrl ? (file.fileUrl.startsWith('http') ? file.fileUrl : `${API_BASE_URL}${file.fileUrl}`) : '#';
                       return (
                         <div key={f.id} className="etd-field">
                           <div className="etd-field-label">{f.label}</div>

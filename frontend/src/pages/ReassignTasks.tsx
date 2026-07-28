@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Trash2, Search, Filter, UserPlus, X } from 'lucide-react';
 import './ReassignTasks.css';
@@ -36,7 +37,7 @@ const ReassignTasks: React.FC = () => {
 
   const fetchAssignments = async () => {
     try {
-      const res = await fetch('http://localhost:5001/api/assignments', {
+      const res = await fetch('${API_BASE_URL}/api/assignments', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -52,7 +53,7 @@ const ReassignTasks: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('http://localhost:5001/api/users', {
+      const res = await fetch('${API_BASE_URL}/api/users', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -72,7 +73,7 @@ const ReassignTasks: React.FC = () => {
   const handleRemove = async (id: string) => {
     if (!window.confirm('Are you sure you want to revoke this task assignment?')) return;
     try {
-      const res = await fetch(`http://localhost:5001/api/assignments/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/assignments/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -94,7 +95,7 @@ const ReassignTasks: React.FC = () => {
     if (!selectedAssignmentId || !targetUserId) return;
     setIsReassigning(true);
     try {
-      const res = await fetch(`http://localhost:5001/api/assignments/${selectedAssignmentId}/reassign`, {
+      const res = await fetch(`${API_BASE_URL}/api/assignments/${selectedAssignmentId}/reassign`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',

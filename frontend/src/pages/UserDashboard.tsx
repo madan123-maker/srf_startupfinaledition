@@ -20,7 +20,7 @@ const UserDashboard: React.FC = () => {
   const fetchPublicEditions = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5001/api/editions/public', {
+      const response = await fetch('${API_BASE_URL}/api/editions/public', {
         headers: {
           'Authorization': `Bearer ${token}`
         }

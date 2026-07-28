@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import './CreateUserModal.css'; // Reusing the sleek styles
@@ -34,7 +35,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ user, onClose, onSu
       const token = localStorage.getItem('token');
       const userId = user.id || user._id;
       
-      const response = await fetch(`http://localhost:5001/api/users/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

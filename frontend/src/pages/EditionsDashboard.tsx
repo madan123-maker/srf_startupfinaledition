@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import CreateEditionModal from '../components/CreateEditionModal';
@@ -28,7 +29,7 @@ const EditionsDashboard: React.FC = () => {
   const fetchEditions = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5001/api/editions', {
+      const response = await fetch('${API_BASE_URL}/api/editions', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -47,7 +48,7 @@ const EditionsDashboard: React.FC = () => {
   const toggleStatus = async (id: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/editions/${id}/status`, {
+      const response = await fetch(`${API_BASE_URL}/api/editions/${id}/status`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -70,7 +71,7 @@ const EditionsDashboard: React.FC = () => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/editions/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/editions/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

@@ -43,7 +43,7 @@ const AdminLayout: React.FC = () => {
   const fetchNotifications = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:5001/api/notifications/my', {
+      const res = await fetch('${API_BASE_URL}/api/notifications/my', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -69,7 +69,7 @@ const AdminLayout: React.FC = () => {
     if (notifications.some(n => !n.isRead)) {
       try {
         const token = localStorage.getItem('token');
-        await fetch('http://localhost:5001/api/notifications/mark-read', {
+        await fetch('${API_BASE_URL}/api/notifications/mark-read', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -84,7 +84,7 @@ const AdminLayout: React.FC = () => {
     const fetchTotalEditions = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5001/api/editions', {
+        const response = await fetch('${API_BASE_URL}/api/editions', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {
@@ -108,7 +108,7 @@ const AdminLayout: React.FC = () => {
   const handleSendOtp = async () => {
     setIsSubmitting(true);
     try {
-      const res = await fetch('http://localhost:5001/api/auth/send-otp', {
+      const res = await fetch('${API_BASE_URL}/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email })
@@ -131,7 +131,7 @@ const AdminLayout: React.FC = () => {
     if (!otp) return alert('Please enter OTP');
     setIsSubmitting(true);
     try {
-      const res = await fetch('http://localhost:5001/api/auth/verify-otp', {
+      const res = await fetch('${API_BASE_URL}/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, otp })
@@ -153,7 +153,7 @@ const AdminLayout: React.FC = () => {
     if (!newPassword) return alert('Please enter new password');
     setIsSubmitting(true);
     try {
-      const res = await fetch('http://localhost:5001/api/auth/change-password-otp', {
+      const res = await fetch('${API_BASE_URL}/api/auth/change-password-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, otp, newPassword })

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { UserPlus, Users } from 'lucide-react';
 import CreateAdminModal from '../components/CreateAdminModal';
@@ -43,7 +44,7 @@ const ManageUsers: React.FC = () => {
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5001/api/users', {
+      const response = await fetch('${API_BASE_URL}/api/users', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
@@ -61,7 +62,7 @@ const ManageUsers: React.FC = () => {
     if (!window.confirm(`Are you sure you want to delete "${userName}"? This action cannot be undone.`)) return;
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/users/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });

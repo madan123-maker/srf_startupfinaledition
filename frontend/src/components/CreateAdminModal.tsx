@@ -74,7 +74,7 @@ const CreateAdminModal: React.FC<CreateAdminModalProps> = ({ onClose, onSuccess 
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5001/api/users/create-admin', {
+      const response = await fetch('${API_BASE_URL}/api/users/create-admin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,6 +1,6 @@
-// State Portal User Workspace View Component
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { API_BASE_URL, getFileUrl } from '../config/api';
 import {
   Save,
   Send,
@@ -184,7 +184,7 @@ const UserWorkspace: React.FC = () => {
       const token = localStorage.getItem('token');
 
       // 1. Fetch Form Schema
-      const schemaRes = await fetch(`http://localhost:5001/api/schemas/${editionId}`, {
+      const schemaRes = await fetch(`${API_BASE_URL}/api/schemas/${editionId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       let schemaData = null;
@@ -194,7 +194,7 @@ const UserWorkspace: React.FC = () => {
       }
 
       // 2. Fetch or Create Submission
-      const subRes = await fetch(`http://localhost:5001/api/submissions/edition/${editionId}/my-submission`, {
+      const subRes = await fetch(`${API_BASE_URL}/api/submissions/edition/${editionId}/my-submission`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (subRes.ok) {
@@ -268,7 +268,7 @@ const UserWorkspace: React.FC = () => {
 
     if (submission) {
       const token = localStorage.getItem('token');
-      await fetch(`http://localhost:5001/api/submissions/${submission._id}`, {
+      await fetch(`${API_BASE_URL}/api/submissions/${submission._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ responses: newResponses, status: submission.status })
@@ -285,7 +285,7 @@ const UserWorkspace: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5001/api/submissions/upload', {
+      const response = await fetch(`${API_BASE_URL}/api/submissions/upload`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -319,7 +319,7 @@ const UserWorkspace: React.FC = () => {
         setResponses(newResponses);
 
         if (submission) {
-          await fetch(`http://localhost:5001/api/submissions/${submission._id}`, {
+          await fetch(`${API_BASE_URL}/api/submissions/${submission._id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ responses: newResponses, status: submission.status })
@@ -354,7 +354,7 @@ const UserWorkspace: React.FC = () => {
 
         if (submission) {
           const token = localStorage.getItem('token');
-          await fetch(`http://localhost:5001/api/submissions/${submission._id}`, {
+          await fetch(`${API_BASE_URL}/api/submissions/${submission._id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ responses: newResponses, status: submission.status })
@@ -380,7 +380,7 @@ const UserWorkspace: React.FC = () => {
         const formData = new FormData();
         formData.append('file', file);
 
-        const response = await fetch('http://localhost:5001/api/submissions/upload', {
+        const response = await fetch(`${API_BASE_URL}/api/submissions/upload`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
           body: formData
@@ -487,7 +487,7 @@ const UserWorkspace: React.FC = () => {
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/submissions/${submission._id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/submissions/${submission._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1140,7 +1140,7 @@ const UserWorkspace: React.FC = () => {
                                     {getFieldFile(selectedQuestion.id, field.id) ? (
                                       <div className={`uploaded-file-info ${(isRejected || isResubmit) ? 'rejected-border' : ''}`}>
                                         <a
-                                          href={`http://localhost:5001${getFieldFile(selectedQuestion.id, field.id)?.fileUrl}`}
+                                          href={getFileUrl(getFieldFile(selectedQuestion.id, field.id)?.fileUrl)}
                                           target="_blank"
                                           rel="noopener noreferrer"
                                           className="file-link"
@@ -1184,7 +1184,7 @@ const UserWorkspace: React.FC = () => {
                                         {fResp.history.map((hist, idx) => (
                                           <div key={idx} style={{ display: 'flex', flexDirection: 'column', padding: '8px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', marginBottom: idx !== fResp.history!.length - 1 ? '6px' : '0' }}>
                                             <a
-                                              href={`http://localhost:5001${hist.fileUrl}`}
+                                              href={getFileUrl(hist.fileUrl)}
                                               target="_blank"
                                               rel="noopener noreferrer"
                                               style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}
@@ -1294,7 +1294,7 @@ const UserWorkspace: React.FC = () => {
                                             <div key={f.fileId} className={`uploaded-file-info ${(isRejected || isResubmit) ? 'rejected-border' : ''}`}>
                                               <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                  <a href={`http://localhost:5001${f.fileUrl}`} target="_blank" rel="noopener noreferrer" className="file-link">
+                                                  <a href={getFileUrl(f.fileUrl)} target="_blank" rel="noopener noreferrer" className="file-link">
                                                     <Paperclip size={14} />
                                                     <span>{f.fileName}</span>
                                                   </a>

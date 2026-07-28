@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle, FileText, Loader2, AlertCircle, Download, Eye, BookOpen, Award, RotateCcw, Paperclip } from 'lucide-react';
 import './AdminSubmissionView.css';
+import { API_BASE_URL, getFileUrl } from '../config/api';
 
 interface FieldResponse {
   fieldId: string;
@@ -90,13 +91,13 @@ export default function AdminSubmissionView() {
         }
 
         const [subRes, schemaRes, summaryRes] = await Promise.all([
-          fetch(`http://localhost:5001/api/submissions/${id}`, {
+          fetch(`${API_BASE_URL}/api/submissions/${id}`, {
             headers: { Authorization: `Bearer ${token}` }
           }),
-          fetch(`http://localhost:5001/api/schemas/${editionId}`, {
+          fetch(`${API_BASE_URL}/api/schemas/${editionId}`, {
             headers: { Authorization: `Bearer ${token}` }
           }),
-          fetch(`http://localhost:5001/api/evaluations/submission/${id}/summary`, {
+          fetch(`${API_BASE_URL}/api/evaluations/submission/${id}/summary`, {
             headers: { Authorization: `Bearer ${token}` }
           })
         ]);
@@ -141,7 +142,7 @@ export default function AdminSubmissionView() {
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5001/api/submissions/${id}/evaluate-document`, {
+      const res = await fetch(`${API_BASE_URL}/api/submissions/${id}/evaluate-document`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -159,7 +160,7 @@ export default function AdminSubmissionView() {
       setSubmission(updatedSubmission);
       
       // Fetch updated summary to reflect score changes
-      const summaryRes = await fetch(`http://localhost:5001/api/evaluations/submission/${id}/summary`, {
+      const summaryRes = await fetch(`${API_BASE_URL}/api/evaluations/submission/${id}/summary`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (summaryRes.ok) {
@@ -186,7 +187,7 @@ export default function AdminSubmissionView() {
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5001/api/submissions/${id}/evaluate-document`, {
+      const res = await fetch(`${API_BASE_URL}/api/submissions/${id}/evaluate-document`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -204,7 +205,7 @@ export default function AdminSubmissionView() {
       setSubmission(updatedSubmission);
 
       // Fetch updated summary to reflect score changes
-      const summaryRes = await fetch(`http://localhost:5001/api/evaluations/submission/${id}/summary`, {
+      const summaryRes = await fetch(`${API_BASE_URL}/api/evaluations/submission/${id}/summary`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (summaryRes.ok) {
@@ -416,7 +417,7 @@ export default function AdminSubmissionView() {
                                     <div className="doc-content">
                                       <div className="doc-link-container">
                                         <a 
-                                          href={resp.googleDriveFileId ? resp.fileUrl : `http://localhost:5001${resp.fileUrl}`} 
+                                          href={resp.googleDriveFileId ? resp.fileUrl : getFileUrl(resp.fileUrl)} 
                                           target="_blank" 
                                           rel="noopener noreferrer"
                                           className="doc-link"
@@ -425,7 +426,7 @@ export default function AdminSubmissionView() {
                                           {resp.fileName || 'Document'}
                                         </a>
                                         <a 
-                                          href={resp.googleDriveFileId ? resp.fileUrl : `http://localhost:5001${resp.fileUrl}`} 
+                                          href={resp.googleDriveFileId ? resp.fileUrl : getFileUrl(resp.fileUrl)} 
                                           target="_blank" 
                                           rel="noopener noreferrer"
                                           className="icon-action-btn view-btn"
@@ -434,7 +435,7 @@ export default function AdminSubmissionView() {
                                           <Eye size={16} />
                                         </a>
                                         <button 
-                                          onClick={() => handleDownload(resp.googleDriveFileId ? resp.fileUrl : `http://localhost:5001${resp.fileUrl}`, resp.fileName || 'Document')}
+                                          onClick={() => handleDownload(resp.googleDriveFileId ? (resp.fileUrl || '') : getFileUrl(resp.fileUrl), resp.fileName || 'Document')}
                                           className="icon-action-btn download-btn"
                                           title="Download Document"
                                           style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '6px' }}
@@ -446,7 +447,7 @@ export default function AdminSubmissionView() {
                                       <div className="eval-controls">
                                         {resp.evaluationStatus === 'APPROVED' && (
                                           <div className="status-indicator approved">
-                                            <CheckCircle size={16} /> Approved (Saved to Drive)
+                                            <CheckCircle size={16} /> Approved (Saved in Database)
                                           </div>
                                         )}
                                         {resp.evaluationStatus === 'REJECTED' && (
@@ -500,7 +501,7 @@ export default function AdminSubmissionView() {
                                       {resp.history.map((hist, idx) => (
                                         <div key={idx} style={{ display: 'flex', flexDirection: 'column', padding: '8px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', marginBottom: idx !== resp.history!.length - 1 ? '6px' : '0' }}>
                                           <a 
-                                            href={`http://localhost:5001${hist.fileUrl}`} 
+                                            href={getFileUrl(hist.fileUrl)} 
                                             target="_blank" 
                                             rel="noopener noreferrer"
                                             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}
@@ -538,8 +539,6 @@ export default function AdminSubmissionView() {
                             
                             <div className="responses-grid" style={{ gridTemplateColumns: '1fr' }}>
                               {qResp.supportingDocumentResponses.map((docResp: any) => {
-                                // Find title from SUPPORTING_DOCS_DATA if needed, but we don't have it directly here.
-                                // We rely on the uploaded file UI.
                                 const validFiles = docResp.files?.filter((f: any) => f.fileUrl) || [];
                                 if (validFiles.length === 0) return null;
 
@@ -552,7 +551,7 @@ export default function AdminSubmissionView() {
                                         <div key={file.fileId} className="document-eval-card" style={{ margin: 0 }}>
                                           <div className="doc-content" style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: '12px' }}>
                                             <div className="doc-link-container">
-                                              <a href={`http://localhost:5001${file.fileUrl}`} target="_blank" rel="noopener noreferrer" className="doc-link">
+                                              <a href={getFileUrl(file.fileUrl)} target="_blank" rel="noopener noreferrer" className="doc-link">
                                                 <FileText size={18} /> {file.fileName}
                                               </a>
                                             </div>
@@ -611,7 +610,7 @@ export default function AdminSubmissionView() {
                                 <div className="document-eval-card">
                                   <div className="doc-content">
                                     <div className="doc-link-container">
-                                      <a href={`http://localhost:5001${af.fileUrl}`} target="_blank" rel="noopener noreferrer" className="doc-link">
+                                      <a href={getFileUrl(af.fileUrl)} target="_blank" rel="noopener noreferrer" className="doc-link">
                                         <FileText size={18} /> {af.fileName}
                                       </a>
                                     </div>
@@ -648,7 +647,7 @@ export default function AdminSubmissionView() {
                                       <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>Previously Rejected</div>
                                       {af.history.map((hist: any, idx: number) => (
                                         <div key={idx} style={{ display: 'flex', flexDirection: 'column', padding: '8px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', marginBottom: idx !== af.history.length - 1 ? '6px' : '0' }}>
-                                          <a href={`http://localhost:5001${hist.fileUrl}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}>
+                                          <a href={getFileUrl(hist.fileUrl)} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}>
                                             <Paperclip size={12} /> {hist.fileName}
                                           </a>
                                           {hist.evaluationRemarks && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>Remarks: {hist.evaluationRemarks}</div>}

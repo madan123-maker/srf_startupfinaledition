@@ -32,7 +32,7 @@ const MySubmissions: React.FC = () => {
     const fetchSubmissions = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch('http://localhost:5001/api/assignments/my-submissions', {
+        const res = await fetch('${API_BASE_URL}/api/assignments/my-submissions', {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {

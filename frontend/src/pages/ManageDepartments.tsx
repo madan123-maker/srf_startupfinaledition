@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import DepartmentModal from '../components/DepartmentModal';
@@ -36,7 +37,7 @@ const ManageDepartments: React.FC = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5001/api/departments', {
+      const response = await fetch('${API_BASE_URL}/api/departments', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -75,7 +76,7 @@ const ManageDepartments: React.FC = () => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/departments/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/departments/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

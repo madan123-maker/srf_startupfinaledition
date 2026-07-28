@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 
 import './Messages.css';
@@ -36,7 +37,7 @@ const Messages: React.FC = () => {
     const fetchContacts = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5001/api/messages/contacts', {
+        const response = await fetch('${API_BASE_URL}/api/messages/contacts', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {
@@ -71,7 +72,7 @@ const Messages: React.FC = () => {
       if (!activeContact) return;
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:5001/api/messages/${activeContact._id}`, {
+        const response = await fetch(`${API_BASE_URL}/api/messages/${activeContact._id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {
@@ -115,7 +116,7 @@ const Messages: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/messages/${activeContact._id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/messages/${activeContact._id}`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`,

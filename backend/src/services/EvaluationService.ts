@@ -83,8 +83,7 @@ export class EvaluationService {
     // In true decoupled architecture, we fetch summary via AggregationService, 
     // but for UI quick support we can update submission.totalScore
     const total = evaluation.answers.reduce((acc, ans) => acc + (ans.awardedScore || 0), 0);
-    submission.totalScore = total;
-    await submission.save();
+    await Submission.findByIdAndUpdate(submissionId, { $set: { totalScore: total } });
 
     return evaluation;
   }

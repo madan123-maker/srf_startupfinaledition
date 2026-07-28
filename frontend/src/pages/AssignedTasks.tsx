@@ -48,7 +48,7 @@ const AssignedTasks: React.FC = () => {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    fetch('http://localhost:5001/api/assignments/my', {
+    fetch('${API_BASE_URL}/api/assignments/my', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())

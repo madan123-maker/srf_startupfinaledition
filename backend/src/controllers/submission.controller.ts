@@ -233,101 +233,106 @@ export const getMySubmission = async (req: any, res: Response) => {
 };
 
 export const updateMySubmission = async (req: any, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { responses, status } = req.body;
+  const maxRetries = 5;
+  let attempt = 0;
 
-    const submission = await Submission.findById(id);
-    if (!submission) {
-      return res.status(404).json({ error: 'Submission not found' });
-    }
+  while (attempt < maxRetries) {
+    try {
+      const { id } = req.params;
+      const { responses, status } = req.body;
 
-    // Check if any field requires resubmission or is rejected
-    const hasResubmission = submission.responses.some(q =>
-      q.fieldResponses.some((f: any) => f.evaluationStatus === 'RESUBMISSION_REQUIRED' || f.evaluationStatus === 'REJECTED') ||
-      q.additionalFiles?.some((f: any) => f.evaluationStatus === 'RESUBMISSION_REQUIRED' || f.evaluationStatus === 'REJECTED') ||
-      q.supportingDocumentResponses?.some((d: any) => d.files.some((f: any) => f.evaluationStatus === 'RESUBMISSION_REQUIRED' || f.evaluationStatus === 'REJECTED'))
-    );
+      const submission = await Submission.findById(id);
+      if (!submission) {
+        return res.status(404).json({ error: 'Submission not found' });
+      }
 
-    // Only allow edit if draft, rejected, or if resubmission is required
-    if (submission.status !== SubmissionStatus.DRAFT && submission.status !== SubmissionStatus.REJECTED && !hasResubmission) {
-      return res.status(400).json({ error: 'Cannot edit a submitted or reviewed application unless resubmission is required' });
-    }
+      // Check if any field requires resubmission or is rejected
+      const hasResubmission = submission.responses.some(q =>
+        q.fieldResponses.some((f: any) => f.evaluationStatus === 'RESUBMISSION_REQUIRED' || f.evaluationStatus === 'REJECTED') ||
+        q.additionalFiles?.some((f: any) => f.evaluationStatus === 'RESUBMISSION_REQUIRED' || f.evaluationStatus === 'REJECTED') ||
+        q.supportingDocumentResponses?.some((d: any) => d.files.some((f: any) => f.evaluationStatus === 'RESUBMISSION_REQUIRED' || f.evaluationStatus === 'REJECTED'))
+      );
 
-    if (responses) {
-      // Merge logic to handle file rejection history
-      for (const newQ of responses) {
-        const oldQ = submission.responses.find(r => r.questionId === newQ.questionId);
-        if (oldQ) {
-          for (const newF of newQ.fieldResponses) {
-            const oldF = oldQ.fieldResponses.find((f: any) => f.fieldId === newF.fieldId);
-            if (oldF) {
-              // Preserve history
-              newF.history = oldF.history || [];
+      // Only allow edit if draft, rejected, or if resubmission is required
+      if (submission.status !== SubmissionStatus.DRAFT && submission.status !== SubmissionStatus.REJECTED && !hasResubmission) {
+        return res.status(400).json({ error: 'Cannot edit a submitted or reviewed application unless resubmission is required' });
+      }
 
-              // If frontend is uploading a new file after rejection or resubmission request:
-              if ((oldF.evaluationStatus === 'REJECTED' || oldF.evaluationStatus === 'RESUBMISSION_REQUIRED') && newF.fileUrl && newF.fileUrl !== oldF.fileUrl) {
-                newF.history.push({
-                  fileUrl: oldF.fileUrl,
-                  fileName: oldF.fileName || 'Unknown',
-                  evaluationStatus: oldF.evaluationStatus,
-                  evaluationRemarks: oldF.evaluationRemarks,
-                  submittedAt: new Date()
-                });
-                newF.evaluationStatus = 'PENDING';
-                newF.evaluationRemarks = '';
-              } else if (newF.evaluationStatus === undefined) {
-                // Preserve existing evaluation status if not explicitly sent
-                newF.evaluationStatus = oldF.evaluationStatus;
-                newF.evaluationRemarks = oldF.evaluationRemarks;
-              }
-            }
-          }
+      if (responses) {
+        // Merge logic to handle file rejection history
+        for (const newQ of responses) {
+          const oldQ = submission.responses.find(r => r.questionId === newQ.questionId);
+          if (oldQ) {
+            for (const newF of newQ.fieldResponses) {
+              const oldF = oldQ.fieldResponses.find((f: any) => f.fieldId === newF.fieldId);
+              if (oldF) {
+                // Preserve history
+                newF.history = oldF.history || [];
 
-          if (newQ.additionalFiles) {
-            for (const newAF of newQ.additionalFiles) {
-              const oldAF = oldQ.additionalFiles?.find((af: any) => af.fileId === newAF.fileId);
-              if (oldAF) {
-                newAF.history = oldAF.history || [];
-                if ((oldAF.evaluationStatus === 'REJECTED' || oldAF.evaluationStatus === 'RESUBMISSION_REQUIRED') && newAF.fileUrl && newAF.fileUrl !== oldAF.fileUrl) {
-                  newAF.history.push({
-                    fileUrl: oldAF.fileUrl,
-                    fileName: oldAF.fileName || 'Unknown',
-                    evaluationStatus: oldAF.evaluationStatus,
-                    evaluationRemarks: oldAF.evaluationRemarks,
+                // If frontend is uploading a new file after rejection or resubmission request:
+                if ((oldF.evaluationStatus === 'REJECTED' || oldF.evaluationStatus === 'RESUBMISSION_REQUIRED') && newF.fileUrl && newF.fileUrl !== oldF.fileUrl) {
+                  newF.history.push({
+                    fileUrl: oldF.fileUrl,
+                    fileName: oldF.fileName || 'Unknown',
+                    evaluationStatus: oldF.evaluationStatus,
+                    evaluationRemarks: oldF.evaluationRemarks,
                     submittedAt: new Date()
                   });
-                  newAF.evaluationStatus = 'PENDING';
-                  newAF.evaluationRemarks = '';
-                } else if (newAF.evaluationStatus === undefined) {
-                  newAF.evaluationStatus = oldAF.evaluationStatus;
-                  newAF.evaluationRemarks = oldAF.evaluationRemarks;
+                  newF.evaluationStatus = 'PENDING';
+                  newF.evaluationRemarks = '';
+                } else if (newF.evaluationStatus === undefined) {
+                  // Preserve existing evaluation status if not explicitly sent
+                  newF.evaluationStatus = oldF.evaluationStatus;
+                  newF.evaluationRemarks = oldF.evaluationRemarks;
                 }
               }
             }
-          }
 
-          if (newQ.supportingDocumentResponses) {
-            for (const newDoc of newQ.supportingDocumentResponses) {
-              const oldDoc = oldQ.supportingDocumentResponses?.find((doc: any) => doc.documentId === newDoc.documentId);
-              if (oldDoc) {
-                for (const newFile of newDoc.files) {
-                  const oldFile = oldDoc.files.find((f: any) => f.fileId === newFile.fileId);
-                  if (oldFile) {
-                    newFile.history = oldFile.history || [];
-                    if ((oldFile.evaluationStatus === 'REJECTED' || oldFile.evaluationStatus === 'RESUBMISSION_REQUIRED') && newFile.fileUrl && newFile.fileUrl !== oldFile.fileUrl) {
-                      newFile.history.push({
-                        fileUrl: oldFile.fileUrl,
-                        fileName: oldFile.fileName || 'Unknown',
-                        evaluationStatus: oldFile.evaluationStatus,
-                        evaluationRemarks: oldFile.evaluationRemarks,
-                        submittedAt: new Date()
-                      });
-                      newFile.evaluationStatus = 'PENDING';
-                      newFile.evaluationRemarks = '';
-                    } else if (newFile.evaluationStatus === undefined) {
-                      newFile.evaluationStatus = oldFile.evaluationStatus;
-                      newFile.evaluationRemarks = oldFile.evaluationRemarks;
+            if (newQ.additionalFiles) {
+              for (const newAF of newQ.additionalFiles) {
+                const oldAF = oldQ.additionalFiles?.find((af: any) => af.fileId === newAF.fileId);
+                if (oldAF) {
+                  newAF.history = oldAF.history || [];
+                  if ((oldAF.evaluationStatus === 'REJECTED' || oldAF.evaluationStatus === 'RESUBMISSION_REQUIRED') && newAF.fileUrl && newAF.fileUrl !== oldAF.fileUrl) {
+                    newAF.history.push({
+                      fileUrl: oldAF.fileUrl,
+                      fileName: oldAF.fileName || 'Unknown',
+                      evaluationStatus: oldAF.evaluationStatus,
+                      evaluationRemarks: oldAF.evaluationRemarks,
+                      submittedAt: new Date()
+                    });
+                    newAF.evaluationStatus = 'PENDING';
+                    newAF.evaluationRemarks = '';
+                  } else if (newAF.evaluationStatus === undefined) {
+                    newAF.evaluationStatus = oldAF.evaluationStatus;
+                    newAF.evaluationRemarks = oldAF.evaluationRemarks;
+                  }
+                }
+              }
+            }
+
+            if (newQ.supportingDocumentResponses) {
+              for (const newDoc of newQ.supportingDocumentResponses) {
+                const oldDoc = oldQ.supportingDocumentResponses?.find((doc: any) => doc.documentId === newDoc.documentId);
+                if (oldDoc) {
+                  for (const newFile of newDoc.files) {
+                    const oldFile = oldDoc.files.find((f: any) => f.fileId === newFile.fileId);
+                    if (oldFile) {
+                      newFile.history = oldFile.history || [];
+                      if ((oldFile.evaluationStatus === 'REJECTED' || oldFile.evaluationStatus === 'RESUBMISSION_REQUIRED') && newFile.fileUrl && newFile.fileUrl !== oldFile.fileUrl) {
+                        newFile.history.push({
+                          fileUrl: oldFile.fileUrl,
+                          fileName: oldFile.fileName || 'Unknown',
+                          evaluationStatus: oldFile.evaluationStatus,
+                          evaluationRemarks: oldFile.evaluationRemarks,
+                          submittedAt: new Date()
+                        });
+                        newFile.evaluationStatus = 'PENDING';
+                        newFile.evaluationRemarks = '';
+                      } else if (newFile.evaluationStatus === undefined) {
+                        newFile.evaluationStatus = oldFile.evaluationStatus;
+                        newFile.evaluationRemarks = oldFile.evaluationRemarks;
+                      }
                     }
                   }
                 }
@@ -335,16 +340,23 @@ export const updateMySubmission = async (req: any, res: Response) => {
             }
           }
         }
+        submission.responses = responses;
       }
-      submission.responses = responses;
-    }
-    if (status) submission.status = status;
+      if (status) submission.status = status;
 
-    await submission.save();
-    return res.status(200).json(submission);
-  } catch (error: any) {
-    console.error('Error updating submission:', error);
-    return res.status(500).json({ error: error.message || 'Failed to update submission' });
+      await submission.save();
+      return res.status(200).json(submission);
+    } catch (error: any) {
+      const isVersionError = error.name === 'VersionError' || error.message?.includes('VersionError') || error.kind === 'VersionError';
+      if (isVersionError && attempt < maxRetries - 1) {
+        attempt++;
+        console.warn(`VersionError updating submission ${req.params.id}, retrying attempt ${attempt}/${maxRetries}...`);
+        await new Promise(resolve => setTimeout(resolve, 50 * attempt));
+        continue;
+      }
+      console.error('Error updating submission:', error);
+      return res.status(500).json({ error: error.message || 'Failed to update submission' });
+    }
   }
 };
 

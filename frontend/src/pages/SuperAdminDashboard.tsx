@@ -54,7 +54,7 @@ const SuperAdminDashboard: React.FC = () => {
     const fetchEditions = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch('http://localhost:5001/api/editions', {
+        const res = await fetch('${API_BASE_URL}/api/editions', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
@@ -78,7 +78,7 @@ const SuperAdminDashboard: React.FC = () => {
       setLoading(true);
       try {
         const token = localStorage.getItem('token');
-        let url = 'http://localhost:5001/api/dashboard/metrics';
+        let url = '${API_BASE_URL}/api/dashboard/metrics';
         if (selectedEdition) {
           url += `?editionId=${selectedEdition}`;
         }
@@ -220,7 +220,7 @@ const SuperAdminDashboard: React.FC = () => {
                       dataKey="value"
                     >
                       {chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={'fill' in entry ? entry.fill : COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={'fill' in entry ? String((entry as any).fill) : COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip />

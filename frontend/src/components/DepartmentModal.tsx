@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import './DepartmentModal.css';
@@ -43,8 +44,8 @@ const DepartmentModal: React.FC<DepartmentModalProps> = ({ onClose, onSuccess, d
       const token = localStorage.getItem('token');
       const isEdit = !!departmentToEdit;
       const url = isEdit 
-        ? `http://localhost:5001/api/departments/${departmentToEdit._id}`
-        : 'http://localhost:5001/api/departments';
+        ? `${API_BASE_URL}/api/departments/${departmentToEdit._id}`
+        : '${API_BASE_URL}/api/departments';
       
       const response = await fetch(url, {
         method: isEdit ? 'PUT' : 'POST',

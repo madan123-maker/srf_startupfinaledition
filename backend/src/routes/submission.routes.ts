@@ -13,72 +13,62 @@ import path from 'path';
 import fs from 'fs';
 import { isDriveEnabled, getOrCreateFolder, uploadFileToDrive } from '../services/googleDriveService';
 
-// Always save to a local temp dir first, then push to Drive if enabled
-const tempDir = path.join(__dirname, '../../uploads/temp');
-if (!fs.existsSync(tempDir)) {
-  fs.mkdirSync(tempDir, { recursive: true });
-}
+import { StoredFile } from '../models/StoredFile';
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, tempDir),
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  },
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: { fileSize: 16 * 1024 * 1024 } // 16MB file size limit for database storage
 });
-
-const upload = multer({ storage });
 
 const router = Router();
 
 // ─── File Upload Route ─────────────────────────────────────────────────────
-// If Google Drive is enabled, upload temp file → Drive and return webViewLink.
-// Otherwise fall back to serving the file from local /uploads.
+// Store uploaded files directly into MongoDB database table (StoredFile collection)
 router.post('/upload', protect as any, upload.single('file'), async (req: any, res: any) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const localPath = req.file.path;
     const originalName = req.file.originalname;
 
-    if (isDriveEnabled()) {
-      try {
-        // Get or create an "SRF Submissions" folder in Drive
-        const folderId = await getOrCreateFolder('SRF Submissions');
-        const { fileId, webViewLink } = await uploadFileToDrive(localPath, folderId, originalName);
-
-        // Delete the temp file after successful upload
-        fs.unlink(localPath, () => {});
-
-        return res.status(200).json({
-          fileUrl: webViewLink,
-          fileName: originalName,
-          fileId,
-          storage: 'drive',
-        });
-      } catch (driveErr: any) {
-        console.error('Drive upload failed, falling back to local storage:', driveErr.message);
-        // Fall through to local storage on Drive error
-      }
-    }
-
-    // Local storage fallback — move temp file to /uploads
-    const uploadsDir = path.join(__dirname, '../../uploads');
-    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-    const destPath = path.join(uploadsDir, req.file.filename);
-    fs.renameSync(localPath, destPath);
+    // Save directly into MongoDB database collection
+    const storedFile = await StoredFile.create({
+      filename: originalName,
+      contentType: req.file.mimetype || 'application/octet-stream',
+      size: req.file.size,
+      data: req.file.buffer,
+      uploadedBy: req.user?.id,
+    });
 
     return res.status(200).json({
-      fileUrl: `/uploads/${req.file.filename}`,
+      fileUrl: `/uploads/${storedFile._id}`,
       fileName: originalName,
-      storage: 'local',
+      fileId: storedFile._id,
+      storage: 'database',
     });
   } catch (error: any) {
-    console.error('Error uploading file:', error);
+    console.error('Error uploading file to database:', error);
     return res.status(500).json({ error: error.message || 'File upload failed' });
+  }
+});
+
+// Route to download/view stored files directly from MongoDB database
+router.get('/files/:fileId', async (req: any, res: any) => {
+  try {
+    const { fileId } = req.params;
+    const dbFile = await StoredFile.findById(fileId);
+    if (!dbFile) {
+      return res.status(404).json({ error: 'File not found in database' });
+    }
+
+    res.setHeader('Content-Type', dbFile.contentType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(dbFile.filename)}"`);
+    res.setHeader('Content-Length', dbFile.size || dbFile.data.length);
+    return res.send(dbFile.data);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Error fetching file from database' });
   }
 });
 

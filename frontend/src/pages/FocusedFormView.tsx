@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -79,7 +80,7 @@ const FocusedFormView: React.FC = () => {
     const load = async () => {
       try {
         // 1. Fetch filtered schema for this assignment
-        const schemaRes = await fetch(`http://localhost:5001/api/assignments/${assignmentId}/schema`, {
+        const schemaRes = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/schema`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!schemaRes.ok) throw new Error('Assignment not found');
@@ -90,7 +91,7 @@ const FocusedFormView: React.FC = () => {
         // 2. Fetch/create submission for the edition
         const editionId = typeof asgn.editionId === 'object' ? asgn.editionId._id : asgn.editionId;
         const subRes = await fetch(
-          `http://localhost:5001/api/submissions/edition/${editionId}/my-submission`,
+          `${API_BASE_URL}/api/submissions/edition/${editionId}/my-submission`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (subRes.ok) {
@@ -155,7 +156,7 @@ const FocusedFormView: React.FC = () => {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await fetch('http://localhost:5001/api/submissions/upload', {
+      const res = await fetch('${API_BASE_URL}/api/submissions/upload', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -179,7 +180,7 @@ const FocusedFormView: React.FC = () => {
     setSaving(true);
     try {
       // Always save draft first to persist fields
-      const res = await fetch(`http://localhost:5001/api/submissions/${submission._id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/submissions/${submission._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ responses, status: submission.status }), // keep original status
@@ -200,14 +201,14 @@ const FocusedFormView: React.FC = () => {
     setSaving(true);
     try {
       // Save fields first
-      await fetch(`http://localhost:5001/api/submissions/${submission?._id}`, {
+      await fetch(`${API_BASE_URL}/api/submissions/${submission?._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ responses, status: submission?.status }),
       });
 
       // Then mark assignment as submitted
-      const res = await fetch(`http://localhost:5001/api/assignments/${assignment._id}/submit`, {
+      const res = await fetch(`${API_BASE_URL}/api/assignments/${assignment._id}/submit`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, UserCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
 import logoUrl from '../assets/logo.png';
+import { API_BASE_URL } from '../config/api';
 
 interface LoginPageProps {
   isAdminLogin: boolean;
@@ -22,7 +23,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5001/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, isAdminLogin }),

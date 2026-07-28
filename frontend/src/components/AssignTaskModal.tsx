@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, ChevronRight } from 'lucide-react';
 import './AssignTaskModal.css';
@@ -61,7 +62,7 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
   // Fetch editions based on role (Super Admins can see draft editions too)
   useEffect(() => {
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-    fetch('http://localhost:5001/api/editions', {
+    fetch('${API_BASE_URL}/api/editions', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
@@ -70,7 +71,7 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
 
   // Fetch existing assignments for this user
   const fetchAssignments = () => {
-    fetch(`http://localhost:5001/api/assignments/user/${user._id}`, {
+    fetch(`${API_BASE_URL}/api/assignments/user/${user._id}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
@@ -82,7 +83,7 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
   // Fetch schema when edition changes
   useEffect(() => {
     if (!selectedEditionId) { setSchema(null); return; }
-    fetch(`http://localhost:5001/api/schemas/${selectedEditionId}`, {
+    fetch(`${API_BASE_URL}/api/schemas/${selectedEditionId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
@@ -137,7 +138,7 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
         body.questionTitle = selectedQuestion.title;
       }
 
-      const res = await fetch('http://localhost:5001/api/assignments', {
+      const res = await fetch('${API_BASE_URL}/api/assignments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
@@ -160,7 +161,7 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
   };
 
   const handleRemove = async (assignmentId: string) => {
-    const res = await fetch(`http://localhost:5001/api/assignments/${assignmentId}`, {
+    const res = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect } from 'react';
 import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import './SchemaEditor.css';
@@ -63,7 +64,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
   const fetchSchema = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/schemas/${editionId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/schemas/${editionId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -84,7 +85,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/schemas/${editionId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/schemas/${editionId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
