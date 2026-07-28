@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { 
@@ -33,7 +34,7 @@ const UserLayout: React.FC = () => {
   const fetchNotifications = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('${API_BASE_URL}/api/notifications/my', {
+      const res = await fetch(`${API_BASE_URL}/api/notifications/my`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -60,7 +61,7 @@ const UserLayout: React.FC = () => {
     if (notifications.some(n => !n.isRead)) {
       try {
         const token = localStorage.getItem('token');
-        await fetch('${API_BASE_URL}/api/notifications/mark-read', {
+        await fetch(`${API_BASE_URL}/api/notifications/mark-read`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -81,7 +82,7 @@ const UserLayout: React.FC = () => {
   const handleSendOtp = async () => {
     setIsSubmitting(true);
     try {
-      const res = await fetch('${API_BASE_URL}/api/auth/send-otp', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email })
@@ -104,7 +105,7 @@ const UserLayout: React.FC = () => {
     if (!otp) return alert('Please enter OTP');
     setIsSubmitting(true);
     try {
-      const res = await fetch('${API_BASE_URL}/api/auth/verify-otp', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, otp })
@@ -126,7 +127,7 @@ const UserLayout: React.FC = () => {
     if (!newPassword) return alert('Please enter new password');
     setIsSubmitting(true);
     try {
-      const res = await fetch('${API_BASE_URL}/api/auth/change-password-otp', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/change-password-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, otp, newPassword })

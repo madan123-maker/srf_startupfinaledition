@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getContacts, getConversation, sendMessage } from '../controllers/message.controller';
+import { getContacts, getConversation, sendMessage, getUnreadLatestMessages } from '../controllers/message.controller';
 import { protect } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -7,6 +7,7 @@ const router = Router();
 // All routes require authentication
 router.use(protect as any);
 
+router.get('/unread-latest', getUnreadLatestMessages);
 router.get('/contacts', getContacts);
 router.get('/:userId', getConversation);
 router.post('/:userId', sendMessage);

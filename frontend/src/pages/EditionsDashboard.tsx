@@ -29,7 +29,7 @@ const EditionsDashboard: React.FC = () => {
   const fetchEditions = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${API_BASE_URL}/api/editions', {
+      const response = await fetch(`${API_BASE_URL}/api/editions`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

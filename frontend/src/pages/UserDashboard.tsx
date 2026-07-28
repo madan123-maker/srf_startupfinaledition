@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../pages/EditionsDashboard.css';
@@ -20,7 +21,7 @@ const UserDashboard: React.FC = () => {
   const fetchPublicEditions = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${API_BASE_URL}/api/editions/public', {
+      const response = await fetch(`${API_BASE_URL}/api/editions/public`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

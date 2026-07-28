@@ -54,29 +54,24 @@ export class EditionService {
         console.error('Error fetching consolidated stats for edition:', e);
       }
 
-      // Fallback to regular aggregation if no consolidated responses
-      const allSubmissions = await Submission.find({ editionId: edition._id }).select('status').lean();
-      if (allSubmissions.length > 0) {
-        const allEvaluated = allSubmissions.every(s => s.status === 'APPROVED' || s.status === 'REJECTED');
-        if (allEvaluated) {
-          const stats = await Submission.aggregate([
-            { $match: { editionId: edition._id } },
-            { 
-              $group: { 
-                _id: null,
-                totalSubmissions: { $sum: 1 },
-                pending: { $sum: { $cond: [{ $eq: ['$status', SubmissionStatus.UNDER_REVIEW] }, 1, 0] } },
-                approved: { $sum: { $cond: [{ $eq: ['$status', SubmissionStatus.APPROVED] }, 1, 0] } },
-                rejected: { $sum: { $cond: [{ $eq: ['$status', SubmissionStatus.REJECTED] }, 1, 0] } },
-                avgScore: { $avg: '$totalScore' }
-              }
+      // Aggregation for non-draft submissions
+      const nonDraftSubmissions = await Submission.find({ editionId: edition._id, status: { $ne: EditionStatus.DRAFT as any } }).lean();
+      if (nonDraftSubmissions.length > 0) {
+        const stats = await Submission.aggregate([
+          { $match: { editionId: edition._id, status: { $ne: 'DRAFT' } } },
+          { 
+            $group: { 
+              _id: null,
+              totalSubmissions: { $sum: 1 },
+              pending: { $sum: { $cond: [{ $in: ['$status', [SubmissionStatus.UNDER_REVIEW, SubmissionStatus.SUBMITTED]] }, 1, 0] } },
+              approved: { $sum: { $cond: [{ $eq: ['$status', SubmissionStatus.APPROVED] }, 1, 0] } },
+              rejected: { $sum: { $cond: [{ $eq: ['$status', SubmissionStatus.REJECTED] }, 1, 0] } },
+              avgScore: { $avg: '$totalScore' }
             }
-          ]);
-          if (stats.length > 0) {
-            statsToUse = stats[0];
           }
-        } else {
-          statsToUse = { totalSubmissions: '-', pending: '-', approved: '-', rejected: '-', avgScore: '-' };
+        ]);
+        if (stats.length > 0) {
+          statsToUse = stats[0];
         }
       }
       

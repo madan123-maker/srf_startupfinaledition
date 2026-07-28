@@ -21,7 +21,45 @@ export const getContacts = async (req: AuthRequest, res: Response) => {
       .select('name role state email')
       .lean();
 
-    res.status(200).json(contacts);
+    // Attach unread counts & last message for each contact
+    const contactsWithMeta = await Promise.all(
+      contacts.map(async (contact) => {
+        const unreadCount = await Message.countDocuments({
+          senderId: contact._id,
+          receiverId: currentUserId,
+          isRead: false
+        });
+
+        const lastMsg = await Message.findOne({
+          $or: [
+            { senderId: currentUserId, receiverId: contact._id },
+            { senderId: contact._id, receiverId: currentUserId }
+          ]
+        })
+          .sort({ createdAt: -1 })
+          .select('content createdAt')
+          .lean();
+
+        return {
+          ...contact,
+          unreadCount,
+          lastMessage: lastMsg?.content || '',
+          lastMessageTime: lastMsg?.createdAt || null
+        };
+      })
+    );
+
+    // Sort contacts by unread count first, then by last message time
+    contactsWithMeta.sort((a, b) => {
+      if (b.unreadCount !== a.unreadCount) {
+        return b.unreadCount - a.unreadCount;
+      }
+      const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+      const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    res.status(200).json(contactsWithMeta);
   } catch (error) {
     console.error('Failed to get contacts:', error);
     res.status(500).json({ error: 'Failed to fetch contacts' });
@@ -95,5 +133,24 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Failed to send message:', error);
     res.status(500).json({ error: 'Failed to send message' });
+  }
+};
+
+export const getUnreadLatestMessages = async (req: AuthRequest, res: Response) => {
+  try {
+    const currentUserId = req.user?.id;
+    const messages = await Message.find({
+      receiverId: currentUserId,
+      isRead: false
+    })
+      .populate('senderId', 'name role state email')
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
+
+    res.status(200).json(messages);
+  } catch (error) {
+    console.error('Failed to get unread messages:', error);
+    res.status(500).json({ error: 'Failed to fetch unread messages' });
   }
 };

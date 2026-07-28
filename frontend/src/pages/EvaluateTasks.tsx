@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Search, MessageSquare, ExternalLink, ThumbsUp, ThumbsDown, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -29,7 +30,7 @@ const EvaluateTasks: React.FC = () => {
 
   const fetchSubmittedTasks = async () => {
     try {
-      const res = await fetch('${API_BASE_URL}/api/assignments/submitted', {
+      const res = await fetch(`${API_BASE_URL}/api/assignments/submitted`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -148,13 +149,21 @@ const EvaluateTasks: React.FC = () => {
                     )}
                   </td>
                   <td>
-                    <button 
-                      className="eval-btn-review"
-                      onClick={() => navigate(`/admin/evaluate-tasks/${a._id}`)}
-                    >
-                      {a.status === 'EVALUATED' ? 'View Details' : 'Evaluate Task'}
-                      <ExternalLink size={14} />
-                    </button>
+                    {(() => {
+                      const userObj = JSON.parse(localStorage.getItem('user') || '{}');
+                      const isSuperAdmin = userObj?.role === 'SUPER_ADMIN';
+                      const btnLabel = a.status === 'EVALUATED' ? 'View Details' : (isSuperAdmin ? 'Review Task' : 'Evaluate Task');
+
+                      return (
+                        <button 
+                          className="eval-btn-review"
+                          onClick={() => navigate(`/admin/evaluate-tasks/${a._id}`)}
+                        >
+                          {btnLabel}
+                          <ExternalLink size={14} />
+                        </button>
+                      );
+                    })()}
                   </td>
                 </tr>
               ))

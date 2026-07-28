@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState } from 'react';
 import './CreateEditionModal.css';
 
@@ -28,7 +29,7 @@ const CreateEditionModal: React.FC<CreateEditionModalProps> = ({ onClose, onSucc
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${API_BASE_URL}/api/editions', {
+      const response = await fetch(`${API_BASE_URL}/api/editions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -34,7 +34,7 @@ const DataManagement: React.FC = () => {
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('${API_BASE_URL}/api/data/stats', {
+        const response = await fetch(`${API_BASE_URL}/api/data/stats`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         if (response.ok) {
@@ -51,7 +51,7 @@ const DataManagement: React.FC = () => {
     const fetchEditions = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('${API_BASE_URL}/api/editions', {
+        const response = await fetch(`${API_BASE_URL}/api/editions`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         if (response.ok) {
@@ -66,7 +66,7 @@ const DataManagement: React.FC = () => {
     const fetchUsers = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('${API_BASE_URL}/api/users', {
+        const response = await fetch(`${API_BASE_URL}/api/users`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         if (response.ok) {

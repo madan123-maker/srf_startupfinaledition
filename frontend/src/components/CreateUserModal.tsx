@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import './CreateUserModal.css';
@@ -59,7 +60,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onSuccess })
     const fetchDeps = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch('${API_BASE_URL}/api/departments', {
+        const res = await fetch(`${API_BASE_URL}/api/departments`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
@@ -91,7 +92,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onSuccess })
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${API_BASE_URL}/api/users/create-user', {
+      const response = await fetch(`${API_BASE_URL}/api/users/create-user`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

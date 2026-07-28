@@ -62,7 +62,7 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
   // Fetch editions based on role (Super Admins can see draft editions too)
   useEffect(() => {
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-    fetch('${API_BASE_URL}/api/editions', {
+    fetch(`${API_BASE_URL}/api/editions`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
@@ -138,7 +138,7 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
         body.questionTitle = selectedQuestion.title;
       }
 
-      const res = await fetch('${API_BASE_URL}/api/assignments', {
+      const res = await fetch(`${API_BASE_URL}/api/assignments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),

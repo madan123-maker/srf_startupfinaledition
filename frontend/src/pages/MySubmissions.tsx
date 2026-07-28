@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, ChevronRight, AlertCircle, MessageSquare, ThumbsUp, ThumbsDown, Clock } from 'lucide-react';
@@ -32,7 +33,7 @@ const MySubmissions: React.FC = () => {
     const fetchSubmissions = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch('${API_BASE_URL}/api/assignments/my-submissions', {
+        const res = await fetch(`${API_BASE_URL}/api/assignments/my-submissions`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {

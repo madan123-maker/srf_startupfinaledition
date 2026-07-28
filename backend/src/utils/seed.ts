@@ -133,9 +133,11 @@ export const ensureQuestion11AllSchemas = async () => {
       if (schema.areas && schema.areas.length > 0) {
         const ap1 = schema.areas[0]?.actionPoints?.[0];
         if (ap1 && ap1.questions) {
-          let targetQ = ap1.questions.find((q: any) => q.id === 'q_1_1');
-          if (!targetQ) {
-            targetQ = {
+          const existingQ = ap1.questions.find((q: any) => q.id === 'q_1_1');
+          let needsUpdate = false;
+
+          if (!existingQ) {
+            const newQ = {
               id: "q_1_1",
               questionNumber: "1.1",
               weightage: 1,
@@ -144,13 +146,22 @@ export const ensureQuestion11AllSchemas = async () => {
               guidelinesRef: "Page 10",
               scoringCriteria: "Yes: 1, No: 0",
               fields: []
-            } as any;
-            ap1.questions.unshift(targetQ as any);
-          } else {
-            targetQ.fields = [];
+            };
+            ap1.questions.unshift(newQ as any);
+            needsUpdate = true;
+          } else if (existingQ.fields && existingQ.fields.length > 0) {
+            existingQ.fields = [];
+            needsUpdate = true;
           }
-          schema.markModified('areas');
-          await schema.save();
+
+          if (needsUpdate) {
+            // Use findByIdAndUpdate to avoid VersionError
+            await FormSchemaModel.findByIdAndUpdate(
+              schema._id,
+              { $set: { areas: schema.areas } },
+              { new: false }
+            );
+          }
         }
       }
     }

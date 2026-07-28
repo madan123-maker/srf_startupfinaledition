@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import './CreateAdminModal.css';
@@ -74,7 +75,7 @@ const CreateAdminModal: React.FC<CreateAdminModalProps> = ({ onClose, onSuccess 
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${API_BASE_URL}/api/users/create-admin', {
+      const response = await fetch(`${API_BASE_URL}/api/users/create-admin`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

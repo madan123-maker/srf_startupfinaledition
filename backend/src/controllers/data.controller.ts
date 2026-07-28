@@ -23,9 +23,9 @@ const setupWorksheetHeaders = (ws: ExcelJS.Worksheet, headers: string[]) => {
 };
 
 const autoFitColumns = (ws: ExcelJS.Worksheet) => {
-  ws.columns.forEach((col) => {
+  ws.columns?.forEach((col: any) => {
     let maxLen = 12;
-    col.eachCell?.({ includeEmpty: true }, (cell) => {
+    col.eachCell?.({ includeEmpty: true }, (cell: any) => {
       const val = cell.value;
       let len = 0;
       if (typeof val === 'string') {

@@ -50,8 +50,8 @@ const RecycleBin: React.FC = () => {
         const headers = { 'Authorization': `Bearer ${token}` };
         
         const [statsRes, itemsRes] = await Promise.all([
-          fetch('${API_BASE_URL}/api/recyclebin/stats', { headers }),
-          fetch('${API_BASE_URL}/api/recyclebin', { headers })
+          fetch(`${API_BASE_URL}/api/recyclebin/stats`, { headers }),
+          fetch(`${API_BASE_URL}/api/recyclebin`, { headers })
         ]);
         
         if (statsRes.ok) setStats(await statsRes.json());
@@ -122,7 +122,7 @@ const RecycleBin: React.FC = () => {
       if (res.ok) {
         setItems(prev => prev.filter(i => i._id !== id));
         // Soft reload stats
-        fetch('${API_BASE_URL}/api/recyclebin/stats', {
+        fetch(`${API_BASE_URL}/api/recyclebin/stats`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }).then(r => r.json()).then(setStats);
       } else {
@@ -147,7 +147,7 @@ const RecycleBin: React.FC = () => {
       if (res.ok) {
         setItems(prev => prev.filter(i => i._id !== id));
         // Soft reload stats
-        fetch('${API_BASE_URL}/api/recyclebin/stats', {
+        fetch(`${API_BASE_URL}/api/recyclebin/stats`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }).then(r => r.json()).then(setStats);
       }

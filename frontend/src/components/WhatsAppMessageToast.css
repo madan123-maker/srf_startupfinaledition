@@ -1,0 +1,162 @@
+.whatsapp-toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 380px;
+  width: 90%;
+  pointer-events: none;
+}
+
+.whatsapp-toast-card {
+  pointer-events: auto;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 5px solid #25d366; /* WhatsApp Brand Green */
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 14px 16px;
+  cursor: pointer;
+  animation: whatsappToastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.whatsapp-toast-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 25px 30px -5px rgba(37, 211, 102, 0.2), 0 10px 15px -5px rgba(0, 0, 0, 0.08);
+}
+
+.whatsapp-toast-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.whatsapp-toast-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #128c7e;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.whatsapp-toast-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #25d366;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #25d366;
+  animation: whatsappPulse 1.5s infinite;
+}
+
+.whatsapp-toast-time {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.whatsapp-toast-close-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.whatsapp-toast-close-btn:hover {
+  color: #0f172a;
+  background-color: #f1f5f9;
+}
+
+.whatsapp-toast-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.whatsapp-toast-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(37, 211, 102, 0.3);
+}
+
+.whatsapp-toast-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.whatsapp-toast-sender {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.whatsapp-toast-role {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.whatsapp-toast-message-bubble {
+  background-color: #e7fce3;
+  color: #111b21;
+  padding: 8px 12px;
+  border-radius: 0 10px 10px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-word;
+  border: 1px solid #c7f8c0;
+}
+
+@keyframes whatsappToastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes whatsappPulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(37, 211, 102, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(37, 211, 102, 0);
+  }
+}

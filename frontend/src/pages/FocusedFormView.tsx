@@ -156,7 +156,7 @@ const FocusedFormView: React.FC = () => {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await fetch('${API_BASE_URL}/api/submissions/upload', {
+      const res = await fetch(`${API_BASE_URL}/api/submissions/upload`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,

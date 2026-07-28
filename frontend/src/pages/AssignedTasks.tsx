@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ClipboardList, ChevronRight, BookOpen, Layers, Target, HelpCircle } from 'lucide-react';
@@ -48,7 +49,7 @@ const AssignedTasks: React.FC = () => {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    fetch('${API_BASE_URL}/api/assignments/my', {
+    fetch(`${API_BASE_URL}/api/assignments/my`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())

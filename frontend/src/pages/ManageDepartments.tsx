@@ -37,7 +37,7 @@ const ManageDepartments: React.FC = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('${API_BASE_URL}/api/departments', {
+      const response = await fetch(`${API_BASE_URL}/api/departments`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {

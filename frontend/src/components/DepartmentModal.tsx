@@ -45,7 +45,7 @@ const DepartmentModal: React.FC<DepartmentModalProps> = ({ onClose, onSuccess, d
       const isEdit = !!departmentToEdit;
       const url = isEdit 
         ? `${API_BASE_URL}/api/departments/${departmentToEdit._id}`
-        : '${API_BASE_URL}/api/departments';
+        : `${API_BASE_URL}/api/departments`;
       
       const response = await fetch(url, {
         method: isEdit ? 'PUT' : 'POST',

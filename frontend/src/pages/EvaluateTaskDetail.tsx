@@ -162,6 +162,8 @@ const EvaluateTaskDetail: React.FC = () => {
   const allQuestions = schema.areas.flatMap(a => a.actionPoints.flatMap(ap => ap.questions));
   
   const isFrozen = assignment.status === 'EVALUATED';
+  const currentUserObj = JSON.parse(localStorage.getItem('user') || '{}');
+  const isSuperAdmin = currentUserObj?.role === 'SUPER_ADMIN';
 
   return (
     <div className="etd-container">
@@ -172,7 +174,7 @@ const EvaluateTaskDetail: React.FC = () => {
         </button>
         <div className="etd-header-main">
           <div>
-            <h1>Task Evaluation</h1>
+            <h1>{isSuperAdmin ? 'Task Review & Approval' : 'Task Evaluation'}</h1>
             <p>Reviewing submission for <strong>{assignment.userId?.state}</strong> ({assignment.userId?.name})</p>
           </div>
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
@@ -187,11 +189,16 @@ const EvaluateTaskDetail: React.FC = () => {
                 style={{ margin: 0, padding: '10px 16px' }}
               >
                 {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                Save Evaluation
+                {isSuperAdmin ? 'Save Document Status' : 'Save Evaluation'}
               </button>
             )}
           </div>
         </div>
+        {isSuperAdmin && (
+          <div style={{ marginTop: '12px', padding: '10px 16px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', color: '#1e40af', fontSize: '13px', fontWeight: 600 }}>
+            ℹ️ Super Admin Review Mode: Direct form scoring is managed by Admin. Super Admin has document approval and final verification authority.
+          </div>
+        )}
       </div>
 
       <div className="etd-layout" style={{ justifyContent: 'center' }}>
@@ -210,18 +217,19 @@ const EvaluateTaskDetail: React.FC = () => {
                         <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Score:</span>
                         <input 
                           type="number" 
-                          disabled={isFrozen}
+                          disabled={isFrozen || isSuperAdmin}
                           max={q.weightage || 0}
                           min={0}
                           value={questionScores[q.id] ?? ''}
                           onChange={e => {
+                            if (isSuperAdmin) return;
                             let val = parseInt(e.target.value);
                             if (isNaN(val)) val = 0;
                             if (val > (q.weightage || 0)) val = q.weightage || 0;
                             if (val < 0) val = 0;
                             setQuestionScores(prev => ({...prev, [q.id]: val}));
                           }}
-                          style={{ width: '50px', textAlign: 'center', padding: '4px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 600 }}
+                          style={{ width: '50px', textAlign: 'center', padding: '4px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 600, cursor: isSuperAdmin ? 'not-allowed' : 'text' }}
                         /> 
                         <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>/ {q.weightage || 0} pts</span>
                       </div>

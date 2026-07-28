@@ -5,10 +5,17 @@
   "main": "src/server.ts",
   "scripts": {
     "start": "ts-node src/server.ts",
-    "dev": "nodemon src/server.ts",
+    "dev": "nodemon --delay 1500ms src/server.ts",
     "build": "tsc"
   },
+  "nodemonConfig": {
+    "watch": ["src"],
+    "ext": "ts,json",
+    "ignore": ["node_modules", "dist"],
+    "delay": 1500
+  },
   "dependencies": {
+    "@types/exceljs": "^0.5.3",
     "@types/nodemailer": "^8.0.1",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",

@@ -6,6 +6,8 @@ import { User } from '../models/User';
 import { Edition } from '../models/Edition';
 import { FormSchemaModel } from '../models/FormSchema';
 
+import { Submission } from '../models/Submission';
+
 export const getStats = async (req: AuthRequest, res: Response) => {
   try {
     const [total, editions, assignments, applications, users, reformAreas, actionPoints] = await Promise.all([
@@ -77,6 +79,9 @@ export const restoreItem = async (req: AuthRequest, res: Response) => {
         { editionId, "areas.id": areaId },
         { $push: { "areas.$.actionPoints": apData } }
       );
+    } else if (item.entityType === EntityType.APPLICATION) {
+      const { _id, __v, ...rest } = item.data;
+      await Submission.create({ _id: item.originalId, ...rest });
     } else {
       return res.status(400).json({ error: 'Restoration for this entity type is not implemented yet' });
     }

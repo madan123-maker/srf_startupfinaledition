@@ -44,7 +44,7 @@ const ManageUsers: React.FC = () => {
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${API_BASE_URL}/api/users', {
+      const response = await fetch(`${API_BASE_URL}/api/users`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {

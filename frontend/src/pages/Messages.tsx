@@ -1,5 +1,6 @@
-import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
+import { API_BASE_URL } from '../config/api';
 
 import './Messages.css';
 
@@ -7,6 +8,9 @@ interface Contact {
   _id: string;
   name: string;
   role: string;
+  unreadCount?: number;
+  lastMessage?: string;
+  lastMessageTime?: string;
 }
 
 interface MessageData {
@@ -18,6 +22,7 @@ interface MessageData {
 }
 
 const Messages: React.FC = () => {
+  const location = useLocation();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,25 +37,33 @@ const Messages: React.FC = () => {
   const userStr = localStorage.getItem('user');
   const currentUser = userStr ? JSON.parse(userStr) : null;
 
-  // Fetch contacts on mount
+  // Fetch contacts on mount & poll every 4s for unread badges
   useEffect(() => {
     const fetchContacts = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('${API_BASE_URL}/api/messages/contacts', {
+        const response = await fetch(`${API_BASE_URL}/api/messages/contacts`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {
-          const data = await response.json();
+          const data: Contact[] = await response.json();
           setContacts(data);
-          setFilteredContacts(data);
+
+          // Check if navigated with a specific contact ID
+          const targetContactId = (location.state as any)?.contactId;
+          if (targetContactId) {
+            const target = data.find(c => c._id === targetContactId);
+            if (target) setActiveContact(target);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch contacts', error);
       }
     };
     fetchContacts();
-  }, []);
+    const interval = setInterval(fetchContacts, 4000);
+    return () => clearInterval(interval);
+  }, [location.state]);
 
   // Filter contacts locally
   useEffect(() => {
@@ -185,14 +198,25 @@ const Messages: React.FC = () => {
               <div 
                 key={contact._id} 
                 className={`contact-item ${activeContact?._id === contact._id ? 'active' : ''}`}
-                onClick={() => setActiveContact(contact)}
+                onClick={() => {
+                  setActiveContact(contact);
+                  setContacts(prev => prev.map(c => c._id === contact._id ? { ...c, unreadCount: 0 } : c));
+                }}
               >
                 <div className="contact-avatar">
                   {getInitial(contact.name || formatRole(contact.role))}
                 </div>
-                <div className="contact-info">
-                  <span className="contact-name">{contact.name || formatRole(contact.role)}</span>
+                <div className="contact-info" style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="contact-name">{contact.name || formatRole(contact.role)}</span>
+                    {contact.unreadCount && contact.unreadCount > 0 ? (
+                      <span className="contact-unread-badge">{contact.unreadCount}</span>
+                    ) : null}
+                  </div>
                   {contact.name && <span className="contact-role">{formatRole(contact.role)}</span>}
+                  {contact.lastMessage && (
+                    <div className="contact-last-msg">{contact.lastMessage}</div>
+                  )}
                 </div>
               </div>
             ))}

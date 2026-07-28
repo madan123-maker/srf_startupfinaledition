@@ -37,7 +37,7 @@ const ReassignTasks: React.FC = () => {
 
   const fetchAssignments = async () => {
     try {
-      const res = await fetch('${API_BASE_URL}/api/assignments', {
+      const res = await fetch(`${API_BASE_URL}/api/assignments`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -53,7 +53,7 @@ const ReassignTasks: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('${API_BASE_URL}/api/users', {
+      const res = await fetch(`${API_BASE_URL}/api/users`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
@@ -54,7 +55,7 @@ const SuperAdminDashboard: React.FC = () => {
     const fetchEditions = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch('${API_BASE_URL}/api/editions', {
+        const res = await fetch(`${API_BASE_URL}/api/editions`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
@@ -78,7 +79,7 @@ const SuperAdminDashboard: React.FC = () => {
       setLoading(true);
       try {
         const token = localStorage.getItem('token');
-        let url = '${API_BASE_URL}/api/dashboard/metrics';
+        let url = `${API_BASE_URL}/api/dashboard/metrics`;
         if (selectedEdition) {
           url += `?editionId=${selectedEdition}`;
         }

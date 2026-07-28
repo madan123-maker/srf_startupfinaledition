@@ -6,6 +6,7 @@ import { Evaluation } from '../models/Evaluation';
 import { FormSchemaModel } from '../models/FormSchema';
 import { EvaluationService } from '../services/EvaluationService';
 import { Notification } from '../models/Notification';
+import { RecycleBin, EntityType } from '../models/RecycleBin';
 
 export const buildConsolidatedSubmission = async (editionId: string) => {
   const schema = await FormSchemaModel.findOne({ editionId });
@@ -174,11 +175,15 @@ export const getSubmissionsByEdition = async (req: Request, res: Response) => {
     const { editionId } = req.params;
     const consolidated = await buildConsolidatedSubmission(editionId);
 
-    if (consolidated.responses.length > 0) {
+    if (consolidated && consolidated.responses && consolidated.responses.length > 0) {
       return res.status(200).json([consolidated]);
     }
 
-    const submissions = await Submission.find({ editionId }).populate('userId', 'name email state').sort({ createdAt: -1 });
+    const submissions = await Submission.find({ 
+      editionId,
+      status: { $ne: SubmissionStatus.DRAFT }
+    }).populate('userId', 'name email state').sort({ createdAt: -1 });
+
     return res.status(200).json(submissions);
   } catch (error: any) {
     console.error('Error fetching submissions by edition:', error);
@@ -495,5 +500,37 @@ export const evaluateDocument = async (req: any, res: Response) => {
   } catch (error: any) {
     console.error('Error evaluating document:', error);
     return res.status(500).json({ error: error.message || 'Document evaluation failed' });
+  }
+};
+
+export const deleteSubmission = async (req: any, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    const sub = await Submission.findById(id).populate('userId', 'name email state').lean();
+    if (!sub) {
+      return res.status(404).json({ error: 'Submission not found' });
+    }
+
+    const stateName = sub.stateName || (sub.userId as any)?.state || 'State';
+    const userName = (sub.userId as any)?.name || (sub.userId as any)?.email || 'User';
+
+    // 1. Save in RecycleBin
+    await RecycleBin.create({
+      originalId: sub._id.toString(),
+      entityType: EntityType.APPLICATION,
+      entityName: `Application (${stateName} - ${userName})`,
+      data: sub,
+      deletedBy: userId
+    });
+
+    // 2. Delete from Submissions collection
+    await Submission.findByIdAndDelete(id);
+
+    return res.status(200).json({ message: 'Application moved to Recycle Bin successfully' });
+  } catch (error: any) {
+    console.error('Error deleting submission:', error);
+    return res.status(500).json({ error: error.message || 'Failed to delete application' });
   }
 };
