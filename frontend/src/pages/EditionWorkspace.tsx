@@ -60,13 +60,27 @@ const EditionWorkspace: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      
+
+      // Auth guard — redirect if no token
+      if (!token) {
+        navigate('/admin-login');
+        return;
+      }
+
       // Fetch Edition Details
       const editionRes = await fetch(`${API_BASE_URL}/api/editions/${id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+
+      if (editionRes.status === 401) {
+        navigate('/admin-login');
+        return;
+      }
+
       if (editionRes.ok) {
         setEdition(await editionRes.json());
+      } else {
+        console.error('Failed to fetch edition, status:', editionRes.status);
       }
 
       // Fetch Submissions
@@ -199,7 +213,18 @@ const EditionWorkspace: React.FC = () => {
   }
 
   if (!edition) {
-    return <div className="workspace-loading">Edition not found.</div>;
+    return (
+      <div className="workspace-loading" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+        <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>Edition not found</div>
+        <div style={{ fontSize: '14px', color: '#64748b' }}>The edition may have been deleted or you may not have permission to view it.</div>
+        <button
+          style={{ marginTop: '12px', padding: '10px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+          onClick={() => navigate('/admin/editions')}
+        >
+          Back to Editions
+        </button>
+      </div>
+    );
   }
 
   return (
