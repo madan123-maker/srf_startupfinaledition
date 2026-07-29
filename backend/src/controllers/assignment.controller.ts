@@ -237,59 +237,203 @@ export const deleteAssignment = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// ─── Get schema filtered to the assignment scope (for FocusedFormView) ───────
+// ─── Helper to filter schema based on all user assignments for an edition ───
+const filterSchemaForUserAssignments = (schemaAreas: any[], assignments: any[]) => {
+  const hasFullEdition = assignments.some((a) => a.scope === 'EDITION');
+  if (hasFullEdition) {
+    return schemaAreas;
+  }
+
+  const assignedReformAreaIds = new Set(
+    assignments.filter((a) => a.scope === 'REFORM_AREA' && a.reformAreaId).map((a) => String(a.reformAreaId))
+  );
+  const assignedReformAreaTitles = new Set(
+    assignments.filter((a) => a.scope === 'REFORM_AREA' && a.reformAreaTitle).map((a) => a.reformAreaTitle.trim().toLowerCase())
+  );
+
+  const assignedActionPointIds = new Set(
+    assignments.filter((a) => a.scope === 'ACTION_POINT' && a.actionPointId).map((a) => String(a.actionPointId))
+  );
+  const assignedActionPointTitles = new Set(
+    assignments.filter((a) => a.scope === 'ACTION_POINT' && a.actionPointTitle).map((a) => a.actionPointTitle.trim().toLowerCase())
+  );
+
+  const assignedQuestionIds = new Set(
+    assignments.filter((a) => a.scope === 'QUESTION' && a.questionId).map((a) => String(a.questionId))
+  );
+  const assignedQuestionTitles = new Set(
+    assignments.filter((a) => a.scope === 'QUESTION' && a.questionTitle).map((a) => a.questionTitle.trim().toLowerCase())
+  );
+
+  return schemaAreas
+    .map((area: any) => {
+      const areaIdStr = String(area.id || area._id || '');
+      const areaTitleStr = (area.title || '').trim().toLowerCase();
+
+      // 1. Whole Reform Area assigned (by ID or Title)
+      if (assignedReformAreaIds.has(areaIdStr) || (areaTitleStr && assignedReformAreaTitles.has(areaTitleStr))) {
+        return area;
+      }
+
+      // 2. Specific Action Points or Questions assigned within this area
+      const filteredActionPoints = (area.actionPoints || [])
+        .map((ap: any) => {
+          const apIdStr = String(ap.id || ap._id || '');
+          const apTitleStr = (ap.title || '').trim().toLowerCase();
+
+          if (assignedActionPointIds.has(apIdStr) || (apTitleStr && assignedActionPointTitles.has(apTitleStr))) {
+            return ap;
+          }
+          const filteredQuestions = (ap.questions || []).filter((q: any) => {
+            const qIdStr = String(q.id || q._id || '');
+            const qTitleStr = (q.title || '').trim().toLowerCase();
+            return assignedQuestionIds.has(qIdStr) || (qTitleStr && assignedQuestionTitles.has(qTitleStr));
+          });
+          if (filteredQuestions.length > 0) {
+            return { ...ap, questions: filteredQuestions };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      if (filteredActionPoints.length > 0) {
+        return { ...area, actionPoints: filteredActionPoints };
+      }
+
+      return null;
+    })
+    .filter(Boolean);
+};
+
+// ─── Get schema filtered to all user's assignments for an assignment ID ───────
 export const getAssignmentSchema = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params; // assignmentId
-    const userId = req.user?.id;
+    const userId = req.user?.id || (req.user as any)?._id;
 
-    const assignment = await Assignment.findOne({ _id: id, userId }).populate(
+    let targetAssignment = await Assignment.findOne({ _id: id, userId }).populate(
       'editionId',
-      'name version status'
+      'name version status description'
     );
 
-    if (!assignment) {
+    if (!targetAssignment && mongoose.Types.ObjectId.isValid(id)) {
+      targetAssignment = await Assignment.findById(id).populate(
+        'editionId',
+        'name version status description'
+      );
+    }
+
+    if (!targetAssignment) {
       return res.status(404).json({ error: 'Assignment not found.' });
     }
 
-    const schema = await FormSchemaModel.findOne({ editionId: assignment.editionId });
+    const editionId = typeof targetAssignment.editionId === 'object' ? (targetAssignment.editionId as any)._id : targetAssignment.editionId;
+
+    // Get all assignments for this user and edition
+    let allUserAssignments = await Assignment.find({ userId, editionId }).populate(
+      'editionId',
+      'name version status description'
+    );
+
+    if ((!allUserAssignments || allUserAssignments.length === 0) && mongoose.Types.ObjectId.isValid(editionId)) {
+      allUserAssignments = await Assignment.find({
+        userId: new mongoose.Types.ObjectId(userId),
+        editionId: new mongoose.Types.ObjectId(editionId),
+      }).populate('editionId', 'name version status description');
+    }
+
+    if (!allUserAssignments || allUserAssignments.length === 0) {
+      allUserAssignments = [targetAssignment];
+    }
+
+    let schema = await FormSchemaModel.findOne({ editionId });
+    if (!schema && mongoose.Types.ObjectId.isValid(editionId)) {
+      schema = await FormSchemaModel.findOne({ editionId: new mongoose.Types.ObjectId(editionId) });
+    }
+
     if (!schema) {
       return res.status(404).json({ error: 'Schema not found for this edition.' });
     }
 
-    // Filter schema to only the assigned scope
-    let filteredAreas = schema.toObject().areas;
-
-    if (assignment.scope === 'REFORM_AREA') {
-      filteredAreas = filteredAreas.filter((a: any) => a.id === assignment.reformAreaId);
-    } else if (assignment.scope === 'ACTION_POINT') {
-      filteredAreas = filteredAreas
-        .filter((a: any) => a.id === assignment.reformAreaId)
-        .map((a: any) => ({
-          ...a,
-          actionPoints: a.actionPoints.filter((ap: any) => ap.id === assignment.actionPointId),
-        })) as any;
-    } else if (assignment.scope === 'QUESTION') {
-      filteredAreas = filteredAreas
-        .filter((a: any) => a.id === assignment.reformAreaId)
-        .map((a: any) => ({
-          ...a,
-          actionPoints: a.actionPoints
-            .filter((ap: any) => ap.id === assignment.actionPointId)
-            .map((ap: any) => ({
-              ...ap,
-              questions: ap.questions.filter((q: any) => q.id === assignment.questionId),
-            })),
-        })) as any;
+    let filteredAreas = filterSchemaForUserAssignments(schema.toObject().areas || [], allUserAssignments);
+    if (!filteredAreas || filteredAreas.length === 0) {
+      filteredAreas = schema.toObject().areas || [];
     }
 
     return res.status(200).json({
-      assignment,
+      assignment: targetAssignment,
+      assignments: allUserAssignments,
+      edition: targetAssignment.editionId,
       filteredSchema: { areas: filteredAreas },
     });
   } catch (error: any) {
     console.error('Get assignment schema error:', error);
     return res.status(500).json({ error: error.message || 'Failed to fetch assignment schema.' });
+  }
+};
+
+// ─── Get schema filtered to all user's assignments for an edition ID ─────────
+export const getEditionAssignmentSchema = async (req: AuthRequest, res: Response) => {
+  try {
+    const { editionId } = req.params;
+    const userId = req.user?.id || (req.user as any)?._id;
+
+    let edition = await Edition.findById(editionId);
+    if (!edition && mongoose.Types.ObjectId.isValid(editionId)) {
+      edition = await Edition.findById(new mongoose.Types.ObjectId(editionId));
+    }
+
+    if (!edition) {
+      return res.status(404).json({ error: 'Edition not found.' });
+    }
+
+    let assignments = await Assignment.find({ userId, editionId }).populate(
+      'editionId',
+      'name version status description'
+    );
+
+    if ((!assignments || assignments.length === 0) && mongoose.Types.ObjectId.isValid(editionId)) {
+      assignments = await Assignment.find({
+        userId: new mongoose.Types.ObjectId(userId),
+        editionId: new mongoose.Types.ObjectId(editionId),
+      }).populate('editionId', 'name version status description');
+    }
+
+    if (!assignments) assignments = [];
+
+    let schema = await FormSchemaModel.findOne({ editionId });
+    if (!schema && mongoose.Types.ObjectId.isValid(editionId)) {
+      schema = await FormSchemaModel.findOne({ editionId: new mongoose.Types.ObjectId(editionId) });
+    }
+
+    if (!schema) {
+      return res.status(404).json({ error: 'Schema not found for this edition.' });
+    }
+
+    let filteredAreas = assignments.length > 0
+      ? filterSchemaForUserAssignments(schema.toObject().areas || [], assignments)
+      : schema.toObject().areas || [];
+
+    if (!filteredAreas || filteredAreas.length === 0) {
+      filteredAreas = schema.toObject().areas || [];
+    }
+
+    const primaryAssignment = assignments[0] || {
+      _id: `edition-${editionId}`,
+      scope: 'EDITION',
+      editionId: edition,
+      status: 'ASSIGNED',
+    };
+
+    return res.status(200).json({
+      assignment: primaryAssignment,
+      assignments,
+      edition,
+      filteredSchema: { areas: filteredAreas },
+    });
+  } catch (error: any) {
+    console.error('Get edition assignment schema error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch edition assignment schema.' });
   }
 };
 
@@ -299,20 +443,45 @@ export const submitAssignment = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const userId = req.user?.id;
 
-    const assignment = await Assignment.findOneAndUpdate(
-      { _id: id, userId },
-      { status: 'SUBMITTED' },
-      { new: true }
-    );
-
+    const assignment = await Assignment.findOne({ _id: id, userId });
     if (!assignment) {
       return res.status(404).json({ error: 'Assignment not found or not yours.' });
     }
 
-    return res.status(200).json({ message: 'Task submitted successfully.', assignment });
+    // Mark all assignments for this edition as SUBMITTED
+    await Assignment.updateMany(
+      { userId, editionId: assignment.editionId },
+      { status: 'SUBMITTED' }
+    );
+
+    const updatedAssignment = await Assignment.findById(id);
+
+    return res.status(200).json({ message: 'Task submitted successfully.', assignment: updatedAssignment });
   } catch (error: any) {
     console.error('Submit assignment error:', error);
     return res.status(500).json({ error: error.message || 'Failed to submit assignment.' });
+  }
+};
+
+// ─── Submit Edition Assignment (User action) ─────────────────────────────────
+export const submitEditionAssignment = async (req: AuthRequest, res: Response) => {
+  try {
+    const { editionId } = req.params;
+    const userId = req.user?.id;
+
+    const result = await Assignment.updateMany(
+      { userId, editionId },
+      { status: 'SUBMITTED' }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: 'No assignments found for this edition.' });
+    }
+
+    return res.status(200).json({ message: 'Edition tasks submitted successfully.' });
+  } catch (error: any) {
+    console.error('Submit edition assignment error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to submit edition tasks.' });
   }
 };
 

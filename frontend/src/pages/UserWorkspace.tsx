@@ -183,15 +183,30 @@ const UserWorkspace: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
 
-      // 1. Fetch Form Schema
-      const schemaRes = await fetch(`${API_BASE_URL}/api/schemas/${editionId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      // 1. Fetch Form Schema (Assigned schema first, fallback to full schema)
       let schemaData = null;
-      if (schemaRes.ok) {
-        schemaData = await schemaRes.json();
-        setSchema(schemaData);
+      try {
+        const assignedRes = await fetch(`${API_BASE_URL}/api/assignments/edition/${editionId}/schema`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (assignedRes.ok) {
+          const assignedData = await assignedRes.json();
+          schemaData = assignedData.filteredSchema;
+        }
+      } catch (e) {
+        console.warn('Could not fetch assigned schema, falling back to full schema');
       }
+
+      if (!schemaData || !schemaData.areas || schemaData.areas.length === 0) {
+        const schemaRes = await fetch(`${API_BASE_URL}/api/schemas/${editionId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (schemaRes.ok) {
+          schemaData = await schemaRes.json();
+        }
+      }
+
+      setSchema(schemaData);
 
       // 2. Fetch or Create Submission
       const subRes = await fetch(`${API_BASE_URL}/api/submissions/edition/${editionId}/my-submission`, {
@@ -504,7 +519,15 @@ const UserWorkspace: React.FC = () => {
           alert(status === 'SUBMITTED' ? 'Application submitted successfully!' : 'Draft saved successfully!');
         }
         if (status === 'SUBMITTED') {
-          navigate('/user-dashboard');
+          try {
+            await fetch(`${API_BASE_URL}/api/assignments/edition/${editionId}/submit`, {
+              method: 'PUT',
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+          } catch (e) {
+            console.error('Failed to submit edition assignments:', e);
+          }
+          navigate('/user-dashboard/assigned-tasks');
         }
       } else {
         const errorData = await response.json();

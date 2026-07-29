@@ -7,7 +7,9 @@ import {
   getMySubmissions,
   deleteAssignment,
   getAssignmentSchema,
+  getEditionAssignmentSchema,
   submitAssignment,
+  submitEditionAssignment,
   getSubmittedAssignments,
   evaluateAssignment,
   getAdminAssignmentDetails,
@@ -20,6 +22,8 @@ const router = Router();
 // User routes
 router.get('/my', protect as any, getMyAssignments);
 router.get('/my-submissions', protect as any, getMySubmissions);
+router.get('/edition/:editionId/schema', protect as any, getEditionAssignmentSchema);
+router.put('/edition/:editionId/submit', protect as any, submitEditionAssignment);
 router.get('/:id/schema', protect as any, getAssignmentSchema);
 router.put('/:id/submit', protect as any, submitAssignment);
 

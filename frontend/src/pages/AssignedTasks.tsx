@@ -1,7 +1,7 @@
 import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, ChevronRight, BookOpen, Layers, Target, HelpCircle } from 'lucide-react';
+import { ClipboardList, ChevronRight, BookOpen, Layers } from 'lucide-react';
 import './AssignedTasks.css';
 
 interface Assignment {
@@ -28,19 +28,16 @@ interface Assignment {
   evaluationStatus?: 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION';
 }
 
-const SCOPE_ICONS: Record<string, React.ReactNode> = {
-  EDITION: <Layers size={18} />,
-  REFORM_AREA: <BookOpen size={18} />,
-  ACTION_POINT: <Target size={18} />,
-  QUESTION: <HelpCircle size={18} />,
-};
-
-const SCOPE_LABELS: Record<string, string> = {
-  EDITION: 'Whole Edition',
-  REFORM_AREA: 'Reform Area',
-  ACTION_POINT: 'Action Point',
-  QUESTION: 'Question',
-};
+interface EditionGroup {
+  editionId: string;
+  editionName: string;
+  editionVersion: string;
+  editionDescription?: string;
+  assignments: Assignment[];
+  totalFields: number;
+  filledFields: number;
+  overallStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'SUBMITTED' | 'EVALUATED';
+}
 
 const AssignedTasks: React.FC = () => {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -60,35 +57,73 @@ const AssignedTasks: React.FC = () => {
       .catch(() => setLoading(false));
   }, []);
 
-  const getStatusDisplay = (task: Assignment) => {
-    switch (task.status) {
-      case 'NOT_STARTED': return <span className="at-status ns">Not Started</span>;
-      case 'IN_PROGRESS': return <span className="at-status ip">In Progress</span>;
-      case 'COMPLETED': return <span className="at-status co">Completed</span>;
-      case 'SUBMITTED': return <span className="at-status co" style={{background: '#dbeafe', color: '#1e40af'}}>Submitted</span>;
-      case 'EVALUATED':
-        if (task.evaluationStatus === 'APPROVED') return <span className="at-status co" style={{background: '#dcfce7', color: '#166534'}}>Approved</span>;
-        if (task.evaluationStatus === 'REJECTED') return <span className="at-status ns" style={{background: '#fee2e2', color: '#991b1b'}}>Rejected</span>;
-        if (task.evaluationStatus === 'NEEDS_REVISION') return <span className="at-status ip" style={{background: '#fef9c3', color: '#854d0e'}}>Needs Revision</span>;
-        return <span className="at-status co">Evaluated</span>;
-      default: return <span className="at-status ns">Assigned</span>;
-    }
-  };
+  // Group assignments by Edition
+  const editionGroupsMap = new Map<string, EditionGroup>();
 
-  const getBreadcrumb = (a: Assignment) => {
-    const parts: string[] = [];
-    if (a.editionId?.name) parts.push(a.editionId.name);
-    if (a.reformAreaTitle) parts.push(a.reformAreaTitle);
-    if (a.actionPointTitle) parts.push(a.actionPointTitle);
-    if (a.questionTitle) parts.push(a.questionTitle);
-    return parts;
-  };
+  assignments.forEach((a) => {
+    const edId = a.editionId?._id || 'unknown';
+    const edName = a.editionId?.name || 'Assigned Edition';
+    const edVersion = a.editionId?.version || '';
+    const edDesc = a.editionId?.description;
+
+    if (!editionGroupsMap.has(edId)) {
+      editionGroupsMap.set(edId, {
+        editionId: edId,
+        editionName: edName,
+        editionVersion: edVersion,
+        editionDescription: edDesc,
+        assignments: [],
+        totalFields: 0,
+        filledFields: 0,
+        overallStatus: 'NOT_STARTED',
+      });
+    }
+
+    const group = editionGroupsMap.get(edId)!;
+    group.assignments.push(a);
+    group.totalFields += a.totalFields || 0;
+    group.filledFields += a.filledFields || 0;
+  });
+
+  const editionGroups: EditionGroup[] = Array.from(editionGroupsMap.values()).map((g) => {
+    const statuses = g.assignments.map((a) => a.status);
+    let overallStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'SUBMITTED' | 'EVALUATED' = 'NOT_STARTED';
+
+    if (statuses.every((s) => s === 'EVALUATED')) {
+      overallStatus = 'EVALUATED';
+    } else if (statuses.every((s) => s === 'SUBMITTED' || s === 'EVALUATED')) {
+      overallStatus = 'SUBMITTED';
+    } else if (statuses.every((s) => s === 'COMPLETED')) {
+      overallStatus = 'COMPLETED';
+    } else if (statuses.some((s) => s === 'IN_PROGRESS' || s === 'COMPLETED' || s === 'SUBMITTED')) {
+      overallStatus = 'IN_PROGRESS';
+    }
+
+    return { ...g, overallStatus };
+  });
 
   const stats = {
-    total: assignments.length,
-    completed: assignments.filter((a) => a.status === 'COMPLETED').length,
-    inProgress: assignments.filter((a) => a.status === 'IN_PROGRESS').length,
-    notStarted: assignments.filter((a) => a.status === 'NOT_STARTED').length,
+    totalAssignments: assignments.length,
+    completedAssignments: assignments.filter((a) => a.status === 'COMPLETED' || a.status === 'SUBMITTED' || a.status === 'EVALUATED').length,
+    inProgressAssignments: assignments.filter((a) => a.status === 'IN_PROGRESS').length,
+    notStartedAssignments: assignments.filter((a) => a.status === 'NOT_STARTED').length,
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'NOT_STARTED':
+        return <span className="at-status ns">Not Started</span>;
+      case 'IN_PROGRESS':
+        return <span className="at-status ip">In Progress</span>;
+      case 'COMPLETED':
+        return <span className="at-status co">Completed</span>;
+      case 'SUBMITTED':
+        return <span className="at-status co" style={{ background: '#dbeafe', color: '#1e40af' }}>Submitted</span>;
+      case 'EVALUATED':
+        return <span className="at-status co" style={{ background: '#dcfce7', color: '#166534' }}>Evaluated</span>;
+      default:
+        return <span className="at-status ns">Assigned</span>;
+    }
   };
 
   return (
@@ -105,19 +140,19 @@ const AssignedTasks: React.FC = () => {
       {/* Stats row */}
       <div className="at-stats-row">
         <div className="at-stat-card">
-          <div className="at-stat-num total">{stats.total}</div>
-          <div className="at-stat-label">Total Tasks</div>
+          <div className="at-stat-num total">{stats.totalAssignments}</div>
+          <div className="at-stat-label">Total Assigned Tasks</div>
         </div>
         <div className="at-stat-card">
-          <div className="at-stat-num completed">{stats.completed}</div>
-          <div className="at-stat-label">Completed</div>
+          <div className="at-stat-num completed">{stats.completedAssignments}</div>
+          <div className="at-stat-label">Completed / Submitted</div>
         </div>
         <div className="at-stat-card">
-          <div className="at-stat-num in-progress">{stats.inProgress}</div>
+          <div className="at-stat-num in-progress">{stats.inProgressAssignments}</div>
           <div className="at-stat-label">In Progress</div>
         </div>
         <div className="at-stat-card">
-          <div className="at-stat-num not-started">{stats.notStarted}</div>
+          <div className="at-stat-num not-started">{stats.notStartedAssignments}</div>
           <div className="at-stat-label">Not Started</div>
         </div>
       </div>
@@ -125,7 +160,7 @@ const AssignedTasks: React.FC = () => {
       {/* Task cards */}
       {loading ? (
         <div className="at-loading">Loading your tasks...</div>
-      ) : assignments.length === 0 ? (
+      ) : editionGroups.length === 0 ? (
         <div className="at-empty">
           <ClipboardList size={48} color="#cbd5e1" />
           <h3>No tasks assigned yet</h3>
@@ -133,49 +168,56 @@ const AssignedTasks: React.FC = () => {
         </div>
       ) : (
         <div className="at-cards-grid">
-          {assignments.map((a) => {
-            const breadcrumb = getBreadcrumb(a);
-            const progress = a.totalFields > 0 ? Math.round((a.filledFields / a.totalFields) * 100) : 0;
+          {editionGroups.map((g) => {
+            const progress = g.totalFields > 0 ? Math.round((g.filledFields / g.totalFields) * 100) : 0;
 
             return (
-              <div key={a._id} className={`at-card ${a.status === 'COMPLETED' ? 'at-card-done' : ''}`}>
+              <div key={g.editionId} className={`at-card ${g.overallStatus === 'COMPLETED' || g.overallStatus === 'SUBMITTED' ? 'at-card-done' : ''}`}>
                 {/* Card top */}
                 <div className="at-card-top">
-                  <div className="at-scope-icon">{SCOPE_ICONS[a.scope]}</div>
+                  <div className="at-scope-icon">
+                    <Layers size={20} />
+                  </div>
                   <div className="at-card-meta">
-                    <div className="at-scope-label">{SCOPE_LABELS[a.scope]}</div>
-                    {getStatusDisplay(a)}
+                    <div className="at-edition-title">
+                      {g.editionName} {g.editionVersion ? `(v${g.editionVersion})` : ''}
+                    </div>
+                    {getStatusBadge(g.overallStatus)}
                   </div>
                 </div>
 
-                {/* Breadcrumb trail */}
-                <div className="at-breadcrumb">
-                  {breadcrumb.map((part, i) => (
-                    <span key={i} className="at-breadcrumb-item">
-                      {part}
-                      {i < breadcrumb.length - 1 && <ChevronRight size={13} className="at-bc-arrow" />}
+                {/* Number of Reform Areas Assigned */}
+                <div className="at-allocated-section">
+                  <div className="at-allocated-info-row">
+                    <BookOpen size={18} className="at-allocated-icon" />
+                    <span className="at-allocated-count-text">
+                      Assigned Reform Areas: <strong>{g.assignments.length}</strong>
                     </span>
-                  ))}
+                  </div>
                 </div>
 
-                {/* Progress bar */}
-                {a.totalFields > 0 && (
+                {/* Aggregate Progress bar */}
+                {g.totalFields > 0 && (
                   <div className="at-progress-wrap">
                     <div className="at-progress-bar">
                       <div className="at-progress-fill" style={{ width: `${progress}%` }} />
                     </div>
-                    <span className="at-progress-label">{a.filledFields}/{a.totalFields} fields filled</span>
+                    <span className="at-progress-label">
+                      {g.filledFields}/{g.totalFields} fields filled ({progress}%)
+                    </span>
                   </div>
                 )}
 
                 {/* Fill button */}
                 <button
                   className="at-fill-btn"
-                  onClick={() => navigate(`/user-dashboard/task/${a._id}`)}
+                  onClick={() => navigate(`/user-dashboard/workspace/${g.editionId}`)}
                 >
-                  {a.status === 'NOT_STARTED' ? 'Start Task' : 
-                   (a.status === 'SUBMITTED' || a.status === 'EVALUATED') ? 'View Submission' : 
-                   'Continue Task'}
+                  {g.overallStatus === 'NOT_STARTED'
+                    ? 'Start Task'
+                    : g.overallStatus === 'SUBMITTED' || g.overallStatus === 'EVALUATED'
+                    ? 'View Submission'
+                    : 'Continue Task'}
                   <ChevronRight size={16} />
                 </button>
               </div>

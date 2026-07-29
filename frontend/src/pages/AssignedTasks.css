@@ -235,3 +235,100 @@
 }
 .at-fill-btn:hover { opacity: 0.9; transform: translateY(-1px); }
 .at-card-done .at-fill-btn { background: linear-gradient(135deg, #10b981, #059669); }
+
+/* Edition Title */
+.at-edition-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+/* Allocated Section */
+.at-allocated-section {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 8px;
+  border: 1px solid #f1f5f9;
+}
+
+.at-allocated-info-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.at-allocated-count-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.at-allocated-count-text strong {
+  color: #6366f1;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.at-allocated-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.at-allocated-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.at-allocated-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.at-allocated-icon {
+  color: #6366f1;
+  display: flex;
+  align-items: center;
+}
+
+.at-allocated-item-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.at-allocated-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.at-allocated-scope {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.at-allocated-item-right {
+  display: flex;
+  align-items: center;
+}
+
+.at-allocated-fields {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+

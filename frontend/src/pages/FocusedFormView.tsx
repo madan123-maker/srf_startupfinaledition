@@ -60,8 +60,11 @@ const SCOPE_ICONS: Record<string, React.ReactNode> = {
 };
 
 const FocusedFormView: React.FC = () => {
-  const { assignmentId } = useParams<{ assignmentId: string }>();
+  const { assignmentId: rawAssignmentId, editionId: rawEditionId } = useParams<{ assignmentId?: string; editionId?: string }>();
   const navigate = useNavigate();
+
+  const routeEditionId = rawEditionId;
+  const assignmentId = rawAssignmentId !== 'edition' ? rawAssignmentId : undefined;
 
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [filteredSchema, setFilteredSchema] = useState<{ areas: ReformArea[] } | null>(null);
@@ -76,22 +79,48 @@ const FocusedFormView: React.FC = () => {
   const token = localStorage.getItem('token');
 
   useEffect(() => {
-    if (!assignmentId) return;
+    if (!assignmentId && !routeEditionId) return;
     const load = async () => {
       try {
-        // 1. Fetch filtered schema for this assignment
-        const schemaRes = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/schema`, {
+        const schemaUrl = routeEditionId
+          ? `${API_BASE_URL}/api/assignments/edition/${routeEditionId}/schema`
+          : `${API_BASE_URL}/api/assignments/${assignmentId}/schema`;
+
+        // 1. Fetch filtered schema for this assignment or edition
+        const schemaRes = await fetch(schemaUrl, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!schemaRes.ok) throw new Error('Assignment not found');
-        const { assignment: asgn, filteredSchema: fs } = await schemaRes.json();
+        let asgn: any = null;
+        let fs: any = null;
+
+        if (schemaRes.ok) {
+          const data = await schemaRes.json();
+          asgn = data.assignment;
+          fs = data.filteredSchema;
+        } else if (routeEditionId) {
+          const fallbackRes = await fetch(`${API_BASE_URL}/api/schemas/${routeEditionId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (fallbackRes.ok) {
+            const fallbackSchema = await fallbackRes.json();
+            fs = fallbackSchema;
+            asgn = {
+              _id: `edition-${routeEditionId}`,
+              scope: 'EDITION',
+              editionId: fallbackSchema.editionId || routeEditionId,
+              status: 'ASSIGNED',
+            };
+          }
+        }
+
+        if (!asgn || !fs) throw new Error('Assignment not found');
         setAssignment(asgn);
         setFilteredSchema(fs);
         
         // 2. Fetch/create submission for the edition
-        const editionId = typeof asgn.editionId === 'object' ? asgn.editionId._id : asgn.editionId;
+        const targetEditionId = routeEditionId || (typeof asgn.editionId === 'object' ? asgn.editionId._id : asgn.editionId);
         const subRes = await fetch(
-          `${API_BASE_URL}/api/submissions/edition/${editionId}/my-submission`,
+          `${API_BASE_URL}/api/submissions/edition/${targetEditionId}/my-submission`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (subRes.ok) {
@@ -112,7 +141,7 @@ const FocusedFormView: React.FC = () => {
       }
     };
     load();
-  }, [assignmentId]);
+  }, [assignmentId, routeEditionId]);
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });

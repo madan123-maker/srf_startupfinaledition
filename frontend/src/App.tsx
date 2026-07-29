@@ -20,7 +20,6 @@ const RecycleBin = lazy(() => import('./pages/RecycleBin'));
 const EditionWorkspace = lazy(() => import('./pages/EditionWorkspace'));
 const AdminSubmissionView = lazy(() => import('./pages/AdminSubmissionView'));
 const AssignedTasks = lazy(() => import('./pages/AssignedTasks'));
-const FocusedFormView = lazy(() => import('./pages/FocusedFormView'));
 const ReassignTasks = lazy(() => import('./pages/ReassignTasks'));
 const EvaluateTasks = lazy(() => import('./pages/EvaluateTasks'));
 const EvaluateTaskDetail = lazy(() => import('./pages/EvaluateTaskDetail'));
@@ -73,10 +72,11 @@ function App() {
           <Route path="/user-dashboard" element={<UserLayout />}>
             <Route index element={<UserDashboard />} />
             <Route path="workspace/:editionId" element={<UserWorkspace />} />
+            <Route path="task/edition/:editionId" element={<UserWorkspace />} />
+            <Route path="task/:assignmentId" element={<UserWorkspace />} />
             <Route path="assigned-tasks" element={<AssignedTasks />} />
             <Route path="submissions" element={<MySubmissions />} />
             <Route path="messages" element={<Messages />} />
-            <Route path="task/:assignmentId" element={<FocusedFormView />} />
           </Route>
         </Routes>
       </Suspense>
