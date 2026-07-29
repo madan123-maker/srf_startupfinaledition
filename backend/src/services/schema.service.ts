@@ -1,17 +1,21 @@
 import { FormSchemaModel, IFormSchema } from '../models/FormSchema';
 import { RecycleBin, EntityType } from '../models/RecycleBin';
 import { SEED_SCHEMA } from '../utils/schemaData';
+import { Edition } from '../models/Edition';
 
 export class SchemaService {
   async getSchemaByEditionId(editionId: string) {
     const cleanId = editionId.trim();
     let schema = await FormSchemaModel.findOne({ editionId: cleanId }).lean();
+    const edition = await Edition.findById(cleanId).select('guidelineFileId guidelineFileName').lean();
     
     if (!schema) {
       // Return a default empty schema if not found
       return {
         editionId: cleanId,
-        areas: []
+        areas: [],
+        guidelineFileId: edition?.guidelineFileId || null,
+        guidelineFileName: edition?.guidelineFileName || null
       };
     }
     
@@ -27,7 +31,11 @@ export class SchemaService {
       }
     }
     
-    return schema;
+    return {
+      ...schema,
+      guidelineFileId: edition?.guidelineFileId || null,
+      guidelineFileName: edition?.guidelineFileName || null
+    };
   }
 
   async updateSchema(editionId: string, schemaData: Partial<IFormSchema>, userId: string) {
@@ -58,26 +66,25 @@ export class SchemaService {
 
       // For areas that still exist, check for deleted action points
       for (const oldArea of schema.areas) {
-        if (newAreaIds.has(oldArea.id)) {
-          const newArea = newAreas.find(a => a.id === oldArea.id);
-          const newApIds = new Set(newArea?.actionPoints?.map(ap => ap.id) || []);
-          
-          const deletedAps = oldArea.actionPoints?.filter(ap => !newApIds.has(ap.id)) || [];
+        const newArea = newAreas.find(a => a.id === oldArea.id);
+        if (newArea) {
+          const newApIds = new Set((newArea.actionPoints || []).map(ap => ap.id));
+          const deletedAps = oldArea.actionPoints.filter(ap => !newApIds.has(ap.id));
           for (const ap of deletedAps) {
             await RecycleBin.create({
               originalId: ap.id,
               entityType: EntityType.ACTION_POINT,
               entityName: ap.title,
-              data: { ...ap, editionId: cleanId, areaId: oldArea.id },
+              data: { ...ap, editionId: cleanId, reformAreaId: oldArea.id },
               deletedBy: userId
             });
           }
         }
       }
 
-      schema.areas = newAreas;
+      schema.areas = schemaData.areas || [];
     }
-    
+
     await schema.save();
     return schema;
   }

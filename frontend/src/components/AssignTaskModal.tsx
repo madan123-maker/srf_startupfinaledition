@@ -1,6 +1,6 @@
 import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, ChevronRight } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 import './AssignTaskModal.css';
 
 interface AppUser {
@@ -24,8 +24,11 @@ interface Assignment {
   _id: string;
   scope: string;
   editionId: { _id: string; name: string; version: string };
+  reformAreaId?: string;
   reformAreaTitle?: string;
+  actionPointId?: string;
   actionPointTitle?: string;
+  questionId?: string;
   questionTitle?: string;
 }
 
@@ -172,10 +175,32 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
   };
 
   const getScopeBreadcrumb = (a: Assignment) => {
-    const parts = [(a.editionId as any)?.name || 'Edition'];
-    if (a.reformAreaTitle) parts.push(a.reformAreaTitle);
-    if (a.actionPointTitle) parts.push(a.actionPointTitle);
-    if (a.questionTitle) parts.push(a.questionTitle);
+    const edName = (a.editionId as any)?.name || 'Edition';
+    if (a.scope === 'EDITION') {
+      return [edName, 'Full Edition (All Reform Areas)'];
+    }
+    const parts = [edName];
+    if (a.reformAreaTitle) {
+      parts.push(a.reformAreaTitle);
+    } else if (a.reformAreaId) {
+      parts.push(`Reform Area (${a.reformAreaId})`);
+    }
+
+    if (a.actionPointTitle) {
+      parts.push(a.actionPointTitle);
+    } else if (a.actionPointId) {
+      parts.push(`Action Point (${a.actionPointId})`);
+    }
+
+    if (a.questionTitle) {
+      parts.push(a.questionTitle);
+    } else if (a.questionId) {
+      parts.push(`Question (${a.questionId})`);
+    }
+
+    if (parts.length === 1) {
+      parts.push('Assigned Scope');
+    }
     return parts;
   };
 
@@ -342,22 +367,26 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
                   const isEdPublished = (a.editionId as any)?.status === 'PUBLISHED';
                   return (
                     <div key={a._id} className="atm-assignment-chip">
-                      <div className="atm-chip-scope-badge">{SCOPE_LABELS[a.scope as Scope]}</div>
-                      <div className="atm-chip-breadcrumb">
-                        {crumbs.map((c, i) => (
-                          <span key={i}>
-                            {c}
-                            {i < crumbs.length - 1 && <ChevronRight size={12} className="atm-chevron" />}
-                          </span>
-                        ))}
-                        {isEdPublished && (
-                          <span style={{ marginLeft: '6px', fontSize: '11px', color: '#10b981', fontWeight: 600 }}>
-                            (Published)
-                          </span>
-                        )}
+                      <div className="atm-chip-content">
+                        <div className="atm-chip-header">
+                          <span className="atm-chip-edition-name">{crumbs[0]}</span>
+                          <span className="atm-chip-scope-badge">{SCOPE_LABELS[a.scope as Scope] || a.scope}</span>
+                          {isEdPublished && (
+                            <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 600 }}>
+                              (Published)
+                            </span>
+                          )}
+                        </div>
+                        <div className="atm-chip-details">
+                          {crumbs.slice(1).map((detail, idx) => (
+                            <div key={idx} className="atm-chip-detail-item">
+                              • {detail}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <button className="atm-chip-remove" onClick={() => handleRemove(a._id)}>
-                        <Trash2 size={13} />
+                      <button className="atm-chip-remove" onClick={() => handleRemove(a._id)} title="Remove Assignment">
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   );

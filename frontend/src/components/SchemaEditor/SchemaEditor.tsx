@@ -1,6 +1,6 @@
 import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect } from 'react';
-import { ChevronUp, ChevronDown, X } from 'lucide-react';
+import { ChevronUp, ChevronDown, X, FileText, UploadCloud } from 'lucide-react';
 import './SchemaEditor.css';
 
 interface Field {
@@ -18,6 +18,7 @@ interface Question {
   title: string;
   requiredDocuments: string;
   guidelinesRef: string;
+  guidelinesPage?: number;
   scoringCriteria: string;
   fields: Field[];
 }
@@ -56,6 +57,69 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [selectedActionPointId, setSelectedActionPointId] = useState<string | null>(null);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
+
+  // PDF Parser States
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [parsingPdf, setParsingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState('');
+
+  const handlePdfUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pdfFile) {
+      setPdfError('Please select a valid SRF Framework PDF file.');
+      return;
+    }
+    setParsingPdf(true);
+    setPdfError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', pdfFile);
+      if (editionId) {
+        formData.append('editionId', editionId);
+      }
+
+      const res = await fetch(`${API_BASE_URL}/api/schemas/parse-pdf`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status}). Please verify backend endpoint ${API_BASE_URL}.`);
+      }
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to parse SRF PDF.');
+      }
+
+      if (data.areas && data.areas.length > 0) {
+        setAreas(data.areas);
+        setSelectedAreaId(data.areas[0].id);
+        if (data.areas[0].actionPoints?.length > 0) {
+          setSelectedActionPointId(data.areas[0].actionPoints[0].id);
+          if (data.areas[0].actionPoints[0].questions?.length > 0) {
+            setSelectedQuestionId(data.areas[0].actionPoints[0].questions[0].id);
+          }
+        }
+        setShowPdfModal(false);
+        setPdfFile(null);
+        alert(`Successfully generated framework schema with ${data.areas.length} Reform Area(s)! You can now review and edit before saving.`);
+      } else {
+        throw new Error('No reform areas could be extracted from the uploaded PDF.');
+      }
+    } catch (err: any) {
+      setPdfError(err.message || 'Error parsing PDF.');
+    } finally {
+      setParsingPdf(false);
+    }
+  };
 
   useEffect(() => {
     fetchSchema();
@@ -356,6 +420,9 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
           <p>Configure compliance templates, documents, and rules dynamically.</p>
         </div>
         <div className="schema-header-actions">
+          <button className="btn-pdf-upload" onClick={() => setShowPdfModal(true)}>
+            <FileText size={16} /> Generate From SRF PDF
+          </button>
           <button className="btn-reset">Reset to Default</button>
           <button className="btn-save-schema" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : 'Save Framework Schema'}
@@ -591,6 +658,60 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
           </div>
         </div>
       </div>
+      {/* PDF Upload Modal */}
+      {showPdfModal && (
+        <div className="se-pdf-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="pdf-modal-title">
+          <div className="se-pdf-modal">
+            <div className="se-pdf-modal-header">
+              <h3 id="pdf-modal-title">Generate Framework from SRF PDF</h3>
+              <button className="se-pdf-modal-close" onClick={() => setShowPdfModal(false)} aria-label="Close modal">×</button>
+            </div>
+            
+            <form onSubmit={handlePdfUpload} className="se-pdf-modal-body">
+              <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+                Upload an official SRF Framework PDF (e.g. <strong>SRF 7.0 Framework.pdf</strong>). The system will automatically extract Reform Areas, Action Points, Question numbers, Guidelines, and Supporting Document requirements.
+              </p>
+
+              {pdfError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '10px 14px', borderRadius: '8px', fontSize: '13px' }}>
+                  {pdfError}
+                </div>
+              )}
+
+              <div className="se-pdf-dropzone" onClick={() => document.getElementById('srf-pdf-input')?.click()}>
+                <UploadCloud size={36} color="#10b981" style={{ marginBottom: '8px' }} />
+                <div style={{ fontWeight: 600, color: '#334155', fontSize: '14px' }}>
+                  {pdfFile ? pdfFile.name : 'Click to select or drag & drop SRF PDF file'}
+                </div>
+                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                  Supported format: PDF (.pdf)
+                </div>
+                <input 
+                  id="srf-pdf-input"
+                  type="file" 
+                  accept="application/pdf" 
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setPdfFile(e.target.files[0]);
+                      setPdfError('');
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="se-pdf-modal-footer">
+                <button type="button" className="btn-reset" onClick={() => setShowPdfModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-save-schema" disabled={parsingPdf || !pdfFile} style={{ background: '#10b981' }}>
+                  {parsingPdf ? 'Parsing PDF & Extracting...' : 'Extract & Generate Schema'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

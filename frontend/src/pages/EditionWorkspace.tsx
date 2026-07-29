@@ -325,7 +325,7 @@ const EditionWorkspace: React.FC = () => {
                 <div className="empty-state">
                   <FileText size={48} color="#cbd5e1" />
                   <h4>No applications found</h4>
-                  <p>No applications match the current filters.</p>
+                  <p>No state applications match the selected status or search filter. Try clearing the filter options above.</p>
                 </div>
               ) : (
                 <table className="app-table">

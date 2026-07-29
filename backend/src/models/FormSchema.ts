@@ -29,6 +29,7 @@ export interface IQuestion {
   title: string;
   requiredDocuments: string;
   guidelinesRef: string;
+  guidelinesPage?: number;
   scoringCriteria: string;
   fields: IFormField[];
   supportingDocuments?: ISupportingDocument[];
@@ -83,6 +84,7 @@ const QuestionSchema = new Schema({
   title: { type: String, required: true },
   requiredDocuments: { type: String, default: '' },
   guidelinesRef: { type: String, default: '' },
+  guidelinesPage: { type: Number },
   scoringCriteria: { type: String, default: '' },
   fields: [FormFieldSchema],
   supportingDocuments: [SupportingDocumentSchema]

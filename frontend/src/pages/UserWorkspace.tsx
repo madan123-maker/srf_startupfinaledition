@@ -134,16 +134,26 @@ interface ISubmission {
   adminRemarks?: string;
 }
 
-const renderGuidelinesRef = (refText: string) => {
+const getGuidelinePdfUrl = (editionId?: string, pageNum?: string | number) => {
+  const baseUrl = editionId
+    ? `${API_BASE_URL}/api/guidelines/${editionId}`
+    : '/guidelines.pdf';
+  return pageNum ? `${baseUrl}#page=${pageNum}` : baseUrl;
+};
+
+const renderGuidelinesRef = (refText: string, editionId?: string) => {
   const match = refText.match(/Page\s*(\d+)/i) || refText.match(/(\d+)/);
+  const pdfHref = match
+    ? getGuidelinePdfUrl(editionId, match[1])
+    : getGuidelinePdfUrl(editionId);
+
   if (match) {
-    const pageNum = match[1];
     const parts = refText.split(match[0]);
     return (
       <span style={{ color: '#475569' }}>
         {parts[0]}
         <a
-          href={`/guidelines.pdf#page=${pageNum}`}
+          href={pdfHref}
           target="_blank"
           rel="noopener noreferrer"
           style={{ color: '#4f46e5', textDecoration: 'underline' }}
@@ -154,7 +164,16 @@ const renderGuidelinesRef = (refText: string) => {
       </span>
     );
   }
-  return <span style={{ color: '#475569' }}>{refText}</span>;
+  return (
+    <a
+      href={pdfHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ color: '#4f46e5', textDecoration: 'underline' }}
+    >
+      {refText}
+    </a>
+  );
 };
 
 const UserWorkspace: React.FC = () => {
@@ -906,7 +925,7 @@ const UserWorkspace: React.FC = () => {
                     {selectedQuestion.guidelinesRef && (
                       <div className="elegant-detail-item">
                         <BookOpen size={16} className="detail-icon guidelines" />
-                        <span className="detail-label">Guidelines:</span> {renderGuidelinesRef(selectedQuestion.guidelinesRef)}
+                        <span className="detail-label">Guidelines:</span> {renderGuidelinesRef(selectedQuestion.guidelinesRef, editionId)}
                       </div>
                     )}
                     {selectedQuestion.scoringCriteria && (

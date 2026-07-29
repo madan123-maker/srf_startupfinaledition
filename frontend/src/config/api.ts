@@ -29,16 +29,8 @@ export const getApiBaseUrl = (): string => {
     return envUrl.replace(/\/$/, '');
   }
 
-  // Warn during development if the env var is missing
-  if (import.meta.env.DEV) {
-    console.warn(
-      '[API Config] VITE_API_URL is not set. ' +
-        'Falling back to http://localhost:5001. ' +
-        'Create a frontend/.env file with VITE_API_URL to suppress this warning.'
-    );
-  }
-
-  return 'http://localhost:5001';
+  const hostname = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
+  return `http://${hostname}:5001`;
 };
 
 /** Singleton base URL used across the entire app */

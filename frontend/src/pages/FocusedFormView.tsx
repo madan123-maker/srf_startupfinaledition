@@ -535,19 +535,19 @@ const FocusedFormView: React.FC = () => {
                 </div>
                 
                 <div className="elegant-details-box">
-                  {currentQuestion.guidelinesRef && (
-                    <div className="elegant-detail-item">
-                      <BookOpen size={16} className="detail-icon guidelines" />
-                      <span className="detail-label">Guidelines:</span> 
-                      {currentQuestion.guidelinesRef.toLowerCase().includes('page') 
-                        ? (() => {
-                            const match = currentQuestion.guidelinesRef.match(/page\s*(\d+)/i);
-                            const href = match ? `/guidelines.pdf#page=${match[1]}` : `/guidelines.pdf`;
+                      {currentQuestion.guidelinesRef && (
+                        <div className="elegant-detail-item">
+                          <BookOpen size={16} className="detail-icon guidelines" />
+                          <span className="detail-label">Guidelines:</span> 
+                          {(() => {
+                            const resolvedEd = routeEditionId || (typeof assignment?.editionId === 'object' ? (assignment?.editionId as any)?._id : assignment?.editionId);
+                            const baseUrl = resolvedEd ? `${API_BASE_URL}/api/guidelines/${resolvedEd}` : '/guidelines.pdf';
+                            const match = currentQuestion.guidelinesRef.match(/page\s*(\d+)/i) || currentQuestion.guidelinesRef.match(/(\d+)/);
+                            const href = match ? `${baseUrl}#page=${match[1]}` : baseUrl;
                             return <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>{currentQuestion.guidelinesRef}</a>;
-                          })()
-                        : <span style={{ color: '#475569' }}>{currentQuestion.guidelinesRef}</span>}
-                    </div>
-                  )}
+                          })()}
+                        </div>
+                      )}
                   {currentQuestion.scoringCriteria && (
                     <div className="elegant-detail-item">
                       <Award size={16} className="detail-icon scoring" />

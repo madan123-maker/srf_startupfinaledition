@@ -20,6 +20,7 @@ import notificationRoutes from './routes/notification.routes';
 import mongoose from 'mongoose';
 import fs from 'fs';
 import { StoredFile } from './models/StoredFile';
+import { GuidelinePdf } from './models/GuidelinePdf';
 
 const app: Application = express();
 
@@ -62,7 +63,28 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
   }
 });
 
+// ─── Serve edition-specific guideline PDFs from GuidelinePdf collection ──────
+app.get('/api/guidelines/:editionId', async (req: Request, res: Response) => {
+  try {
+    const { editionId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(editionId)) {
+      return res.status(400).json({ error: 'Invalid editionId.' });
+    }
+    const pdf = await GuidelinePdf.findOne({ editionId: new mongoose.Types.ObjectId(editionId) });
+    if (!pdf) {
+      return res.status(404).json({ error: 'No guideline PDF uploaded for this edition.' });
+    }
+    res.setHeader('Content-Type', pdf.contentType || 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(pdf.filename)}"`);
+    res.setHeader('Content-Length', pdf.size || pdf.data.length);
+    return res.send(pdf.data);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to serve guideline PDF.' });
+  }
+});
+
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);

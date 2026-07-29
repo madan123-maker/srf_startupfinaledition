@@ -1,12 +1,12 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import LandingPage from './pages/LandingPage';
-import LoginPage from './pages/LoginPage';
 import AdminLayout from './components/AdminLayout';
 import UserLayout from './components/UserLayout';
 
 // Lazy loaded page components for fast initial load and chunk optimization
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const EditionsDashboard = lazy(() => import('./pages/EditionsDashboard'));
 const UserDashboard = lazy(() => import('./pages/UserDashboard'));

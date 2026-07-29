@@ -15,6 +15,8 @@ export interface IEdition extends Document {
   status: EditionStatus;
   publishedAt?: Date;
   createdBy: mongoose.Types.ObjectId;
+  guidelineFileId?: mongoose.Types.ObjectId;
+  guidelineFileName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,6 +53,13 @@ const EditionSchema: Schema = new Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+    },
+    guidelineFileId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'StoredFile',
+    },
+    guidelineFileName: {
+      type: String,
     },
   },
   {

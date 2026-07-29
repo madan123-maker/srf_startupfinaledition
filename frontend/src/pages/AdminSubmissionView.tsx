@@ -59,6 +59,7 @@ interface QuestionResponse {
 
 interface Submission {
   _id: string;
+  editionId?: any;
   userId: { _id: string; name: string; email: string };
   stateName: string;
   status: string;
@@ -357,13 +358,12 @@ export default function AdminSubmissionView() {
                             <div className="elegant-detail-item">
                               <BookOpen size={16} className="detail-icon guidelines" />
                               <span className="detail-label">Guidelines:</span> 
-                              {q.guidelinesRef.toLowerCase().includes('page') 
-                                ? (() => {
-                                    const match = q.guidelinesRef.match(/page\s*(\d+)/i);
-                                    const href = match ? `/guidelines.pdf#page=${match[1]}` : `/guidelines.pdf`;
-                                    return <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>{q.guidelinesRef}</a>;
-                                  })()
-                                : <span style={{ color: '#475569' }}>{q.guidelinesRef}</span>}
+                              {(() => {
+                                const baseUrl = editionId ? `${API_BASE_URL}/api/guidelines/${editionId}` : '/guidelines.pdf';
+                                const match = q.guidelinesRef.match(/page\s*(\d+)/i) || q.guidelinesRef.match(/(\d+)/);
+                                const href = match ? `${baseUrl}#page=${match[1]}` : baseUrl;
+                                return <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>{q.guidelinesRef}</a>;
+                              })()}
                             </div>
                           )}
                           {q.scoringCriteria && (

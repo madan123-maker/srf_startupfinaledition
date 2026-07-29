@@ -9,14 +9,20 @@
     "build": "tsc"
   },
   "nodemonConfig": {
-    "watch": ["src"],
+    "watch": [
+      "src"
+    ],
     "ext": "ts,json",
-    "ignore": ["node_modules", "dist"],
+    "ignore": [
+      "node_modules",
+      "dist"
+    ],
     "delay": 1500
   },
   "dependencies": {
     "@types/exceljs": "^0.5.3",
     "@types/nodemailer": "^8.0.1",
+    "@types/pdf-parse": "^1.1.5",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^16.3.1",
@@ -27,7 +33,8 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.4",
     "multer": "^2.2.0",
-    "nodemailer": "^9.0.3"
+    "nodemailer": "^9.0.3",
+    "pdf-parse": "^2.4.5"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
