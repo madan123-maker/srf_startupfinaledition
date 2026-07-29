@@ -1,8 +1,14 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const mongoose = require('mongoose');
 
 async function run() {
-  await mongoose.connect('mongodb+srv://nithish:Nithish$07@srf.dxasjd0.mongodb.net/srf_db?appName=srf');
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    console.error('Error: DATABASE_URL is not defined in .env file.');
+    process.exit(1);
+  }
+  await mongoose.connect(dbUrl);
   
   const User = mongoose.model('User', new mongoose.Schema({
     email: String,

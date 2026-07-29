@@ -40,7 +40,8 @@ src/generated/prisma/
 # ==========================
 # Google Credentials
 # ==========================
-src/config/google-credentials.json
+backend/src/config/google-credentials.json
+**/google-credentials.json
 
 # ==========================
 # Uploads
