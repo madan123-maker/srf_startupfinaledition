@@ -65,28 +65,37 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ user, onClose, onSu
     }
   };
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="edit-profile-modal-title">
       <div className="modal-box" style={{ maxWidth: '400px' }}>
         {/* Header */}
         <div className="cum-header">
           <div>
-            <h2>Edit Profile</h2>
+            <h2 id="edit-profile-modal-title">Edit Profile</h2>
             <p>Update your personal details below.</p>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>
+          <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">
             <X size={20} />
           </button>
         </div>
 
-        {error && <div className="modal-alert error">{error}</div>}
-        {successMsg && <div className="modal-alert success">✅ {successMsg}</div>}
+        {error && <div className="modal-alert error" role="alert">{error}</div>}
+        {successMsg && <div className="modal-alert success" role="status">✅ {successMsg}</div>}
 
         {!successMsg && (
           <form onSubmit={handleSubmit} className="cum-form">
             <div className="form-group">
-              <label>Full Name</label>
+              <label htmlFor="epm-name-input">Full Name</label>
               <input
+                id="epm-name-input"
                 type="text"
                 name="name"
                 placeholder="e.g. Jane Doe"
@@ -97,8 +106,9 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ user, onClose, onSu
             </div>
 
             <div className="form-group">
-              <label>Email Address</label>
+              <label htmlFor="epm-email-input">Email Address</label>
               <input
+                id="epm-email-input"
                 type="email"
                 name="email"
                 placeholder="user@example.com"

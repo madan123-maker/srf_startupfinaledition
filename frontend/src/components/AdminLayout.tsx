@@ -16,8 +16,7 @@ import {
   Search, 
   Bell, 
   Lock, 
-  LogOut,
-  Copy
+  LogOut
 } from 'lucide-react';
 import EditProfileModal from './EditProfileModal';
 import './AdminLayout.css';
@@ -177,8 +176,13 @@ const AdminLayout: React.FC = () => {
 
   return (
     <div className="admin-layout">
+      {/* Skip Navigation Link */}
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+
       {/* Sidebar */}
-      <aside className="admin-sidebar">
+      <aside className="admin-sidebar" aria-label="Admin Navigation Sidebar">
         <div className="sidebar-brand">
           <Building2 size={24} color="#e85d04" />
           <span className="brand-text">SRF Platform</span>
@@ -186,7 +190,7 @@ const AdminLayout: React.FC = () => {
         
         <div className="sidebar-section-title">ADMIN PANEL</div>
         
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" aria-label="Primary Admin Navigation">
           <NavLink to="/admin-dashboard" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <LayoutDashboard size={20} />
             <span>Analytics Dashboard</span>
@@ -247,13 +251,13 @@ const AdminLayout: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="admin-main">
+      {/* Main Content Container */}
+      <div className="admin-main-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
         {/* Top Header */}
-        <header className="admin-header">
+        <header role="banner" className="admin-header">
           <div className="header-search">
             <Search size={18} className="search-icon" />
-            <input type="text" placeholder="Search applications..." className="search-input" />
+            <input type="text" placeholder="Search applications..." className="search-input" aria-label="Search applications" />
           </div>
           
           <div className="header-actions">
@@ -338,17 +342,21 @@ const AdminLayout: React.FC = () => {
           </div>
         </header>
 
-        {/* Dashboard Content */}
-        <div className="admin-content-scroll">
+        {/* Main Content Landmark */}
+        <main id="main-content" className="admin-content-scroll" tabIndex={-1}>
           <Outlet />
-        </div>
+        </main>
+
+        <footer role="contentinfo" className="admin-footer" style={{ padding: '12px 24px', textAlign: 'center', color: '#94a3b8', fontSize: '12px', borderTop: '1px solid #e2e8f0' }}>
+          <span>© {new Date().getFullYear()} SRF Management Platform. All rights reserved.</span>
+        </footer>
 
         {showChangePassword && (
-          <div className="al-modal-overlay">
+          <div className="al-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="admin-change-password-title">
             <div className="al-modal">
               <div className="al-modal-header">
-                <h2>Change Password</h2>
-                <button className="al-modal-close" onClick={() => setShowChangePassword(false)}>×</button>
+                <h2 id="admin-change-password-title">Change Password</h2>
+                <button className="al-modal-close" onClick={() => setShowChangePassword(false)} aria-label="Close modal">×</button>
               </div>
               <div className="al-modal-body">
                 <div className="al-form-group">
@@ -362,8 +370,9 @@ const AdminLayout: React.FC = () => {
 
                 {passwordStep === 2 && (
                   <div className="al-form-group mt-16">
-                    <label>Enter OTP</label>
+                    <label htmlFor="admin-otp-input">Enter OTP</label>
                     <input 
+                      id="admin-otp-input"
                       type="text" 
                       value={otp} 
                       onChange={e => setOtp(e.target.value)} 
@@ -375,9 +384,10 @@ const AdminLayout: React.FC = () => {
 
                 {passwordStep === 3 && (
                   <div className="al-form-group mt-16">
-                    <label>New Password</label>
+                    <label htmlFor="admin-pass-input">New Password</label>
                     <div style={{ position: 'relative' }}>
                       <input 
+                        id="admin-pass-input"
                         type="password" 
                         value={newPassword} 
                         onChange={e => setNewPassword(e.target.value)} 
@@ -385,29 +395,6 @@ const AdminLayout: React.FC = () => {
                         className="al-input"
                         style={{ paddingRight: '40px', width: '100%', boxSizing: 'border-box' }}
                       />
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(newPassword);
-                          alert('Password copied to clipboard!');
-                        }}
-                        style={{ 
-                          position: 'absolute', 
-                          right: '12px', 
-                          top: '50%', 
-                          transform: 'translateY(-50%)', 
-                          background: 'none', 
-                          border: 'none', 
-                          color: 'var(--text-secondary, #64748b)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          padding: 0
-                        }}
-                        title="Copy password"
-                      >
-                        <Copy size={16} />
-                      </button>
                     </div>
                   </div>
                 )}
@@ -416,7 +403,7 @@ const AdminLayout: React.FC = () => {
                 <button className="al-btn-secondary" onClick={() => setShowChangePassword(false)}>Cancel</button>
                 {passwordStep === 1 && (
                   <button className="al-btn-primary" onClick={handleSendOtp} disabled={isSubmitting}>
-                    {isSubmitting ? 'Sending...' : 'Send OTP'}
+                    {isSubmitting ? 'Sending OTP...' : 'Send OTP'}
                   </button>
                 )}
                 {passwordStep === 2 && (
@@ -441,7 +428,7 @@ const AdminLayout: React.FC = () => {
             onSuccess={() => setIsEditingProfile(false)}
           />
         )}
-      </main>
+      </div>
     </div>
   );
 };

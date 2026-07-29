@@ -1,7 +1,7 @@
 import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { RefreshCw, ChevronLeft, FileText, Download, Trash2 } from 'lucide-react';
+import { RefreshCw, ChevronLeft, FileText, Download, Trash2, Eye } from 'lucide-react';
 import SchemaEditor from '../components/SchemaEditor/SchemaEditor';
 import './EditionWorkspace.css';
 
@@ -238,7 +238,6 @@ const EditionWorkspace: React.FC = () => {
             <p>{edition.description || `States' Startup Ranking Framework ${edition.version}`}</p>
           </div>
           <div className="workspace-actions">
-            <span className="last-updated">Updated: {new Date().toLocaleTimeString()}</span>
             <button className="btn-secondary" onClick={fetchData}>
               <RefreshCw size={14} /> Refresh
             </button>
@@ -383,12 +382,11 @@ const EditionWorkspace: React.FC = () => {
                                 className="btn-secondary btn-sm"
                                 onClick={() => navigate(`/admin/editions/${edition._id}/submissions/${sub._id}`)}
                                 title="View Application"
-                                style={{ fontWeight: 600 }}
                               >
-                                View
+                                <Eye size={14} /> View
                               </button>
                               <button 
-                                className="btn-secondary btn-sm"
+                                className="btn-secondary btn-sm btn-icon"
                                 title="Download Approved Documents"
                                 onClick={() => handleDownloadApprovedDocs(sub._id)}
                               >

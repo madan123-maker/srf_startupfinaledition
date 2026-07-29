@@ -179,18 +179,26 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
     return parts;
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="atm-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="atm-overlay" onClick={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-labelledby="atm-dialog-title">
       <div className="atm-modal">
         {/* Header */}
         <div className="atm-header">
           <div>
-            <h2 className="atm-title">Assign Task</h2>
+            <h2 className="atm-title" id="atm-dialog-title">Assign Task</h2>
             <p className="atm-subtitle">
               Assigning to: <strong>{user.name || user.email}</strong>
             </p>
           </div>
-          <button className="atm-close" onClick={onClose}><X size={20} /></button>
+          <button className="atm-close" onClick={onClose} aria-label="Close dialog"><X size={20} /></button>
         </div>
 
         {toast && (
