@@ -173,18 +173,24 @@ export const getConsolidatedEditionSubmission = async (req: Request, res: Respon
 export const getSubmissionsByEdition = async (req: Request, res: Response) => {
   try {
     const { editionId } = req.params;
-    const consolidated = await buildConsolidatedSubmission(editionId);
 
-    if (consolidated && consolidated.responses && consolidated.responses.length > 0) {
-      return res.status(200).json([consolidated]);
-    }
-
+    // Fetch all submitted / non-draft submissions for this edition
     const submissions = await Submission.find({ 
       editionId,
       status: { $ne: SubmissionStatus.DRAFT }
     }).populate('userId', 'name email state').sort({ createdAt: -1 });
 
-    return res.status(200).json(submissions);
+    if (submissions && submissions.length > 0) {
+      return res.status(200).json(submissions);
+    }
+
+    // Fallback: If no individual submitted applications exist, return consolidated summary if available
+    const consolidated = await buildConsolidatedSubmission(editionId);
+    if (consolidated && consolidated.responses && consolidated.responses.length > 0) {
+      return res.status(200).json([consolidated]);
+    }
+
+    return res.status(200).json([]);
   } catch (error: any) {
     console.error('Error fetching submissions by edition:', error);
     return res.status(500).json({ error: error.message || 'Failed to fetch submissions' });
