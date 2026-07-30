@@ -53,22 +53,24 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--bg-color)' }}>
+    <main id="main-content" className="flex items-center justify-center min-h-screen" style={{ background: 'var(--bg-color)' }}>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <div className="glass-card" style={{ width: '100%', maxWidth: '450px', position: 'relative' }}>
         <button 
           onClick={() => navigate('/')}
+          aria-label="Back to landing page"
           style={{ position: 'absolute', top: '20px', left: '20px', background: 'none', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}
         >
-          <ArrowLeft size={16} /> Back
+          <ArrowLeft size={16} aria-hidden="true" /> Back
         </button>
 
         <div className="text-center" style={{ marginBottom: '32px', marginTop: '20px' }}>
           <div style={{ display: 'inline-block', marginBottom: '16px' }}>
             <img src={logoUrl} alt="AP Logo" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
           </div>
-          <h2 style={{ fontSize: '28px', color: 'var(--primary-color)' }}>
+          <h1 style={{ fontSize: '28px', color: 'var(--primary-color)' }}>
             {isAdminLogin ? 'ADMIN LOGIN' : 'User Login'}
-          </h2>
+          </h1>
           <p style={{ color: 'var(--text-secondary)', marginTop: '8px' }}>
             Sign in to access the SRF Management Platform
           </p>
@@ -76,7 +78,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
 
         <form onSubmit={handleLogin}>
           <div className="form-group">
-            <label className="form-label" htmlFor="email">Email Address</label>
+            <label className="form-label" htmlFor="email">
+              Email Address <span aria-hidden="true" style={{ color: '#ef4444' }}>*</span>
+            </label>
             <input 
               id="email"
               type="email" 
@@ -85,11 +89,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
               onChange={(e) => setEmail(e.target.value)}
               placeholder={isAdminLogin ? "admin@srf.gov.in" : "user@state.gov.in"}
               required
+              aria-required="true"
+              aria-invalid={!!error}
+              aria-describedby={error ? "login-error" : undefined}
             />
           </div>
 
           <div className="form-group">
-            <label className="form-label" htmlFor="password">Password</label>
+            <label className="form-label" htmlFor="password">
+              Password <span aria-hidden="true" style={{ color: '#ef4444' }}>*</span>
+            </label>
             <div style={{ position: 'relative' }}>
               <input 
                 id="password"
@@ -99,10 +108,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
+                aria-required="true"
+                aria-invalid={!!error}
+                aria-describedby={error ? "login-error" : undefined}
                 style={{ paddingRight: '40px' }}
               />
               <button 
                 type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowPassword(!showPassword)}
                 style={{ 
                   position: 'absolute', 
@@ -115,15 +128,21 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  padding: 0
+                  padding: 0,
+                  minWidth: '32px',
+                  minHeight: '32px'
                 }}
               >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                {showPassword ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}
               </button>
             </div>
           </div>
 
-          {error && <div className="error-message" style={{ marginBottom: '16px', textAlign: 'center' }}>{error}</div>}
+          {error && (
+            <div id="login-error" role="alert" aria-live="assertive" className="error-message" style={{ marginBottom: '16px', textAlign: 'center' }}>
+              {error}
+            </div>
+          )}
 
           <button 
             type="submit" 
@@ -135,7 +154,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
           </button>
         </form>
       </div>
-    </div>
+    </main>
   );
 };
 
