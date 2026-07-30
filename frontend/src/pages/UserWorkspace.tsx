@@ -577,18 +577,18 @@ const UserWorkspace: React.FC = () => {
         ...updatedResponses[qIndex],
         fieldResponses: updatedResponses[qIndex].fieldResponses.map(f => ({
           ...f,
-          status: 'SUBMITTED'
+          status: 'SUBMITTED' as const
         })),
         additionalFiles: (updatedResponses[qIndex].additionalFiles || []).map(f => ({
           ...f,
-          status: 'SUBMITTED'
+          status: 'SUBMITTED' as const
         })),
         supportingDocumentResponses: (updatedResponses[qIndex].supportingDocumentResponses || []).map(d => ({
           ...d,
-          status: 'SUBMITTED',
+          status: 'SUBMITTED' as const,
           files: (d.files || []).map(f => ({
             ...f,
-            status: 'SUBMITTED'
+            status: 'SUBMITTED' as const
           }))
         }))
       };
@@ -597,8 +597,9 @@ const UserWorkspace: React.FC = () => {
     });
 
     setTimeout(() => {
-      const nextStatus = (submission?.status === 'APPROVED') ? 'APPROVED' : 'UNDER_REVIEW';
-      saveSubmission(nextStatus, false, updatedResponsesForSave).then(() => {
+      // Keep overall status as DRAFT (or APPROVED) so only this question is locked and other questions remain editable
+      const currentOverallStatus = submission?.status === 'APPROVED' ? 'APPROVED' : 'DRAFT';
+      saveSubmission(currentOverallStatus, false, updatedResponsesForSave).then(() => {
         alert('Question submitted successfully for review!');
       });
     }, 50);
@@ -615,35 +616,40 @@ const UserWorkspace: React.FC = () => {
       ap.questions?.forEach(q => questionIdsInArea.push(q.id));
     });
 
+    let updatedResponsesForSave: ISubmissionResponse[] = [];
+
     setResponses(prev => {
-      return prev.map(qResp => {
+      const updated = prev.map(qResp => {
         if (questionIdsInArea.includes(qResp.questionId)) {
           return {
             ...qResp,
             fieldResponses: qResp.fieldResponses.map(f => ({
               ...f,
-              status: 'SUBMITTED'
+              status: 'SUBMITTED' as const
             })),
             additionalFiles: (qResp.additionalFiles || []).map(f => ({
               ...f,
-              status: 'SUBMITTED'
+              status: 'SUBMITTED' as const
             })),
             supportingDocumentResponses: (qResp.supportingDocumentResponses || []).map(d => ({
               ...d,
-              status: 'SUBMITTED',
+              status: 'SUBMITTED' as const,
               files: (d.files || []).map(f => ({
                 ...f,
-                status: 'SUBMITTED'
+                status: 'SUBMITTED' as const
               }))
             }))
           };
         }
         return qResp;
       });
+      updatedResponsesForSave = updated;
+      return updated;
     });
 
     setTimeout(() => {
-      saveSubmission('DRAFT', false).then(() => {
+      const currentOverallStatus = submission?.status === 'APPROVED' ? 'APPROVED' : 'DRAFT';
+      saveSubmission(currentOverallStatus, false, updatedResponsesForSave).then(() => {
         alert('Reform Area submitted successfully!');
       });
     }, 100);
