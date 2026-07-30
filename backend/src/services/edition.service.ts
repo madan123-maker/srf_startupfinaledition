@@ -42,7 +42,7 @@ export class EditionService {
       const idQuery = editionObjId ? { $in: [editionObjId, editionStrId] } : editionStrId;
 
       // Fetch non-draft submissions (or submissions with submitted questions) for this edition
-      const nonDraftSubmissions = await Submission.find({
+      const nonDraftSubmissionsRaw = await Submission.find({
         editionId: idQuery,
         $or: [
           { status: { $ne: SubmissionStatus.DRAFT } },
@@ -50,7 +50,10 @@ export class EditionService {
           { "responses.additionalFiles.status": "SUBMITTED" },
           { "responses.supportingDocumentResponses.files.status": "SUBMITTED" }
         ]
-      }).lean();
+      }).populate('userId', '_id name email').lean();
+
+      // Filter out orphaned submissions where user was deleted (userId === null)
+      const nonDraftSubmissions = nonDraftSubmissionsRaw.filter((s: any) => s.userId != null);
 
       // Fetch submitted / evaluated assignments for this edition
       const submittedAssignments = await Assignment.find({
@@ -77,24 +80,26 @@ export class EditionService {
           avgScore = Math.round((sumScore / scoredSubs.length) * 10) / 10;
         }
       } else {
-        // Workflow 2: DRAFT Edition — Dynamic metrics from submitted/evaluated task assignments or direct submissions
-        if (submittedAssignments.length > 0 || nonDraftSubmissions.length > 0) {
-          totalSubmissions = submittedAssignments.length + nonDraftSubmissions.length;
-          pending = submittedAssignments.filter(a => a.status === 'SUBMITTED').length +
-            nonDraftSubmissions.filter(s => s.status === SubmissionStatus.SUBMITTED || s.status === SubmissionStatus.UNDER_REVIEW).length;
-          approved = submittedAssignments.filter(a => a.status === 'EVALUATED' && a.evaluationStatus === 'APPROVED').length +
-            nonDraftSubmissions.filter(s => s.status === SubmissionStatus.APPROVED).length;
-          rejected = submittedAssignments.filter(a => a.status === 'EVALUATED' && a.evaluationStatus === 'REJECTED').length +
-            nonDraftSubmissions.filter(s => s.status === SubmissionStatus.REJECTED).length;
-
-          try {
-            const consolidated = await buildConsolidatedSubmission(editionStrId);
-            if (consolidated && consolidated.totalScore !== undefined) {
-              avgScore = Math.round((consolidated.totalScore || 0) * 10) / 10;
-            }
-          } catch (e) {
-            console.error('Error computing consolidated avgScore:', e);
+        // Workflow 2: DRAFT Edition — Dynamic metrics matching buildConsolidatedSubmission workspace view
+        try {
+          const consolidated = await buildConsolidatedSubmission(editionStrId);
+          if (consolidated && consolidated.responses && consolidated.responses.length > 0) {
+            totalSubmissions = 1;
+            pending = 0;
+            approved = 0;
+            rejected = 0;
+            avgScore = Math.round((consolidated.totalScore || 0) * 10) / 10;
+          } else if (submittedAssignments.length > 0 || nonDraftSubmissions.length > 0) {
+            totalSubmissions = submittedAssignments.length + nonDraftSubmissions.length;
+            pending = submittedAssignments.filter(a => a.status === 'SUBMITTED').length +
+              nonDraftSubmissions.filter(s => s.status === SubmissionStatus.SUBMITTED || s.status === SubmissionStatus.UNDER_REVIEW).length;
+            approved = submittedAssignments.filter(a => a.status === 'EVALUATED' && a.evaluationStatus === 'APPROVED').length +
+              nonDraftSubmissions.filter(s => s.status === SubmissionStatus.APPROVED).length;
+            rejected = submittedAssignments.filter(a => a.status === 'EVALUATED' && a.evaluationStatus === 'REJECTED').length +
+              nonDraftSubmissions.filter(s => s.status === SubmissionStatus.REJECTED).length;
           }
+        } catch (e) {
+          console.error('Error computing consolidated stats:', e);
         }
       }
 
