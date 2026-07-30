@@ -41,10 +41,15 @@ export class EditionService {
 
       const idQuery = editionObjId ? { $in: [editionObjId, editionStrId] } : editionStrId;
 
-      // Fetch non-draft submissions for this edition
+      // Fetch non-draft submissions (or submissions with submitted questions) for this edition
       const nonDraftSubmissions = await Submission.find({
         editionId: idQuery,
-        status: { $ne: SubmissionStatus.DRAFT }
+        $or: [
+          { status: { $ne: SubmissionStatus.DRAFT } },
+          { "responses.fieldResponses.status": "SUBMITTED" },
+          { "responses.additionalFiles.status": "SUBMITTED" },
+          { "responses.supportingDocumentResponses.files.status": "SUBMITTED" }
+        ]
       }).lean();
 
       // Fetch submitted / evaluated assignments for this edition

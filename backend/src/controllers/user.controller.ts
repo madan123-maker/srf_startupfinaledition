@@ -4,6 +4,9 @@ import { User, Role } from '../models/User';
 import { sendUserCredentials } from '../services/email.service';
 import { RecycleBin, EntityType } from '../models/RecycleBin';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { Submission } from '../models/Submission';
+import { Assignment } from '../models/Assignment';
+import { StoredFile } from '../models/StoredFile';
 
 const userService = new UserService();
 
@@ -18,30 +21,27 @@ export const createAdmin = async (req: AuthRequest, res: Response) => {
     }
     const newAdmin = await userService.createAdmin({ name, email, organization, state, district, username });
     return res.status(201).json({ 
-      message: `Admin account created successfully. Credentials have been sent to ${email}.`,
-      user: newAdmin 
+      message: 'Admin account created successfully.',
+      user: newAdmin
     });
   } catch (error: any) {
-    return res.status(400).json({ error: error.message || 'Failed to create admin' });
+    return res.status(400).json({ error: error.message });
   }
 };
 
 export const createUser = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || req.user.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ error: 'Only Super Admins can create User accounts.' });
-    }
     const { name, email, organization, state, district, username } = req.body;
     if (!name || !email) {
       return res.status(400).json({ error: 'Name and email are required.' });
     }
     const newUser = await userService.createUser({ name, email, organization, state, district, username });
-    return res.status(201).json({
-      message: `User account created successfully. Credentials have been sent to ${email}.`,
+    return res.status(201).json({ 
+      message: 'User account created successfully.',
       user: newUser
     });
   } catch (error: any) {
-    return res.status(400).json({ error: error.message || 'Failed to create user' });
+    return res.status(400).json({ error: error.message });
   }
 };
 
@@ -78,7 +78,12 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
 
     await User.findByIdAndDelete(id);
 
-    res.status(200).json({ message: 'User moved to Recycle Bin' });
+    // Delete associated submissions, assignments, and uploaded files so orphaned N/A rows are removed
+    await Submission.deleteMany({ userId: id });
+    await Assignment.deleteMany({ userId: id });
+    await StoredFile.deleteMany({ uploadedBy: id });
+
+    res.status(200).json({ message: 'User deleted and user data removed successfully' });
   } catch (error) {
     console.error('Delete user error:', error);
     res.status(500).json({ error: 'Failed to delete user' });

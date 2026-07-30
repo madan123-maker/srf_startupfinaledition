@@ -181,14 +181,34 @@ export const getSubmissionsByEdition = async (req: Request, res: Response) => {
     const { editionId } = req.params;
     const edition = await Edition.findById(editionId);
 
+    // Submissions query matching either non-draft status or any submitted question response
+    const submissionFilter = {
+      editionId,
+      $or: [
+        { status: { $ne: SubmissionStatus.DRAFT } },
+        { "responses.fieldResponses.status": "SUBMITTED" },
+        { "responses.additionalFiles.status": "SUBMITTED" },
+        { "responses.supportingDocumentResponses.files.status": "SUBMITTED" }
+      ]
+    };
+
     // Workflow 1: PUBLISHED Edition — return all individual user submissions
     if (edition && edition.status === EditionStatus.PUBLISHED) {
-      const submissions = await Submission.find({ 
-        editionId,
-        status: { $ne: SubmissionStatus.DRAFT }
-      }).populate('userId', 'name email state').sort({ createdAt: -1 });
+      const submissions = await Submission.find(submissionFilter)
+        .populate('userId', 'name email state')
+        .sort({ createdAt: -1 });
 
-      return res.status(200).json(submissions);
+      const validSubmissions = submissions
+        .filter((s: any) => s.userId != null)
+        .map((s: any) => {
+          const subObj = s.toObject ? s.toObject() : s;
+          if (subObj.status === 'DRAFT') {
+            subObj.status = 'UNDER_REVIEW';
+          }
+          return subObj;
+        });
+
+      return res.status(200).json(validSubmissions);
     }
 
     // Workflow 2: DRAFT Edition — return Consolidated SRF Edition summary
@@ -197,12 +217,21 @@ export const getSubmissionsByEdition = async (req: Request, res: Response) => {
       return res.status(200).json([consolidated]);
     }
 
-    const submissions = await Submission.find({ 
-      editionId,
-      status: { $ne: SubmissionStatus.DRAFT }
-    }).populate('userId', 'name email state').sort({ createdAt: -1 });
+    const submissions = await Submission.find(submissionFilter)
+      .populate('userId', 'name email state')
+      .sort({ createdAt: -1 });
 
-    return res.status(200).json(submissions);
+    const validSubmissions = submissions
+      .filter((s: any) => s.userId != null)
+      .map((s: any) => {
+        const subObj = s.toObject ? s.toObject() : s;
+        if (subObj.status === 'DRAFT') {
+          subObj.status = 'UNDER_REVIEW';
+        }
+        return subObj;
+      });
+
+    return res.status(200).json(validSubmissions);
   } catch (error: any) {
     console.error('Error fetching submissions by edition:', error);
     return res.status(500).json({ error: error.message || 'Failed to fetch submissions' });
