@@ -16,8 +16,7 @@ import {
   Search, 
   Bell, 
   Lock, 
-  LogOut,
-  Copy
+  LogOut
 } from 'lucide-react';
 import EditProfileModal from './EditProfileModal';
 import './AdminLayout.css';

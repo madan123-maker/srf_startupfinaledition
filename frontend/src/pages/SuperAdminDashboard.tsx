@@ -18,7 +18,7 @@ interface DashboardMetrics {
     approvedApplications: number;
     rejectedApplications: number;
   };
-  districtCompliance: { name: string; progress: number }[];
+  districtCompliance: any[];
 }
 
 interface Edition {
@@ -26,7 +26,7 @@ interface Edition {
   name: string;
 }
 
-const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444']; // Approved, Submitted, Draft, Rejected
+const COLORS = ['#10b981', '#cbd5e1', '#f59e0b', '#ef4444']; // Approved, Pending, In Progress, Rejected
 const BAR_COLOR = '#8b5cf6';
 
 const SuperAdminDashboard: React.FC = () => {
@@ -61,7 +61,7 @@ const SuperAdminDashboard: React.FC = () => {
         if (res.ok) {
           const data = await res.json();
           setEditions(data);
-          // Auto-select the first published edition if available
+          // Auto-select the first published one if available, or just the first one
           if (data.length > 0) {
             setSelectedEdition(data[0]._id);
           }
@@ -99,19 +99,25 @@ const SuperAdminDashboard: React.FC = () => {
       }
     };
 
-    fetchMetrics();
-  }, [selectedEdition]);
+    if (selectedEdition !== '') {
+      fetchMetrics();
+    } else if (editions.length === 0) {
+      // If there are no editions at all, just fetch overall metrics
+      fetchMetrics();
+    }
+  }, [selectedEdition, editions.length]);
 
-  const { validationMetrics, districtCompliance } = metrics;
+  const { executiveCommand, validationMetrics, districtCompliance } = metrics;
 
-  // Formatting data for the Donut Chart dynamically according to edition status counts
+  // Formatting data for the Donut Chart
   const pieData = [
-    { name: 'Approved', value: validationMetrics.approvedApplications || 0, fill: '#10b981' }, 
-    { name: 'Submitted / In Review', value: validationMetrics.submittedApplications || 0, fill: '#f59e0b' },
-    { name: 'Draft Applications', value: validationMetrics.draftApplications || 0, fill: '#3b82f6' },
-    { name: 'Rejected', value: validationMetrics.rejectedApplications || 0, fill: '#ef4444' },
+    { name: 'Approved', value: executiveCommand.approvedFinal || 0 }, 
+    { name: 'Pending Review', value: executiveCommand.pendingFinalReview || 0 },
+    { name: 'In Progress', value: validationMetrics.draftApplications || 0 },
+    { name: 'Rejected', value: executiveCommand.rejected || 0 },
   ];
 
+  // Remove placeholder data so charts don't render fake info
   const hasPieData = pieData.some(d => d.value > 0);
   const chartData = pieData.filter(d => d.value > 0);
 
@@ -134,7 +140,7 @@ const SuperAdminDashboard: React.FC = () => {
               value={selectedEdition} 
               onChange={(e) => setSelectedEdition(e.target.value)}
             >
-              <option value="all">All SRF Editions</option>
+              {editions.length === 0 && <option value="">Loading Editions...</option>}
               {editions.map(ed => (
                 <option key={ed._id} value={ed._id}>{ed.name}</option>
               ))}
@@ -145,7 +151,30 @@ const SuperAdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Single Row of 5 Real-time Metrics Cards */}
+        {/* Top 4 Metric Cards */}
+        <div className="metrics-grid grid-4">
+          <div className="metric-card">
+            <div className="metric-value blue">{executiveCommand.totalSubmissions}</div>
+            <div className="metric-label">Total Submissions</div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-value orange">{executiveCommand.pendingFinalReview}</div>
+            <div className="metric-label">Pending Final Review</div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-value green">{executiveCommand.approvedFinal}</div>
+            <div className="metric-label">Approved (Final)</div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-value red">{executiveCommand.rejected}</div>
+            <div className="metric-label">Rejected</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Database Validation Metrics (5 cards) */}
+      <div className="validation-section">
+        <h3 className="section-title">📊 System Database Validation Metrics (Real-time Counts)</h3>
         <div className="metrics-grid grid-5">
           <div className="validation-card blue-border">
             <div className="metric-value blue">{validationMetrics.totalApplications}</div>
@@ -170,11 +199,9 @@ const SuperAdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Dynamic Charts Section */}
+      {/* Charts Section */}
       <div className="dashboard-panel charts-panel">
-        <h3 className="section-title" style={{ padding: '24px 24px 0', margin: 0 }}>
-          SRF Edition Status & Progress {selectedEdition && selectedEdition !== 'all' ? `(${editions.find(e => e._id === selectedEdition)?.name || 'Edition View'})` : '(All Editions)'}
-        </h3>
+        <h3 className="section-title" style={{ padding: '24px 24px 0', margin: 0 }}>SRF Edition Status & Progress</h3>
         
         <div className="charts-grid">
           {/* Donut Chart */}
@@ -194,7 +221,7 @@ const SuperAdminDashboard: React.FC = () => {
                       dataKey="value"
                     >
                       {chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill || COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={'fill' in entry ? String((entry as any).fill) : COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip />
@@ -207,10 +234,10 @@ const SuperAdminDashboard: React.FC = () => {
               )}
             </div>
             <div className="chart-legend">
-              {pieData.map((entry) => (
+              {pieData.map((entry, index) => (
                 <div key={entry.name} className="legend-item">
-                  <span className="legend-color" style={{ backgroundColor: entry.fill }}></span>
-                  <span className="legend-text">{entry.name} ({entry.value})</span>
+                  <span className="legend-color" style={{ backgroundColor: COLORS[index] }}></span>
+                  <span className="legend-text">{entry.name}</span>
                 </div>
               ))}
             </div>
@@ -218,7 +245,7 @@ const SuperAdminDashboard: React.FC = () => {
 
           {/* Bar Chart */}
           <div className="chart-container">
-            <h4 className="chart-title">District / State Compliance Progress (%)</h4>
+            <h4 className="chart-title">District Compliance Progress (%)</h4>
             <div style={{ height: '300px', width: '100%' }}>
               {hasBarData ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -238,7 +265,7 @@ const SuperAdminDashboard: React.FC = () => {
                 </ResponsiveContainer>
               ) : (
                 <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
-                  No state compliance data available for this edition.
+                  No compliance data available for this edition.
                 </div>
               )}
             </div>
@@ -250,4 +277,3 @@ const SuperAdminDashboard: React.FC = () => {
 };
 
 export default SuperAdminDashboard;
-
