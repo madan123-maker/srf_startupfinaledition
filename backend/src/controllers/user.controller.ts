@@ -93,10 +93,11 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
 export const updateUser = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, email, organization, state, district, role } = req.body;
+    const { 
+      name, email, organization, state, district, role,
+      phone, designation, employeeId, aboutMe, avatarUrl, department, preferences 
+    } = req.body;
     
-    // Check if user is authorized to edit. A super admin can edit anything, but maybe restrict role changes.
-    // For now we just update basic fields.
     const userToUpdate = await User.findById(id);
     if (!userToUpdate) {
       return res.status(404).json({ error: 'User not found' });
@@ -107,6 +108,18 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
     if (organization !== undefined) userToUpdate.organization = organization;
     if (state !== undefined) userToUpdate.state = state;
     if (district !== undefined) userToUpdate.district = district;
+    if (phone !== undefined) userToUpdate.phone = phone;
+    if (designation !== undefined) userToUpdate.designation = designation;
+    if (employeeId !== undefined) userToUpdate.employeeId = employeeId;
+    if (aboutMe !== undefined) userToUpdate.aboutMe = aboutMe;
+    if (avatarUrl !== undefined) userToUpdate.avatarUrl = avatarUrl;
+    if (department !== undefined) userToUpdate.department = department;
+    if (preferences !== undefined) {
+      userToUpdate.preferences = {
+        ...userToUpdate.preferences,
+        ...preferences
+      };
+    }
     if (role && req.user?.role === 'SUPER_ADMIN') {
       userToUpdate.role = role;
     }
@@ -119,3 +132,4 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to update user' });
   }
 };
+

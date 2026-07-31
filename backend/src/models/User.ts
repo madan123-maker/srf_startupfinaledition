@@ -15,6 +15,21 @@ export interface IUser extends Document {
   district?: string;
   role: Role;
   state?: string;
+  phone?: string;
+  designation?: string;
+  employeeId?: string;
+  aboutMe?: string;
+  avatarUrl?: string;
+  department?: string;
+  preferences?: {
+    theme?: string;
+    emailAlerts?: boolean;
+    smsAlerts?: boolean;
+    systemNotifications?: boolean;
+    language?: string;
+    timezone?: string;
+    autoSave?: boolean;
+  };
   isActive: boolean;
   otp?: string;
   otpExpiresAt?: Date;
@@ -63,6 +78,37 @@ const UserSchema: Schema = new Schema(
       type: String,
       required: false,
     },
+    phone: {
+      type: String,
+      trim: true,
+    },
+    designation: {
+      type: String,
+      trim: true,
+    },
+    employeeId: {
+      type: String,
+      trim: true,
+    },
+    aboutMe: {
+      type: String,
+    },
+    avatarUrl: {
+      type: String,
+    },
+    department: {
+      type: String,
+      trim: true,
+    },
+    preferences: {
+      theme: { type: String, default: 'Light' },
+      emailAlerts: { type: Boolean, default: true },
+      smsAlerts: { type: Boolean, default: false },
+      systemNotifications: { type: Boolean, default: true },
+      language: { type: String, default: 'English (US)' },
+      timezone: { type: String, default: 'UTC+05:30 (IST)' },
+      autoSave: { type: Boolean, default: true },
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -80,3 +126,4 @@ const UserSchema: Schema = new Schema(
 );
 
 export const User = mongoose.model<IUser>('User', UserSchema);
+

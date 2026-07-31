@@ -31,10 +31,10 @@ export const seedSuperAdmin = async () => {
     }
 
     // Seed Dummy Data for Dashboard Visualization
-    const editionExists = await Edition.findOne({ name: 'SRF 6.0' });
-    if (!editionExists && adminId) {
-      console.log('Seeding SRF 6.0 Edition and dummy Submissions for dashboard...');
-      const edition = await Edition.create({
+    let edition = await Edition.findOne({ name: 'SRF 6.0' });
+    if (!edition && adminId) {
+      console.log('Seeding SRF 6.0 Edition...');
+      edition = await Edition.create({
         name: 'SRF 6.0',
         version: '6.0',
         description: 'States Startup Ranking Framework 6th Edition',
@@ -44,54 +44,54 @@ export const seedSuperAdmin = async () => {
         publishedAt: new Date(),
         createdBy: adminId
       });
+    }
 
-      // Create a dummy user
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash('User@123', salt);
-      const dummyUser = await User.create({
-        email: 'user@state.gov.in',
-        passwordHash: hashedPassword,
-        role: Role.USER,
-        state: 'Karnataka',
-        isActive: true
-      });
+    if (edition) {
+      const subCount = await Submission.countDocuments({ editionId: edition._id });
+      if (subCount === 0) {
+        console.log('Edition exists with 0 submissions. Seeding dummy Submissions for dashboard...');
+        let dummyUser = await User.findOne({ email: 'user@state.gov.in' });
+        if (!dummyUser) {
+          const salt = await bcrypt.genSalt(10);
+          const hashedPassword = await bcrypt.hash('User@123', salt);
+          dummyUser = await User.create({
+            email: 'user@state.gov.in',
+            passwordHash: hashedPassword,
+            role: Role.USER,
+            state: 'Karnataka',
+            isActive: true
+          });
+        }
 
-      // Seed dummy submissions (1 Draft, 2 Submitted/Pending, 3 Approved, 1 Rejected)
-      const submissions = [
-        { status: SubmissionStatus.DRAFT, stateName: 'Maharashtra' },
-        { status: SubmissionStatus.UNDER_REVIEW, stateName: 'Gujarat' },
-        { status: SubmissionStatus.UNDER_REVIEW, stateName: 'Kerala' },
-        { status: SubmissionStatus.APPROVED, stateName: 'Karnataka' },
-        { status: SubmissionStatus.APPROVED, stateName: 'Tamil Nadu' },
-        { status: SubmissionStatus.APPROVED, stateName: 'Telangana' },
-        { status: SubmissionStatus.REJECTED, stateName: 'Bihar' },
-      ];
+        const submissions = [
+          { status: SubmissionStatus.DRAFT, stateName: 'Maharashtra' },
+          { status: SubmissionStatus.DRAFT, stateName: 'Andhra Pradesh' },
+          { status: SubmissionStatus.UNDER_REVIEW, stateName: 'Gujarat' },
+          { status: SubmissionStatus.UNDER_REVIEW, stateName: 'Kerala' },
+          { status: SubmissionStatus.APPROVED, stateName: 'Karnataka' },
+          { status: SubmissionStatus.APPROVED, stateName: 'Tamil Nadu' },
+          { status: SubmissionStatus.APPROVED, stateName: 'Telangana' },
+          { status: SubmissionStatus.REJECTED, stateName: 'Bihar' },
+        ];
 
-      for (const sub of submissions) {
-        await Submission.create({
-          editionId: edition._id,
-          userId: dummyUser._id,
-          stateName: sub.stateName,
-          status: sub.status,
-          totalScore: sub.status === SubmissionStatus.APPROVED ? 50 : 0
-        });
+        for (const sub of submissions) {
+          await Submission.create({
+            editionId: edition._id,
+            userId: dummyUser._id,
+            stateName: sub.stateName,
+            status: sub.status,
+            totalScore: sub.status === SubmissionStatus.APPROVED ? 85 : 0
+          });
+        }
+        console.log('Dummy Submissions seeded successfully.');
       }
-      console.log('Dummy Submissions seeded successfully.');
-      
-      // Seed Form Schema
-      console.log('Seeding SRF 6.0 Form Schema...');
-      await FormSchemaModel.create({
-        editionId: edition._id,
-        areas: SEED_SCHEMA.areas
-      });
-      console.log('SRF 6.0 Form Schema seeded successfully!');
-    } else if (editionExists) {
+
       // Check if schema exists for this edition
-      const schemaExists = await FormSchemaModel.findOne({ editionId: editionExists._id });
+      const schemaExists = await FormSchemaModel.findOne({ editionId: edition._id });
       if (!schemaExists) {
-        console.log('Edition exists but Form Schema is missing. Seeding schema now...');
+        console.log('Form Schema is missing. Seeding schema now...');
         await FormSchemaModel.create({
-          editionId: editionExists._id,
+          editionId: edition._id,
           areas: SEED_SCHEMA.areas
         });
         console.log('SRF 6.0 Form Schema seeded successfully!');

@@ -18,18 +18,18 @@ import {
   Lock, 
   LogOut
 } from 'lucide-react';
-import EditProfileModal from './EditProfileModal';
+import ProfileCenterModal from './ProfileCenterModal';
 import './AdminLayout.css';
 
 const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const initialUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const [currentUser, setCurrentUser] = useState(initialUser);
 
   const [totalEditions, setTotalEditions] = useState<number | string>('...');
   
   // Security & Profile states
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [passwordStep, setPasswordStep] = useState(1);
   const [otp, setOtp] = useState('');
@@ -39,6 +39,17 @@ const AdminLayout: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+
+  // Update currentUser when localStorage changes
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      setCurrentUser(u);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
 
   const fetchNotifications = async () => {
     try {
@@ -64,7 +75,6 @@ const AdminLayout: React.FC = () => {
   const handleNotificationsClick = async () => {
     fetchNotifications();
     setShowNotifications(!showNotifications);
-    setShowProfileMenu(false);
     
     if (notifications.some(n => !n.isRead)) {
       try {
@@ -84,9 +94,14 @@ const AdminLayout: React.FC = () => {
     const fetchTotalEditions = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/api/editions`, {
+        let response = await fetch(`${API_BASE_URL}/api/editions`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        if (!response.ok) {
+          response = await fetch(`${API_BASE_URL}/api/editions/public`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+        }
         if (response.ok) {
           const data = await response.json();
           setTotalEditions(data.length);
@@ -111,7 +126,7 @@ const AdminLayout: React.FC = () => {
       const res = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email })
+        body: JSON.stringify({ email: currentUser.email })
       });
       if (res.ok) {
         setPasswordStep(2);
@@ -134,7 +149,7 @@ const AdminLayout: React.FC = () => {
       const res = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, otp })
+        body: JSON.stringify({ email: currentUser.email, otp })
       });
       if (res.ok) {
         setPasswordStep(3);
@@ -156,7 +171,7 @@ const AdminLayout: React.FC = () => {
       const res = await fetch(`${API_BASE_URL}/api/auth/change-password-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, otp, newPassword })
+        body: JSON.stringify({ email: currentUser.email, otp, newPassword })
       });
       if (res.ok) {
         alert('Password changed successfully! Please log in again.');
@@ -199,7 +214,7 @@ const AdminLayout: React.FC = () => {
             <Users size={20} aria-hidden="true" />
             <span>Manage Users</span>
           </NavLink>
-          {user.role === 'SUPER_ADMIN' && (
+          {currentUser.role === 'SUPER_ADMIN' && (
             <NavLink to="/admin/audit-logs" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
               <FileText size={20} aria-hidden="true" />
               <span>Audit Logs</span>
@@ -213,25 +228,25 @@ const AdminLayout: React.FC = () => {
             <MessageSquare size={20} aria-hidden="true" />
             <span>Messages</span>
           </NavLink>
-          {user.role === 'SUPER_ADMIN' && (
+          {currentUser.role === 'SUPER_ADMIN' && (
             <NavLink to="/admin/departments" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
               <Briefcase size={20} aria-hidden="true" />
               <span>Manage Departments</span>
             </NavLink>
           )}
-          {user.role === 'SUPER_ADMIN' && (
+          {currentUser.role === 'SUPER_ADMIN' && (
             <NavLink to="/admin/tasks" end className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
               <GitMerge size={20} aria-hidden="true" />
               <span>Reassign Tasks</span>
             </NavLink>
           )}
-          {(user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
+          {(currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN') && (
             <NavLink to="/admin/evaluate-tasks" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
               <CheckCircle size={20} aria-hidden="true" />
               <span>Evaluate Tasks</span>
             </NavLink>
           )}
-          {user.role === 'SUPER_ADMIN' && (
+          {currentUser.role === 'SUPER_ADMIN' && (
             <NavLink to="/admin/recycle-bin" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
               <Trash2 size={20} aria-hidden="true" />
               <span>Recycle Bin</span>
@@ -314,54 +329,24 @@ const AdminLayout: React.FC = () => {
             <div style={{ position: 'relative' }}>
               <button 
                 className="user-profile-btn" 
-                onClick={() => { setShowProfileMenu(!showProfileMenu); setShowNotifications(false); }}
-                aria-label="Admin profile menu"
-                aria-expanded={showProfileMenu}
-                aria-haspopup="true"
+                onClick={() => { setIsEditingProfile(true); setShowNotifications(false); }}
+                aria-label="Open Profile Center"
+                title="Click to open Profile Center"
               >
-                <div className="avatar">{user.name ? user.name[0].toUpperCase() : 'A'}</div>
+                {currentUser.avatarUrl ? (
+                  <img src={currentUser.avatarUrl} alt="Avatar" className="avatar-img-navbar" />
+                ) : (
+                  <div className="avatar">
+                    {(currentUser.name && currentUser.name !== 'Admin User' ? currentUser.name : 'Evaluator User')
+                      .split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+                  </div>
+                )}
                 <div className="user-info">
-                  <span className="name">{user.name || 'Admin User'}</span>
-                  <span className="role">{user.role || 'ADMIN'}</span>
+                  <span className="name">{currentUser.name && currentUser.name !== 'Admin User' ? currentUser.name : 'Evaluator User'}</span>
+                  <span className="role">{currentUser.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'EVALUATOR'}</span>
                 </div>
               </button>
-
-              {showProfileMenu && (
-                <div className="profile-popover" role="menu" aria-orientation="vertical">
-                  <div className="popover-header">
-                    <strong>{user.name}</strong>
-                    <span>{user.email}</span>
-                  </div>
-                  <div className="popover-body">
-                    <button 
-                      className="popover-item" 
-                      role="menuitem"
-                      onClick={() => { setShowProfileMenu(false); setIsEditingProfile(true); }}
-                    >
-                      Edit Profile
-                    </button>
-                    <button 
-                      className="popover-item" 
-                      role="menuitem"
-                      onClick={() => { setShowProfileMenu(false); setShowChangePassword(true); setPasswordStep(1); setOtp(''); setNewPassword(''); }}
-                    >
-                      Change Password
-                    </button>
-                    <button 
-                      className="popover-item text-danger" 
-                      role="menuitem"
-                      onClick={handleSignOut}
-                    >
-                      Sign Out
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
-
-            <button className="action-btn" onClick={() => { setIsEditingProfile(true); }}>
-              Edit Profile
-            </button>
 
             <button className="action-btn" onClick={() => { setShowChangePassword(true); setPasswordStep(1); setOtp(''); setNewPassword(''); }}>
               Change Password <Lock size={16} aria-hidden="true" />
@@ -401,7 +386,7 @@ const AdminLayout: React.FC = () => {
             <div className="al-modal-body">
               <div className="al-form-group">
                 <label htmlFor="cp-email">Email Address</label>
-                <input id="cp-email" type="email" value={user.email} disabled className="al-input disabled" />
+                <input id="cp-email" type="email" value={currentUser.email} disabled className="al-input disabled" />
               </div>
 
               {passwordStep === 1 && (
@@ -435,30 +420,6 @@ const AdminLayout: React.FC = () => {
                       className="al-input"
                       style={{ paddingRight: '40px', width: '100%', boxSizing: 'border-box' }}
                     />
-                    <button 
-                      type="button"
-                      aria-label="Copy password to clipboard"
-                      onClick={() => {
-                        navigator.clipboard.writeText(newPassword);
-                        alert('Password copied to clipboard!');
-                      }}
-                      style={{ 
-                        position: 'absolute', 
-                        right: '12px', 
-                        top: '50%', 
-                        transform: 'translateY(-50%)', 
-                        background: 'none', 
-                        border: 'none', 
-                        color: 'var(--text-secondary, #64748b)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: 0
-                      }}
-                      title="Copy password"
-                    >
-                      <Copy size={16} aria-hidden="true" />
-                    </button>
                   </div>
                 </div>
               )}
@@ -486,10 +447,13 @@ const AdminLayout: React.FC = () => {
       )}
       
       {isEditingProfile && (
-        <EditProfileModal 
-          user={user}
+        <ProfileCenterModal 
+          user={currentUser}
           onClose={() => setIsEditingProfile(false)}
-          onSuccess={() => setIsEditingProfile(false)}
+          onSuccess={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            setIsEditingProfile(false);
+          }}
         />
       )}
     </div>

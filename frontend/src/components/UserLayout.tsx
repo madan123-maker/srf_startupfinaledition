@@ -11,12 +11,15 @@ import {
   Bell
 } from 'lucide-react';
 import EditProfileModal from './EditProfileModal';
+import ProfileCenterModal from './ProfileCenterModal';
 import './AdminLayout.css'; // We'll reuse the sleek admin layout styles for the user for now
 
 const UserLayout: React.FC = () => {
   const navigate = useNavigate();
   
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const initialUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const [currentUser, setCurrentUser] = useState(initialUser);
+  const user = currentUser;
   
   // Security & Profile states
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -29,6 +32,16 @@ const UserLayout: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      setCurrentUser(u);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
 
   const fetchNotifications = async () => {
     try {
@@ -237,49 +250,23 @@ const UserLayout: React.FC = () => {
             <div style={{ position: 'relative' }}>
               <button 
                 className="user-profile-btn" 
-                onClick={() => { setShowProfileMenu(!showProfileMenu); setShowNotifications(false); }}
-                aria-label="User profile menu"
-                aria-expanded={showProfileMenu}
-                aria-haspopup="true"
+                onClick={() => { setIsEditingProfile(true); setShowNotifications(false); }}
+                aria-label="Open Profile Center"
+                title="Click to open Profile Center"
               >
-                <div className="avatar">{user.name ? user.name[0].toUpperCase() : 'U'}</div>
+                {currentUser.avatarUrl ? (
+                  <img src={currentUser.avatarUrl} alt="Avatar" className="avatar-img-navbar" />
+                ) : (
+                  <div className="avatar">
+                    {(currentUser.name || 'User')
+                      .split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+                  </div>
+                )}
                 <div className="user-info">
-                  <span className="name">{user.name || 'User'}</span>
-                  <span className="role">{user.role || 'USER'}</span>
+                  <span className="name">{currentUser.name || 'Evaluator User'}</span>
+                  <span className="role">{currentUser.role || 'USER'}</span>
                 </div>
               </button>
-
-              {showProfileMenu && (
-                <div className="profile-popover" role="menu" aria-orientation="vertical">
-                  <div className="popover-header">
-                    <strong>{user.name}</strong>
-                    <span>{user.email}</span>
-                  </div>
-                  <div className="popover-body">
-                    <button 
-                      className="popover-item" 
-                      role="menuitem"
-                      onClick={() => { setShowProfileMenu(false); setIsEditingProfile(true); }}
-                    >
-                      Edit Profile
-                    </button>
-                    <button 
-                      className="popover-item" 
-                      role="menuitem"
-                      onClick={() => { setShowProfileMenu(false); setShowChangePassword(true); setPasswordStep(1); setOtp(''); setNewPassword(''); }}
-                    >
-                      Change Password
-                    </button>
-                    <button 
-                      className="popover-item text-danger" 
-                      role="menuitem"
-                      onClick={handleSignOut}
-                    >
-                      Sign Out
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
             
             <button className="action-btn sign-out" onClick={handleSignOut}>
@@ -315,7 +302,7 @@ const UserLayout: React.FC = () => {
             <div className="al-modal-body">
               <div className="al-form-group">
                 <label htmlFor="ucp-email">Email Address</label>
-                <input id="ucp-email" type="email" value={user.email} disabled className="al-input disabled" />
+                <input id="ucp-email" type="email" value={currentUser.email} disabled className="al-input disabled" />
               </div>
 
               {passwordStep === 1 && (
@@ -349,30 +336,6 @@ const UserLayout: React.FC = () => {
                       className="al-input"
                       style={{ paddingRight: '40px', width: '100%', boxSizing: 'border-box' }}
                     />
-                    <button 
-                      type="button"
-                      aria-label="Copy password to clipboard"
-                      onClick={() => {
-                        navigator.clipboard.writeText(newPassword);
-                        alert('Password copied to clipboard!');
-                      }}
-                      style={{ 
-                        position: 'absolute', 
-                        right: '12px', 
-                        top: '50%', 
-                        transform: 'translateY(-50%)', 
-                        background: 'none', 
-                        border: 'none', 
-                        color: 'var(--text-secondary, #64748b)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: 0
-                      }}
-                      title="Copy password"
-                    >
-                      <Copy size={16} aria-hidden="true" />
-                    </button>
                   </div>
                 </div>
               )}
@@ -400,10 +363,13 @@ const UserLayout: React.FC = () => {
       )}
       
       {isEditingProfile && (
-        <EditProfileModal 
-          user={user}
+        <ProfileCenterModal 
+          user={currentUser}
           onClose={() => setIsEditingProfile(false)}
-          onSuccess={() => setIsEditingProfile(false)}
+          onSuccess={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            setIsEditingProfile(false);
+          }}
         />
       )}
     </div>
@@ -411,3 +377,4 @@ const UserLayout: React.FC = () => {
 };
 
 export default UserLayout;
+
