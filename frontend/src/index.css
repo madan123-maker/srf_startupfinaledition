@@ -341,3 +341,12 @@ html {
   top: 12px;
 }
 
+/* Global Bold & Dark Table Headers */
+table th, .users-table th, .md-table th, .al-table th, .app-table th {
+  color: #0f172a !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  letter-spacing: 0.8px !important;
+  text-transform: uppercase !important;
+}
+

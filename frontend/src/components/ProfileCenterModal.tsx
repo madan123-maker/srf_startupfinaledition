@@ -25,6 +25,7 @@ interface ProfileCenterModalProps {
 }
 
 const ProfileCenterModal: React.FC<ProfileCenterModalProps> = ({ user, onClose, onSuccess }) => {
+  const isSuperAdmin = user.role === 'SUPER_ADMIN';
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'preferences'>('profile');
   
   // Profile Form State
@@ -247,14 +248,14 @@ const ProfileCenterModal: React.FC<ProfileCenterModalProps> = ({ user, onClose, 
   };
 
   // Compute initials
-  const initials = (formData.name || user.name || 'Evaluator User')
+  const initials = (formData.name || user.name || 'Admin')
     .split(' ')
     .map((n: string) => n[0])
     .join('')
     .substring(0, 2)
     .toUpperCase();
 
-  const userRoleDisplay = user.role === 'SUPER_ADMIN' ? 'Super Admin' : (user.role === 'ADMIN' ? 'Evaluator' : 'Evaluator');
+  const userRoleDisplay = user.role === 'SUPER_ADMIN' ? 'Super Admin' : (user.role === 'ADMIN' ? 'Admin' : 'User');
 
   return (
     <div 
@@ -317,7 +318,7 @@ const ProfileCenterModal: React.FC<ProfileCenterModalProps> = ({ user, onClose, 
               />
             </div>
 
-            <h3 className="pc-user-name">{formData.name || 'Evaluator User'}</h3>
+            <h3 className="pc-user-name">{formData.name || user.name || 'Admin'}</h3>
             <div className="pc-role-badge">{userRoleDisplay}</div>
 
             <div className="pc-meta-list">
@@ -337,14 +338,29 @@ const ProfileCenterModal: React.FC<ProfileCenterModalProps> = ({ user, onClose, 
 
             {/* Mini Statistics Cards */}
             <div className="pc-stats-grid">
-              <div className="pc-stat-card">
-                <div className="pc-stat-value blue">18</div>
-                <div className="pc-stat-label">Applications Reviewed</div>
-              </div>
-              <div className="pc-stat-card">
-                <div className="pc-stat-value orange">4</div>
-                <div className="pc-stat-label">Pending Reviews</div>
-              </div>
+              {isSuperAdmin ? (
+                <>
+                  <div className="pc-stat-card">
+                    <div className="pc-stat-value blue">Full</div>
+                    <div className="pc-stat-label">Platform Access</div>
+                  </div>
+                  <div className="pc-stat-card">
+                    <div className="pc-stat-value orange">All</div>
+                    <div className="pc-stat-label">Editions Managed</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="pc-stat-card">
+                    <div className="pc-stat-value blue">—</div>
+                    <div className="pc-stat-label">Applications Reviewed</div>
+                  </div>
+                  <div className="pc-stat-card">
+                    <div className="pc-stat-value orange">—</div>
+                    <div className="pc-stat-label">Pending Reviews</div>
+                  </div>
+                </>
+              )}
               <div className="pc-stat-card full-width">
                 <div className="pc-stat-label">Last Login</div>
                 <div className="pc-stat-subvalue">Today, {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
@@ -370,13 +386,15 @@ const ProfileCenterModal: React.FC<ProfileCenterModalProps> = ({ user, onClose, 
               >
                 <ShieldCheck size={16} /> Security
               </button>
-              <button 
-                type="button"
-                className={`pc-tab-btn ${activeTab === 'preferences' ? 'active' : ''}`}
-                onClick={() => setActiveTab('preferences')}
-              >
-                <Sliders size={16} /> Preferences
-              </button>
+              {!isSuperAdmin && (
+                <button 
+                  type="button"
+                  className={`pc-tab-btn ${activeTab === 'preferences' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('preferences')}
+                >
+                  <Sliders size={16} /> Preferences
+                </button>
+              )}
             </nav>
 
             {/* Tab Contents */}
@@ -491,11 +509,17 @@ const ProfileCenterModal: React.FC<ProfileCenterModalProps> = ({ user, onClose, 
                     </div>
                     <div className="pc-readonly-item">
                       <span className="label">Account Created:</span>
-                      <span className="value">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '01/15/2025'}</span>
+                      <span className="value">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}</span>
                     </div>
                     <div className="pc-readonly-item">
                       <span className="label">System Permissions:</span>
-                      <span className="value text-green">Evaluator Access Granted</span>
+                      <span className="value text-green">
+                        {isSuperAdmin
+                          ? 'Full Platform Access — Super Administrator'
+                          : user.role === 'ADMIN'
+                          ? 'Admin Access Granted'
+                          : 'User Access Granted'}
+                      </span>
                     </div>
                   </div>
                 </form>

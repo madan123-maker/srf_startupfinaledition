@@ -5,15 +5,18 @@ import CreateAdminModal from '../components/CreateAdminModal';
 import CreateUserModal from '../components/CreateUserModal';
 import AssignTaskModal from '../components/AssignTaskModal';
 import EditUserModal from '../components/EditUserModal';
+import { formatDistrictDisplay } from '../utils/districtUtils';
 import './ManageUsers.css';
 
 interface AppUser {
   _id: string;
   name?: string;
+  username?: string;
   email: string;
   role: string;
   organization?: string;
   state?: string;
+  district?: string;
   isActive: boolean;
   createdAt: string;
 }
@@ -34,6 +37,8 @@ const ManageUsers: React.FC = () => {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRole, setSelectedRole] = useState('All Roles');
+  const [selectedDistrict, setSelectedDistrict] = useState('All Districts');
   const [isCreateAdminOpen, setIsCreateAdminOpen] = useState(false);
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [assignUser, setAssignUser] = useState<AppUser | null>(null);
@@ -86,13 +91,43 @@ const ManageUsers: React.FC = () => {
     fetchUsers();
   }, []);
 
+  // Compute dynamic unique districts from users DB
+  const stateNamesToIgnore = new Set(['ap', 'andhra pradesh', 'andhrapradesh', 'ts', 'telangana', 'ka', 'karnataka']);
+  const availableDistricts = Array.from(
+    new Set(
+      users
+        .map((u) => u.district?.trim())
+        .filter((d): d is string => Boolean(d && d.length > 0 && !stateNamesToIgnore.has(d.toLowerCase())))
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
   const filteredUsers = users.filter((u) => {
-    const q = searchQuery.toLowerCase();
-    return (
+    // 1. Search filter (name, username, email, organization)
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
       (u.name || '').toLowerCase().includes(q) ||
+      (u.username || '').toLowerCase().includes(q) ||
       u.email.toLowerCase().includes(q) ||
-      u.role.toLowerCase().includes(q)
-    );
+      (u.organization || '').toLowerCase().includes(q);
+
+    // 2. Role filter
+    const matchesRole = selectedRole === 'All Roles' || u.role === selectedRole;
+
+    // 3. District filter (exact case-insensitive & trimmed match)
+    const userDistrict = (u.district || '').trim().toLowerCase();
+    const filterDistrict = selectedDistrict.trim().toLowerCase();
+
+    let matchesDistrict = false;
+    if (selectedDistrict === 'All Districts') {
+      matchesDistrict = true;
+    } else if (filterDistrict === 'unassigned') {
+      matchesDistrict = !userDistrict;
+    } else {
+      matchesDistrict = Boolean(userDistrict && userDistrict === filterDistrict);
+    }
+
+    return matchesSearch && matchesRole && matchesDistrict;
   });
 
   return (
@@ -115,7 +150,6 @@ const ManageUsers: React.FC = () => {
                 <Users size={16} />
                 + Create User
               </button>
-
             </>
           )}
         </div>
@@ -126,7 +160,7 @@ const ManageUsers: React.FC = () => {
         <div className="table-topbar">
           <div className="table-count">
             <span className="count-title">All Users</span>
-            <span className="count-badge">{loading ? '...' : users.length}</span>
+            <span className="count-badge">{loading ? '...' : filteredUsers.length}</span>
           </div>
           <div className="search-bar">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
@@ -141,6 +175,30 @@ const ManageUsers: React.FC = () => {
               className="search-input"
             />
           </div>
+          <div className="table-filters" style={{ display: 'flex', gap: '10px' }}>
+            <select
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', background: '#f8fafc', fontWeight: 600, color: '#334155', outline: 'none', cursor: 'pointer' }}
+            >
+              <option value="All Roles">All Roles</option>
+              <option value="SUPER_ADMIN">Super Admin</option>
+              <option value="ADMIN">Admin</option>
+              <option value="USER">User</option>
+            </select>
+            <select
+              value={selectedDistrict}
+              onChange={(e) => setSelectedDistrict(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', background: '#f8fafc', fontWeight: 600, color: '#334155', outline: 'none', cursor: 'pointer' }}
+            >
+              <option value="All Districts">All Districts</option>
+              {availableDistricts.map((d) => (
+                <option key={d} value={d}>
+                  {formatDistrictDisplay(d)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="table-scroll">
@@ -153,22 +211,23 @@ const ManageUsers: React.FC = () => {
                 <th>ROLE</th>
                 <th>ORGANIZATION</th>
                 <th>STATE</th>
+                <th>DISTRICT</th>
                 {user.role === 'SUPER_ADMIN' && <th>ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={user.role === 'SUPER_ADMIN' ? 7 : 6} className="empty-state">
+                  <td colSpan={user.role === 'SUPER_ADMIN' ? 8 : 7} className="empty-state">
                     <div className="empty-content"><p>Loading users...</p></div>
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={user.role === 'SUPER_ADMIN' ? 7 : 6} className="empty-state">
+                  <td colSpan={user.role === 'SUPER_ADMIN' ? 8 : 7} className="empty-state">
                     <div className="empty-content">
                       <Users size={40} color="#cbd5e1" />
-                      <p>No users found.</p>
+                      <p>No users found matching the selected filters.</p>
                     </div>
                   </td>
                 </tr>
@@ -177,7 +236,7 @@ const ManageUsers: React.FC = () => {
                   <tr key={appUser._id}>
                     <td>
                       <span className="user-id">
-                        {appUser.role === 'SUPER_ADMIN' ? 'user_superadmin' : `user_${appUser.email.split('@')[0]}`}
+                        {appUser.username || `user_${appUser.email.split('@')[0]}`}
                       </span>
                     </td>
                     <td>
@@ -194,6 +253,7 @@ const ManageUsers: React.FC = () => {
                     </td>
                     <td>{appUser.organization || 'DPIIT'}</td>
                     <td>{appUser.state || <span style={{ color: '#94a3b8' }}>—</span>}</td>
+                    <td>{appUser.district ? formatDistrictDisplay(appUser.district) : <span style={{ color: '#94a3b8' }}>—</span>}</td>
                     {user.role === 'SUPER_ADMIN' && (
                       <td>
                         <div className="actions-cell">

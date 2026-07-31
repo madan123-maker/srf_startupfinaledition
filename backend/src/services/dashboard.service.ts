@@ -4,8 +4,12 @@ import mongoose from 'mongoose';
 export class DashboardService {
   async getMetrics(editionId?: string) {
     let matchStage: any = {};
-    if (editionId && editionId !== 'all' && mongoose.Types.ObjectId.isValid(editionId)) {
-      matchStage.editionId = new mongoose.Types.ObjectId(editionId);
+    if (editionId && editionId !== 'all') {
+      if (mongoose.Types.ObjectId.isValid(editionId)) {
+        matchStage.editionId = new mongoose.Types.ObjectId(editionId);
+      } else {
+        matchStage.editionId = editionId;
+      }
     }
 
     // Fetch all submissions matching matchStage with populated userId
@@ -14,16 +18,64 @@ export class DashboardService {
     // Filter out orphaned submissions from deleted users
     const validSubmissions = rawSubmissions.filter((sub: any) => sub.userId != null);
 
-    const totalApplications = validSubmissions.length;
+    // Non-draft submissions count towards official submitted applications
+    const nonDraftSubmissions = validSubmissions.filter((s: any) => s.status !== SubmissionStatus.DRAFT);
     const draftApplications = validSubmissions.filter((s: any) => s.status === SubmissionStatus.DRAFT).length;
-    const submittedApplications = validSubmissions.filter((s: any) => s.status === SubmissionStatus.SUBMITTED).length;
-    const underReviewApplications = validSubmissions.filter((s: any) => s.status === SubmissionStatus.UNDER_REVIEW).length;
-    const approvedApplications = validSubmissions.filter((s: any) => s.status === SubmissionStatus.APPROVED).length;
-    const rejectedApplications = validSubmissions.filter((s: any) => s.status === SubmissionStatus.REJECTED).length;
-    const submissionsList = validSubmissions;
 
-    // Total Submitted & Pending Review = SUBMITTED + UNDER_REVIEW
-    const totalSubmittedAndPending = submittedApplications + underReviewApplications;
+    let submittedApplications = 0; // Pending review applications
+    let approvedApplications = 0;
+    let rejectedApplications = 0;
+
+    nonDraftSubmissions.forEach((s: any) => {
+      let hasResubmission = false;
+      let hasApprovedFields = false;
+
+      if (Array.isArray(s.responses)) {
+        s.responses.forEach((r: any) => {
+          if (Array.isArray(r.fieldResponses)) {
+            r.fieldResponses.forEach((f: any) => {
+              if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
+              if (f.evaluationStatus === 'APPROVED') hasApprovedFields = true;
+            });
+          }
+          if (Array.isArray(r.additionalFiles)) {
+            r.additionalFiles.forEach((f: any) => {
+              if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
+              if (f.evaluationStatus === 'APPROVED') hasApprovedFields = true;
+            });
+          }
+          if (Array.isArray(r.supportingDocumentResponses)) {
+            r.supportingDocumentResponses.forEach((d: any) => {
+              if (d.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
+              if (d.evaluationStatus === 'APPROVED') hasApprovedFields = true;
+              if (Array.isArray(d.files)) {
+                d.files.forEach((f: any) => {
+                  if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
+                  if (f.evaluationStatus === 'APPROVED') hasApprovedFields = true;
+                });
+              }
+            });
+          }
+        });
+      }
+
+      const isPending = hasResubmission || s.status === 'PENDING';
+      const isApproved = !isPending && (s.status === SubmissionStatus.APPROVED || hasApprovedFields);
+      const isRejected = !isPending && !isApproved && s.status === SubmissionStatus.REJECTED;
+
+      if (isPending) {
+        submittedApplications++;
+      } else if (isApproved) {
+        approvedApplications++;
+      } else if (isRejected) {
+        rejectedApplications++;
+      } else {
+        submittedApplications++;
+      }
+    });
+
+    const totalApplications = nonDraftSubmissions.length;
+    const submissionsList = nonDraftSubmissions;
 
     // Dynamic State / District Compliance Progress based on real submissions data
     const stateMap: { [state: string]: { count: number; totalProgress: number } } = {};
@@ -31,25 +83,13 @@ export class DashboardService {
     submissionsList.forEach((sub: any) => {
       const stateName = sub.stateName || 'Unassigned';
       
-      let progress = 25; // Default draft progress
-      if (sub.status === SubmissionStatus.APPROVED) {
+      let progress = 60; // Default submitted progress
+      if (sub.status === SubmissionStatus.APPROVED || approvedApplications > 0) {
         progress = 100;
       } else if (sub.status === SubmissionStatus.UNDER_REVIEW) {
         progress = 80;
-      } else if (sub.status === SubmissionStatus.SUBMITTED) {
-        progress = 60;
       } else if (sub.status === SubmissionStatus.REJECTED) {
         progress = 15;
-      } else if (sub.status === SubmissionStatus.DRAFT) {
-        let completedFields = 0;
-        if (Array.isArray(sub.responses)) {
-          sub.responses.forEach((r: any) => {
-            if (Array.isArray(r.fieldResponses)) {
-              completedFields += r.fieldResponses.length;
-            }
-          });
-        }
-        progress = completedFields > 0 ? Math.min(50, 20 + completedFields * 5) : 25;
       }
 
       if (!stateMap[stateName]) {
@@ -66,15 +106,15 @@ export class DashboardService {
 
     return {
       executiveCommand: {
-        totalSubmissions: totalApplications - draftApplications,
-        pendingFinalReview: totalSubmittedAndPending,
+        totalSubmissions: totalApplications,
+        pendingFinalReview: submittedApplications,
         approvedFinal: approvedApplications,
         rejected: rejectedApplications,
       },
       validationMetrics: {
         totalApplications,
         draftApplications,
-        submittedApplications: totalSubmittedAndPending,
+        submittedApplications,
         approvedApplications,
         rejectedApplications,
       },

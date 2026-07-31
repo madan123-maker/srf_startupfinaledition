@@ -337,13 +337,13 @@ const AdminLayout: React.FC = () => {
                   <img src={currentUser.avatarUrl} alt="Avatar" className="avatar-img-navbar" />
                 ) : (
                   <div className="avatar">
-                    {(currentUser.name && currentUser.name !== 'Admin User' ? currentUser.name : 'Evaluator User')
+                    {(currentUser.name || 'SA')
                       .split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
                   </div>
                 )}
                 <div className="user-info">
-                  <span className="name">{currentUser.name && currentUser.name !== 'Admin User' ? currentUser.name : 'Evaluator User'}</span>
-                  <span className="role">{currentUser.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'EVALUATOR'}</span>
+                  <span className="name">{currentUser.name || 'Admin'}</span>
+                  <span className="role">SUPER ADMIN</span>
                 </div>
               </button>
             </div>

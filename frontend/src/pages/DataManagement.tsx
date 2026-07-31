@@ -192,13 +192,13 @@ const DataManagement: React.FC = () => {
 
         <div className="dm-filters-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px', marginTop: '16px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Filter by User / Nodal Officer</label>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Filter by User</label>
             <select 
               value={filterUser} 
               onChange={(e) => setFilterUser(e.target.value)}
               style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', background: '#ffffff', color: '#1e293b' }}
             >
-              <option value="all">All Users / Nodal Officers</option>
+              <option value="all">All Users</option>
               {users.filter(u => u.role === 'USER').map(u => (
                 <option key={u._id} value={u._id}>
                   {u.name || u.email} ({u.state || u.role})
@@ -231,10 +231,11 @@ const DataManagement: React.FC = () => {
               style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', background: '#ffffff', color: '#1e293b' }}
             >
               <option value="all">All Statuses</option>
+              <option value="SUBMITTED">SUBMITTED</option>
               <option value="APPROVED">APPROVED</option>
+              <option value="UNDER_REVIEW">UNDER REVIEW</option>
               <option value="REJECTED">REJECTED</option>
               <option value="RESUBMISSION_REQUIRED">RESUBMISSION REQUIRED</option>
-              <option value="UNDER_REVIEW">UNDER REVIEW</option>
               <option value="DRAFT">DRAFT</option>
             </select>
           </div>
@@ -299,11 +300,36 @@ const DataManagement: React.FC = () => {
           
           <button 
             className="dm-btn dm-btn-purple"
-            onClick={() => handleDownload('submissions', 'applications_report.xlsx')}
-            disabled={downloading === 'submissions'}
+            onClick={async () => {
+              setDownloading('enterprise');
+              try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${API_BASE_URL}/api/data/export/enterprise-report`, {
+                  headers: { 'Authorization': `Bearer ${token}` },
+                });
+                if (!response.ok) {
+                  const data = await response.json();
+                  throw new Error(data.error || 'Failed to generate enterprise report');
+                }
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `SRF_Applications_Report_${new Date().toISOString().slice(0, 10)}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+              } catch (error: any) {
+                alert(`Export failed: ${error.message}`);
+              } finally {
+                setDownloading(null);
+              }
+            }}
+            disabled={downloading === 'enterprise'}
           >
             <FileSpreadsheet size={16} />
-            Applications Report (Excel)
+            {downloading === 'enterprise' ? 'Generating Enterprise Report...' : 'Applications Report (Excel)'}
           </button>
           
           <button 

@@ -112,8 +112,7 @@ const SuperAdminDashboard: React.FC = () => {
   // Formatting data for the Donut Chart dynamically according to edition status counts
   const pieData = [
     { name: 'Approved', value: validationMetrics.approvedApplications || 0, fill: '#10b981' }, 
-    { name: 'Submitted / In Review', value: validationMetrics.submittedApplications || 0, fill: '#f59e0b' },
-    { name: 'Draft Applications', value: validationMetrics.draftApplications || 0, fill: '#3b82f6' },
+    { name: 'Pending Review', value: validationMetrics.submittedApplications || 0, fill: '#f59e0b' },
     { name: 'Rejected', value: validationMetrics.rejectedApplications || 0, fill: '#ef4444' },
   ];
 
@@ -157,7 +156,7 @@ const SuperAdminDashboard: React.FC = () => {
             <div className="metric-label">Total Applications</div>
           </div>
           <div className="validation-card lightblue-border">
-            <div className="metric-value lightblue">{validationMetrics.draftApplications}</div>
+            <div className="metric-value lightblue">0</div>
             <div className="metric-label">Draft Applications</div>
           </div>
           <div className="validation-card yellow-border">

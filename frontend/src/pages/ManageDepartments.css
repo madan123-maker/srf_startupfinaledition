@@ -123,13 +123,13 @@
 
 .md-table th {
   padding: 16px 24px;
-  background: white;
-  color: #475569;
-  font-size: 11px;
-  font-weight: 700;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid #e2e8f0;
+  letter-spacing: 0.8px;
+  border-bottom: 2px solid #cbd5e1;
 }
 
 .md-table td {
