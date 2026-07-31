@@ -8,24 +8,19 @@ export class DashboardService {
       matchStage.editionId = new mongoose.Types.ObjectId(editionId);
     }
 
-    // Parallel aggregations for counts
-    const [
-      totalApplications,
-      draftApplications,
-      submittedApplications,
-      underReviewApplications,
-      approvedApplications,
-      rejectedApplications,
-      submissionsList
-    ] = await Promise.all([
-      Submission.countDocuments(matchStage),
-      Submission.countDocuments({ ...matchStage, status: SubmissionStatus.DRAFT }),
-      Submission.countDocuments({ ...matchStage, status: SubmissionStatus.SUBMITTED }),
-      Submission.countDocuments({ ...matchStage, status: SubmissionStatus.UNDER_REVIEW }),
-      Submission.countDocuments({ ...matchStage, status: SubmissionStatus.APPROVED }),
-      Submission.countDocuments({ ...matchStage, status: SubmissionStatus.REJECTED }),
-      Submission.find(matchStage).select('stateName status responses').lean()
-    ]);
+    // Fetch all submissions matching matchStage with populated userId
+    const rawSubmissions = await Submission.find(matchStage).populate('userId', '_id name email').lean();
+    
+    // Filter out orphaned submissions from deleted users
+    const validSubmissions = rawSubmissions.filter((sub: any) => sub.userId != null);
+
+    const totalApplications = validSubmissions.length;
+    const draftApplications = validSubmissions.filter((s: any) => s.status === SubmissionStatus.DRAFT).length;
+    const submittedApplications = validSubmissions.filter((s: any) => s.status === SubmissionStatus.SUBMITTED).length;
+    const underReviewApplications = validSubmissions.filter((s: any) => s.status === SubmissionStatus.UNDER_REVIEW).length;
+    const approvedApplications = validSubmissions.filter((s: any) => s.status === SubmissionStatus.APPROVED).length;
+    const rejectedApplications = validSubmissions.filter((s: any) => s.status === SubmissionStatus.REJECTED).length;
+    const submissionsList = validSubmissions;
 
     // Total Submitted & Pending Review = SUBMITTED + UNDER_REVIEW
     const totalSubmittedAndPending = submittedApplications + underReviewApplications;

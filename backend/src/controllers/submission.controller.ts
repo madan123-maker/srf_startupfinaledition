@@ -193,7 +193,8 @@ export const getSubmissionsByEdition = async (req: Request, res: Response) => {
     };
 
     // Workflow 1: PUBLISHED Edition — return all individual user submissions
-    if (edition && edition.status === EditionStatus.PUBLISHED) {
+    const isPublished = edition && String(edition.status || '').toUpperCase() === 'PUBLISHED';
+    if (isPublished) {
       const submissions = await Submission.find(submissionFilter)
         .populate('userId', 'name email state')
         .sort({ createdAt: -1 });

@@ -41,15 +41,10 @@ export class EditionService {
 
       const idQuery = editionObjId ? { $in: [editionObjId, editionStrId] } : editionStrId;
 
-      // Fetch non-draft submissions (or submissions with submitted questions) for this edition
+      // Fetch non-draft submissions for this edition
       const nonDraftSubmissionsRaw = await Submission.find({
         editionId: idQuery,
-        $or: [
-          { status: { $ne: SubmissionStatus.DRAFT } },
-          { "responses.fieldResponses.status": "SUBMITTED" },
-          { "responses.additionalFiles.status": "SUBMITTED" },
-          { "responses.supportingDocumentResponses.files.status": "SUBMITTED" }
-        ]
+        status: { $ne: SubmissionStatus.DRAFT }
       }).populate('userId', '_id name email').lean();
 
       // Filter out orphaned submissions where user was deleted (userId === null)
@@ -61,47 +56,71 @@ export class EditionService {
         status: { $in: ['SUBMITTED', 'EVALUATED'] }
       }).lean();
 
-      let totalSubmissions = 0;
+      let totalSubmissions = nonDraftSubmissions.length;
       let pending = 0;
       let approved = 0;
       let rejected = 0;
-      let avgScore = 0;
+      let sumScore = 0;
+      let approvedCount = 0;
 
-      if (edition.status === EditionStatus.PUBLISHED) {
-        // Workflow 1: PUBLISHED Edition — Aggregate stats from submitted non-draft applications
-        totalSubmissions = nonDraftSubmissions.length;
-        pending = nonDraftSubmissions.filter(s => s.status === SubmissionStatus.SUBMITTED || s.status === SubmissionStatus.UNDER_REVIEW).length;
-        approved = nonDraftSubmissions.filter(s => s.status === SubmissionStatus.APPROVED).length;
-        rejected = nonDraftSubmissions.filter(s => s.status === SubmissionStatus.REJECTED).length;
+      nonDraftSubmissions.forEach((s: any) => {
+        let hasResubmission = false;
+        let hasApprovedFields = false;
+        let score = s.totalScore || 0;
 
-        const scoredSubs = nonDraftSubmissions.filter(s => s.status === SubmissionStatus.APPROVED || s.status === SubmissionStatus.REJECTED);
-        if (scoredSubs.length > 0) {
-          const sumScore = scoredSubs.reduce((acc, s) => acc + (s.totalScore || 0), 0);
-          avgScore = Math.round((sumScore / scoredSubs.length) * 10) / 10;
+        if (Array.isArray(s.responses)) {
+          s.responses.forEach((r: any) => {
+            if (Array.isArray(r.fieldResponses)) {
+              r.fieldResponses.forEach((f: any) => {
+                if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
+                if (f.evaluationStatus === 'APPROVED') hasApprovedFields = true;
+                if (f.score) score += f.score;
+              });
+            }
+            if (Array.isArray(r.additionalFiles)) {
+              r.additionalFiles.forEach((f: any) => {
+                if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
+                if (f.evaluationStatus === 'APPROVED') hasApprovedFields = true;
+                if (f.score) score += f.score;
+              });
+            }
+            if (Array.isArray(r.supportingDocumentResponses)) {
+              r.supportingDocumentResponses.forEach((d: any) => {
+                if (d.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
+                if (d.evaluationStatus === 'APPROVED') hasApprovedFields = true;
+                if (Array.isArray(d.files)) {
+                  d.files.forEach((f: any) => {
+                    if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
+                    if (f.evaluationStatus === 'APPROVED') hasApprovedFields = true;
+                    if (f.score) score += f.score;
+                  });
+                }
+              });
+            }
+          });
         }
-      } else {
-        // Workflow 2: DRAFT Edition — Dynamic metrics matching buildConsolidatedSubmission workspace view
-        try {
-          const consolidated = await buildConsolidatedSubmission(editionStrId);
-          if (consolidated && consolidated.responses && consolidated.responses.length > 0) {
-            totalSubmissions = 1;
-            pending = 0;
-            approved = 0;
-            rejected = 0;
-            avgScore = Math.round((consolidated.totalScore || 0) * 10) / 10;
-          } else if (submittedAssignments.length > 0 || nonDraftSubmissions.length > 0) {
-            totalSubmissions = submittedAssignments.length + nonDraftSubmissions.length;
-            pending = submittedAssignments.filter(a => a.status === 'SUBMITTED').length +
-              nonDraftSubmissions.filter(s => s.status === SubmissionStatus.SUBMITTED || s.status === SubmissionStatus.UNDER_REVIEW).length;
-            approved = submittedAssignments.filter(a => a.status === 'EVALUATED' && a.evaluationStatus === 'APPROVED').length +
-              nonDraftSubmissions.filter(s => s.status === SubmissionStatus.APPROVED).length;
-            rejected = submittedAssignments.filter(a => a.status === 'EVALUATED' && a.evaluationStatus === 'REJECTED').length +
-              nonDraftSubmissions.filter(s => s.status === SubmissionStatus.REJECTED).length;
-          }
-        } catch (e) {
-          console.error('Error computing consolidated stats:', e);
+
+        const isPending = hasResubmission || s.status === 'PENDING';
+        const isApproved = !isPending && (s.status === SubmissionStatus.APPROVED || hasApprovedFields);
+        const isRejected = !isPending && !isApproved && s.status === SubmissionStatus.REJECTED;
+
+        if (isPending) {
+          pending++;
+        } else if (isApproved) {
+          approved++;
+        } else if (isRejected) {
+          rejected++;
+        } else {
+          pending++;
         }
-      }
+
+        if (isApproved || score > 0) {
+          sumScore += score;
+          approvedCount++;
+        }
+      });
+
+      const avgScore = approvedCount > 0 ? Math.round((sumScore / approvedCount) * 10) / 10 : 0;
 
       return {
         ...edition,
@@ -167,7 +186,9 @@ export class EditionService {
 
   async getPublicEditions() {
     // Standard users should only see published editions
-    const editions = await Edition.find({ status: EditionStatus.PUBLISHED })
+    const editions = await Edition.find({
+      status: { $in: [EditionStatus.PUBLISHED, 'published', 'PUBLISHED'] as any }
+    })
       .sort({ createdAt: 1 })
       .lean();
     return editions;
