@@ -3,9 +3,12 @@ import { Edition, EditionStatus } from '../models/Edition';
 import { Submission, SubmissionStatus } from '../models/Submission';
 import { FormSchemaModel } from '../models/FormSchema';
 import { Department } from '../models/Department';
+import { GuidelinePdf } from '../models/GuidelinePdf';
 import { SEED_SCHEMA } from './schemaData';
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
+import fs from 'fs';
+import path from 'path';
 
 export const seedSuperAdmin = async () => {
   try {
@@ -120,8 +123,49 @@ export const seedSuperAdmin = async () => {
     // Ensure Q1.1 is present across all form schemas
     await ensureQuestion11AllSchemas();
 
+    // Ensure SRF 6.0 Guideline PDF is present in database
+    await seedGuidelinePdfForSrf6();
+
   } catch (error) {
     console.error('Error seeding Super Admin:', error);
+  }
+};
+
+export const seedGuidelinePdfForSrf6 = async () => {
+  try {
+    const srf6 = await Edition.findOne({ name: 'SRF 6.0' });
+    if (!srf6) return;
+
+    const existingPdf = await GuidelinePdf.findOne({ editionId: srf6._id });
+    if (existingPdf) return;
+
+    // Search for guidelines.pdf in potential locations
+    const possiblePaths = [
+      path.join(__dirname, '../../../frontend/public/guidelines.pdf'),
+      path.join(__dirname, '../../uploads/guidelines.pdf'),
+      path.join(__dirname, '../uploads/guidelines.pdf'),
+      '/Users/nithishkumar07/srf_startupfinalproduction/frontend/public/guidelines.pdf',
+    ];
+
+    let foundPath = possiblePaths.find((p) => fs.existsSync(p));
+    if (foundPath) {
+      const pdfBuffer = fs.readFileSync(foundPath);
+      const pdfDoc = await GuidelinePdf.create({
+        editionId: srf6._id,
+        filename: 'guidelines.pdf',
+        contentType: 'application/pdf',
+        size: pdfBuffer.length,
+        data: pdfBuffer,
+      });
+
+      await Edition.findByIdAndUpdate(srf6._id, {
+        guidelineFileId: pdfDoc._id,
+        guidelineFileName: 'guidelines.pdf',
+      });
+      console.log('Seeded SRF 6.0 Guideline PDF into database successfully.');
+    }
+  } catch (err) {
+    console.error('Failed to seed SRF 6.0 Guideline PDF:', err);
   }
 };
 

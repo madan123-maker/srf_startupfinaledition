@@ -61,6 +61,25 @@ const EvaluateTaskDetail: React.FC = () => {
                 };
               }
             });
+
+            r.supportingDocumentResponses?.forEach((docResp: any) => {
+              docResp.files?.forEach((f: any) => {
+                if (f.evaluationStatus && f.evaluationStatus !== 'PENDING') {
+                  const val = { status: f.evaluationStatus, remarks: f.evaluationRemarks || '' };
+                  initialFieldEvals[`${r.questionId}_${f.fileId}`] = val;
+                  initialFieldEvals[`${r.questionId}_${docResp.documentId}`] = val;
+                }
+              });
+            });
+
+            r.additionalFiles?.forEach((af: any) => {
+              if (af.evaluationStatus && af.evaluationStatus !== 'PENDING') {
+                initialFieldEvals[`${r.questionId}_${af.fileId}`] = {
+                  status: af.evaluationStatus,
+                  remarks: af.evaluationRemarks || ''
+                };
+              }
+            });
           });
           setFieldEvaluations(initialFieldEvals);
           setQuestionScores(initialScores);
@@ -81,7 +100,7 @@ const EvaluateTaskDetail: React.FC = () => {
     } else if (evals.some(e => e.status === 'RESUBMISSION_REQUIRED')) {
       computedStatus = 'NEEDS_REVISION';
     } else if (evals.length === 0) {
-      computedStatus = 'APPROVED'; // Default if no file fields exist or were evaluated
+      computedStatus = 'APPROVED';
     }
 
     const allQuestions = schema ? schema.areas.flatMap(a => a.actionPoints.flatMap(ap => ap.questions)) : [];
@@ -131,12 +150,12 @@ const EvaluateTaskDetail: React.FC = () => {
     const qr = responses.find(r => r.questionId === qId);
     if (!qr) return null;
     const fr = qr.fieldResponses?.find((fr: any) => fr.fieldId === fId);
-    return fr && fr.fileUrl ? fr : null;
+    if (fr && fr.fileUrl) return fr;
+    return null;
   };
 
-  const handleFieldEvalChange = (qId: string, fId: string, status: string) => {
+  const handleFieldEvalChange = (key: string, status: string) => {
     setFieldEvaluations(prev => {
-      const key = `${qId}_${fId}`;
       const existing = prev[key] || { status: '', remarks: '' };
       return {
         ...prev,
@@ -145,9 +164,8 @@ const EvaluateTaskDetail: React.FC = () => {
     });
   };
 
-  const handleFieldRemarkChange = (qId: string, fId: string, remarks: string) => {
+  const handleFieldRemarkChange = (key: string, remarks: string) => {
     setFieldEvaluations(prev => {
-      const key = `${qId}_${fId}`;
       const existing = prev[key] || { status: '', remarks: '' };
       return {
         ...prev,
@@ -206,74 +224,212 @@ const EvaluateTaskDetail: React.FC = () => {
         <div className="etd-main" style={{ maxWidth: '900px' }}>
           <div className="etd-section-title">User's Submitted Data</div>
           <div className="etd-scroll-area">
-            {allQuestions.map(q => (
-              <div key={q.id} className="etd-q-card">
-                <div className="etd-q-num">Q{q.questionNumber}</div>
-                <div className="etd-q-content" style={{ width: '100%' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                    <h3 style={{ margin: 0, flex: 1, paddingRight: '16px' }}>{q.title}</h3>
-                    {(q.weightage || 0) > 0 && (
-                      <div className="etd-q-score-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Score:</span>
-                        <input 
-                          type="number" 
-                          disabled={isFrozen || isSuperAdmin}
-                          max={q.weightage || 0}
-                          min={0}
-                          value={questionScores[q.id] ?? ''}
-                          onChange={e => {
-                            if (isSuperAdmin) return;
-                            let val = parseInt(e.target.value);
-                            if (isNaN(val)) val = 0;
-                            if (val > (q.weightage || 0)) val = q.weightage || 0;
-                            if (val < 0) val = 0;
-                            setQuestionScores(prev => ({...prev, [q.id]: val}));
-                          }}
-                          style={{ width: '50px', textAlign: 'center', padding: '4px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 600, cursor: isSuperAdmin ? 'not-allowed' : 'text' }}
-                        /> 
-                        <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>/ {q.weightage || 0} pts</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="etd-fields">
-                    {q.fields.map(f => {
-                      const file = getFieldFile(q.id, f.id);
-                      const val = getFieldValue(q.id, f.id);
-                      const fileLinkUrl = file && file.fileUrl ? (file.fileUrl.startsWith('http') ? file.fileUrl : `${API_BASE_URL}${file.fileUrl}`) : '#';
-                      return (
-                        <div key={f.id} className="etd-field">
-                          <div className="etd-field-label">{f.label}</div>
-                          {file ? (
-                            <div className="etd-file-eval-box">
-                              <a href={fileLinkUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
-                                <Paperclip size={14} /> {file.fileName || 'View Document'}
-                              </a>
-                              <div className="etd-field-eval-controls">
-                                <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[`${q.id}_${f.id}`]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(q.id, f.id, 'APPROVED') }}>Approve</button>
-                                <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[`${q.id}_${f.id}`]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(q.id, f.id, 'RESUBMISSION_REQUIRED') }}>Resubmit</button>
-                                <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[`${q.id}_${f.id}`]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(q.id, f.id, 'REJECTED') }}>Reject</button>
+            {allQuestions.map(q => {
+              const qr = responses.find(r => r.questionId === q.id);
+              const supportingDocs = qr?.supportingDocumentResponses || [];
+              const additionalFiles = qr?.additionalFiles || [];
+
+              return (
+                <div key={q.id} className="etd-q-card">
+                  <div className="etd-q-num">Q{q.questionNumber}</div>
+                  <div className="etd-q-content" style={{ width: '100%' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                      <h3 style={{ margin: 0, flex: 1, paddingRight: '16px' }}>{q.title}</h3>
+                      {(q.weightage || 0) > 0 && (
+                        <div className="etd-q-score-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Score:</span>
+                          <input 
+                            type="number" 
+                            disabled={isFrozen || isSuperAdmin}
+                            max={q.weightage || 0}
+                            min={0}
+                            value={questionScores[q.id] ?? ''}
+                            onChange={e => {
+                              if (isSuperAdmin) return;
+                              let val = parseInt(e.target.value);
+                              if (isNaN(val)) val = 0;
+                              if (val > (q.weightage || 0)) val = q.weightage || 0;
+                              if (val < 0) val = 0;
+                              setQuestionScores(prev => ({...prev, [q.id]: val}));
+                            }}
+                            style={{ width: '50px', textAlign: 'center', padding: '4px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 600, cursor: isSuperAdmin ? 'not-allowed' : 'text' }}
+                          /> 
+                          <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>/ {q.weightage || 0} pts</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="etd-fields">
+                      {q.fields.map(f => {
+                        const isDocField = f.type === 'file' || f.type === 'pdf' || f.label.toLowerCase().includes('document') || f.label.toLowerCase().includes('pdf') || f.label.toLowerCase().includes('upload');
+                        const file = getFieldFile(q.id, f.id);
+                        const val = getFieldValue(q.id, f.id);
+                        const fieldKey = `${q.id}_${f.id}`;
+
+                        if (file) {
+                          const fileLinkUrl = file.fileUrl.startsWith('http') ? file.fileUrl : `${API_BASE_URL}${file.fileUrl}`;
+                          return (
+                            <div key={f.id} className="etd-field">
+                              <div className="etd-field-label">{f.label}</div>
+                              <div className="etd-file-eval-box">
+                                <a href={fileLinkUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
+                                  <Paperclip size={14} /> {file.fileName || 'View Document'}
+                                </a>
+                                <div className="etd-field-eval-controls">
+                                  <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[fieldKey]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(fieldKey, 'APPROVED') }}>Approve</button>
+                                  <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[fieldKey]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(fieldKey, 'RESUBMISSION_REQUIRED') }}>Resubmit</button>
+                                  <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[fieldKey]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(fieldKey, 'REJECTED') }}>Reject</button>
+                                </div>
+                                <input 
+                                  type="text" 
+                                  className="etd-fe-remark" 
+                                  placeholder="Remarks for this file..." 
+                                  value={fieldEvaluations[fieldKey]?.remarks || ''}
+                                  onChange={(e) => handleFieldRemarkChange(fieldKey, e.target.value)}
+                                  disabled={isFrozen}
+                                />
                               </div>
-                              <input 
-                                type="text" 
-                                className="etd-fe-remark" 
-                                placeholder="Remarks for this file..." 
-                                value={fieldEvaluations[`${q.id}_${f.id}`]?.remarks || ''}
-                                onChange={(e) => handleFieldRemarkChange(q.id, f.id, e.target.value)}
-                                disabled={isFrozen}
-                              />
                             </div>
-                          ) : (
+                          );
+                        }
+
+                        if (isDocField && supportingDocs.length > 0) {
+                          return (
+                            <div key={f.id} className="etd-field">
+                              <div className="etd-field-label">{f.label}</div>
+                              {supportingDocs.map((docResp: any) => (
+                                (docResp.files || []).map((sf: any) => {
+                                  const sfLinkUrl = sf.fileUrl.startsWith('http') ? sf.fileUrl : `${API_BASE_URL}${sf.fileUrl}`;
+                                  const sfKey = `${q.id}_${sf.fileId}`;
+                                  const docKey = `${q.id}_${docResp.documentId}`;
+                                  const activeKey = fieldEvaluations[sfKey] ? sfKey : docKey;
+
+                                  return (
+                                    <div key={sf.fileId || sf._id} className="etd-file-eval-box" style={{ marginBottom: '12px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                        <a href={sfLinkUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
+                                          <Paperclip size={14} /> {sf.fileName || 'View Submitted Document'}
+                                        </a>
+                                      </div>
+                                      {(docResp.issuedBy || docResp.issueDate || docResp.validTill || docResp.remarks) && (
+                                        <div style={{ fontSize: '12px', color: '#475569', backgroundColor: '#f1f5f9', padding: '6px 10px', borderRadius: '6px', marginBottom: '8px' }}>
+                                          {docResp.issuedBy && <span style={{ marginRight: '12px' }}><strong>Issued By:</strong> {docResp.issuedBy}</span>}
+                                          {docResp.issueDate && <span style={{ marginRight: '12px' }}><strong>Issue Date:</strong> {docResp.issueDate}</span>}
+                                          {docResp.validTill && <span style={{ marginRight: '12px' }}><strong>Valid Till:</strong> {docResp.validTill}</span>}
+                                          {docResp.remarks && <span><strong>Remarks:</strong> {docResp.remarks}</span>}
+                                        </div>
+                                      )}
+                                      <div className="etd-field-eval-controls">
+                                        <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'APPROVED'); handleFieldEvalChange(docKey, 'APPROVED'); } }}>Approve</button>
+                                        <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'RESUBMISSION_REQUIRED'); handleFieldEvalChange(docKey, 'RESUBMISSION_REQUIRED'); } }}>Resubmit</button>
+                                        <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'REJECTED'); handleFieldEvalChange(docKey, 'REJECTED'); } }}>Reject</button>
+                                      </div>
+                                      <input 
+                                        type="text" 
+                                        className="etd-fe-remark" 
+                                        placeholder="Remarks for this document..." 
+                                        value={fieldEvaluations[activeKey]?.remarks || ''}
+                                        onChange={(e) => { handleFieldRemarkChange(sfKey, e.target.value); handleFieldRemarkChange(docKey, e.target.value); }}
+                                        disabled={isFrozen}
+                                      />
+                                    </div>
+                                  );
+                                })
+                              ))}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div key={f.id} className="etd-field">
+                            <div className="etd-field-label">{f.label}</div>
                             <div className="etd-field-val">
                               {Array.isArray(val) ? val.join(', ') : val}
                             </div>
-                          )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Fallback for supportingDocs if not mapped to a specific doc field */}
+                      {supportingDocs.length > 0 && !q.fields.some(f => f.type === 'file' || f.type === 'pdf' || f.label.toLowerCase().includes('document') || f.label.toLowerCase().includes('pdf') || f.label.toLowerCase().includes('upload')) && (
+                        <div className="etd-field">
+                          <div className="etd-field-label">Uploaded Supporting Documents</div>
+                          {supportingDocs.map((docResp: any) => (
+                            (docResp.files || []).map((sf: any) => {
+                              const sfLinkUrl = sf.fileUrl.startsWith('http') ? sf.fileUrl : `${API_BASE_URL}${sf.fileUrl}`;
+                              const sfKey = `${q.id}_${sf.fileId}`;
+                              const docKey = `${q.id}_${docResp.documentId}`;
+                              const activeKey = fieldEvaluations[sfKey] ? sfKey : docKey;
+
+                              return (
+                                <div key={sf.fileId || sf._id} className="etd-file-eval-box" style={{ marginBottom: '12px' }}>
+                                  <a href={sfLinkUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
+                                    <Paperclip size={14} /> {sf.fileName || 'View Submitted Document'}
+                                  </a>
+                                  {(docResp.issuedBy || docResp.issueDate || docResp.validTill || docResp.remarks) && (
+                                    <div style={{ fontSize: '12px', color: '#475569', backgroundColor: '#f1f5f9', padding: '6px 10px', borderRadius: '6px', margin: '6px 0' }}>
+                                      {docResp.issuedBy && <span style={{ marginRight: '12px' }}><strong>Issued By:</strong> {docResp.issuedBy}</span>}
+                                      {docResp.issueDate && <span style={{ marginRight: '12px' }}><strong>Issue Date:</strong> {docResp.issueDate}</span>}
+                                      {docResp.validTill && <span style={{ marginRight: '12px' }}><strong>Valid Till:</strong> {docResp.validTill}</span>}
+                                      {docResp.remarks && <span><strong>Remarks:</strong> {docResp.remarks}</span>}
+                                    </div>
+                                  )}
+                                  <div className="etd-field-eval-controls">
+                                    <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'APPROVED'); handleFieldEvalChange(docKey, 'APPROVED'); } }}>Approve</button>
+                                    <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'RESUBMISSION_REQUIRED'); handleFieldEvalChange(docKey, 'RESUBMISSION_REQUIRED'); } }}>Resubmit</button>
+                                    <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'REJECTED'); handleFieldEvalChange(docKey, 'REJECTED'); } }}>Reject</button>
+                                  </div>
+                                  <input 
+                                    type="text" 
+                                    className="etd-fe-remark" 
+                                    placeholder="Remarks for this document..." 
+                                    value={fieldEvaluations[activeKey]?.remarks || ''}
+                                    onChange={(e) => { handleFieldRemarkChange(sfKey, e.target.value); handleFieldRemarkChange(docKey, e.target.value); }}
+                                    disabled={isFrozen}
+                                  />
+                                </div>
+                              );
+                            })
+                          ))}
                         </div>
-                      );
-                    })}
+                      )}
+
+                      {/* Additional files if present */}
+                      {additionalFiles.length > 0 && (
+                        <div className="etd-field">
+                          <div className="etd-field-label">Uploaded Additional Files</div>
+                          {additionalFiles.map((af: any) => {
+                            const afLinkUrl = af.fileUrl.startsWith('http') ? af.fileUrl : `${API_BASE_URL}${af.fileUrl}`;
+                            const afKey = `${q.id}_${af.fileId}`;
+
+                            return (
+                              <div key={af.fileId || af._id} className="etd-file-eval-box" style={{ marginBottom: '12px' }}>
+                                <a href={afLinkUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
+                                  <Paperclip size={14} /> {af.fileName || 'View Additional File'}
+                                </a>
+                                <div className="etd-field-eval-controls">
+                                  <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[afKey]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(afKey, 'APPROVED') }}>Approve</button>
+                                  <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[afKey]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(afKey, 'RESUBMISSION_REQUIRED') }}>Resubmit</button>
+                                  <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[afKey]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(afKey, 'REJECTED') }}>Reject</button>
+                                </div>
+                                <input 
+                                  type="text" 
+                                  className="etd-fe-remark" 
+                                  placeholder="Remarks for this file..." 
+                                  value={fieldEvaluations[afKey]?.remarks || ''}
+                                  onChange={(e) => handleFieldRemarkChange(afKey, e.target.value)}
+                                  disabled={isFrozen}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

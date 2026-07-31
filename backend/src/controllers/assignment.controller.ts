@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { Assignment } from '../models/Assignment';
 import { FormSchemaModel } from '../models/FormSchema';
-import { Submission } from '../models/Submission';
+import { Submission, SubmissionStatus } from '../models/Submission';
 import { Edition } from '../models/Edition';
 import { Evaluation } from '../models/Evaluation';
 import mongoose from 'mongoose';
@@ -564,6 +564,25 @@ export const getSubmittedAssignments = async (req: AuthRequest, res: Response) =
       return res.status(403).json({ error: 'Only Admins and Super Admins can view submitted tasks.' });
     }
 
+    // Sync any existing user Submissions that are UNDER_REVIEW or SUBMITTED into Assignment status = 'SUBMITTED'
+    const activeSubmissions = await Submission.find({
+      $or: [
+        { status: { $in: [SubmissionStatus.UNDER_REVIEW, SubmissionStatus.SUBMITTED, SubmissionStatus.APPROVED] } },
+        { 'responses.fieldResponses.status': 'SUBMITTED' },
+        { 'responses.additionalFiles.status': 'SUBMITTED' },
+        { 'responses.supportingDocumentResponses.files.status': 'SUBMITTED' }
+      ]
+    } as any);
+
+    for (const sub of activeSubmissions) {
+      if (sub.userId && sub.editionId) {
+        await Assignment.updateMany(
+          { userId: sub.userId, editionId: sub.editionId, status: { $ne: 'EVALUATED' } },
+          { status: 'SUBMITTED' }
+        );
+      }
+    }
+
     const assignments = await Assignment.find({ status: { $in: ['SUBMITTED', 'EVALUATED'] } })
       .populate('userId', 'name email state')
       .populate('editionId', 'name version')
@@ -697,11 +716,33 @@ export const evaluateAssignment = async (req: AuthRequest, res: Response) => {
 
         if (fieldEvaluations) {
           submission.responses.forEach(qResp => {
-            qResp.fieldResponses.forEach(fResp => {
+            qResp.fieldResponses?.forEach(fResp => {
               const key = `${qResp.questionId}_${fResp.fieldId}`;
               if (fieldEvaluations[key]) {
                 fResp.evaluationStatus = fieldEvaluations[key].status || 'PENDING';
                 fResp.evaluationRemarks = fieldEvaluations[key].remarks || '';
+                changed = true;
+              }
+            });
+
+            qResp.supportingDocumentResponses?.forEach(docResp => {
+              docResp.files?.forEach(f => {
+                const k1 = `${qResp.questionId}_${f.fileId}`;
+                const k2 = `${qResp.questionId}_${docResp.documentId}`;
+                const evalObj = fieldEvaluations[k1] || fieldEvaluations[k2];
+                if (evalObj) {
+                  f.evaluationStatus = evalObj.status || 'PENDING';
+                  f.evaluationRemarks = evalObj.remarks || '';
+                  changed = true;
+                }
+              });
+            });
+
+            qResp.additionalFiles?.forEach(af => {
+              const key = `${qResp.questionId}_${af.fileId}`;
+              if (fieldEvaluations[key]) {
+                af.evaluationStatus = fieldEvaluations[key].status || 'PENDING';
+                af.evaluationRemarks = fieldEvaluations[key].remarks || '';
                 changed = true;
               }
             });

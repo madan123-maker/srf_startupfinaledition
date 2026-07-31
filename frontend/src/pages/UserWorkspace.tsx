@@ -537,7 +537,7 @@ const UserWorkspace: React.FC = () => {
         if (notify) {
           alert(status === 'SUBMITTED' ? 'Application submitted successfully!' : 'Draft saved successfully!');
         }
-        if (status === 'SUBMITTED') {
+        if (status === 'SUBMITTED' || status === 'UNDER_REVIEW') {
           try {
             await fetch(`${API_BASE_URL}/api/assignments/edition/${editionId}/submit`, {
               method: 'PUT',
@@ -546,7 +546,9 @@ const UserWorkspace: React.FC = () => {
           } catch (e) {
             console.error('Failed to submit edition assignments:', e);
           }
-          navigate('/user-dashboard/assigned-tasks');
+          if (status === 'SUBMITTED') {
+            navigate('/user-dashboard/assigned-tasks');
+          }
         }
       } else {
         const errorData = await response.json();

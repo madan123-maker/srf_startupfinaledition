@@ -67,17 +67,32 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
 app.get('/api/guidelines/:editionId', async (req: Request, res: Response) => {
   try {
     const { editionId } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(editionId)) {
-      return res.status(400).json({ error: 'Invalid editionId.' });
+    if (mongoose.Types.ObjectId.isValid(editionId)) {
+      const pdf = await GuidelinePdf.findOne({ editionId: new mongoose.Types.ObjectId(editionId) });
+      if (pdf) {
+        res.setHeader('Content-Type', pdf.contentType || 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(pdf.filename)}"`);
+        res.setHeader('Content-Length', pdf.size || pdf.data.length);
+        return res.send(pdf.data);
+      }
     }
-    const pdf = await GuidelinePdf.findOne({ editionId: new mongoose.Types.ObjectId(editionId) });
-    if (!pdf) {
-      return res.status(404).json({ error: 'No guideline PDF uploaded for this edition.' });
+
+    // Fallback: Check local filesystem for default guidelines.pdf
+    const fallbackPaths = [
+      path.join(__dirname, '../../frontend/public/guidelines.pdf'),
+      path.join(__dirname, '../uploads/guidelines.pdf'),
+      '/Users/nithishkumar07/srf_startupfinalproduction/frontend/public/guidelines.pdf',
+    ];
+
+    for (const fbPath of fallbackPaths) {
+      if (fs.existsSync(fbPath) && fs.statSync(fbPath).isFile()) {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'inline; filename="guidelines.pdf"');
+        return res.sendFile(fbPath);
+      }
     }
-    res.setHeader('Content-Type', pdf.contentType || 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(pdf.filename)}"`);
-    res.setHeader('Content-Length', pdf.size || pdf.data.length);
-    return res.send(pdf.data);
+
+    return res.status(404).json({ error: 'No guideline PDF found for this edition.' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Failed to serve guideline PDF.' });
   }

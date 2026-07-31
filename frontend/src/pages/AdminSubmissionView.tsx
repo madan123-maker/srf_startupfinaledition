@@ -320,18 +320,16 @@ export default function AdminSubmissionView() {
                             }
                             
                             let awardedVal = 0;
+                            const isExplicitlyApproved = fieldResponses.some((f: any) => f.evaluationStatus === 'APPROVED') ||
+                              (qResp?.supportingDocumentResponses || []).some((d: any) => d.files?.some((f: any) => f.evaluationStatus === 'APPROVED')) ||
+                              (qResp?.additionalFiles || []).some((f: any) => f.evaluationStatus === 'APPROVED');
+
                             if (qSummary && qSummary.awarded > 0) {
                               awardedVal = qSummary.awarded;
-                            } else if (qResp && qResp.score !== undefined && qResp.score !== null && qResp.score > 0) {
+                            } else if (isExplicitlyApproved && qResp && qResp.score !== undefined && qResp.score !== null && qResp.score > 0) {
                               awardedVal = qResp.score;
-                            } else if (fieldResponses && fieldResponses.length > 0) {
-                              const hasYesOrApproved = fieldResponses.some((f: any) =>
-                                (typeof f.value === 'string' && (f.value.toLowerCase() === 'yes' || f.value.toLowerCase() === 'true')) ||
-                                f.evaluationStatus === 'APPROVED'
-                              );
-                              if (hasYesOrApproved) {
-                                awardedVal = q.maxScore || q.weightage || 1;
-                              }
+                            } else if (isExplicitlyApproved) {
+                              awardedVal = q.maxScore || q.weightage || 1;
                             }
 
                             const maxVal = qSummary ? qSummary.max : (q.maxScore || q.weightage || 1);

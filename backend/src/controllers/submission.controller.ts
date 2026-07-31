@@ -60,40 +60,39 @@ export const buildConsolidatedSubmission = async (editionId: string) => {
           const qResp = sub.responses.find((r) => r.questionId === qId);
           const evalAns = userEval?.answers.find((ans) => ans.questionId === qId);
           let qScore = 0;
+
+          const isExplicitlyApproved = qResp?.fieldResponses?.some((f: any) => f.evaluationStatus === 'APPROVED') ||
+            qResp?.additionalFiles?.some((f: any) => f.evaluationStatus === 'APPROVED') ||
+            qResp?.supportingDocumentResponses?.some((d: any) => d.files?.some((f: any) => f.evaluationStatus === 'APPROVED'));
+
           if (evalAns && evalAns.awardedScore !== null && evalAns.awardedScore !== undefined && evalAns.awardedScore > 0) {
             qScore = evalAns.awardedScore;
-          } else if (qResp && qResp.score !== undefined && qResp.score !== null && qResp.score > 0) {
+          } else if (isExplicitlyApproved && qResp && qResp.score !== undefined && qResp.score !== null && qResp.score > 0) {
             qScore = qResp.score;
-          } else if (qResp && qResp.fieldResponses) {
-            const hasYesOrApproved = qResp.fieldResponses.some((f: any) =>
-              (typeof f.value === 'string' && (f.value.toLowerCase() === 'yes' || f.value.toLowerCase() === 'true')) ||
-              f.evaluationStatus === 'APPROVED'
-            );
-            if (hasYesOrApproved) {
-              const qDef = area.actionPoints.flatMap((ap) => ap.questions).find((q) => q.id === qId);
-              qScore = qDef?.maxScore || qDef?.weightage || 1;
-            }
+          } else if (isExplicitlyApproved) {
+            const qDef = area.actionPoints.flatMap((ap) => ap.questions).find((q) => q.id === qId);
+            qScore = qDef?.maxScore || qDef?.weightage || 1;
           }
 
           areaScoreFromSub += qScore;
 
           if (qResp) {
-            if ((!qResp.score || qResp.score === 0) && qScore > 0) {
-              qResp.score = qScore;
+            if (!userScores[uId].responsesMap.has(qId)) {
+              userScores[uId].responsesMap.set(qId, qResp);
             }
-            userScores[uId].responsesMap.set(qId, qResp);
           }
         });
 
-        userScores[uId].totalScore = Math.max(userScores[uId].totalScore, areaScoreFromSub);
+        if (areaScoreFromSub > userScores[uId].totalScore) {
+          userScores[uId].totalScore = areaScoreFromSub;
+        }
       });
 
       const candidates = Object.values(userScores);
       if (candidates.length > 0) {
         candidates.sort((a, b) => b.totalScore - a.totalScore);
         const winner = candidates[0];
-        const winnerId = (winner.user as any)?._id?.toString() || (winner.user as any)?.toString();
-
+        
         const areaMax = area.actionPoints.reduce(
           (acc, ap) => acc + ap.questions.reduce((qAcc, q) => qAcc + (q.maxScore || q.weightage || 0), 0),
           0
@@ -110,20 +109,12 @@ export const buildConsolidatedSubmission = async (editionId: string) => {
         areaQuestionIds.forEach((qId) => {
           let qResp = winner.responsesMap.get(qId);
           if (!qResp) {
+            const winnerId = (winner.user as any)?._id?.toString() || (winner.user as any)?.toString();
             const winnerSub = submissions.find((s) => {
               const sUId = (s.userId as any)?._id?.toString() || s.userId?.toString();
               return sUId === winnerId;
             });
             qResp = winnerSub?.responses?.find((r) => r.questionId === qId);
-          }
-          if (!qResp) {
-            for (const sub of submissions) {
-              const r = sub.responses?.find((r) => r.questionId === qId);
-              if (r) {
-                qResp = r;
-                break;
-              }
-            }
           }
 
           const qDef = area.actionPoints.flatMap((ap) => ap.questions).find((q) => q.id === qId);
@@ -131,10 +122,16 @@ export const buildConsolidatedSubmission = async (editionId: string) => {
 
           const respObj = qResp
             ? { ...JSON.parse(JSON.stringify(qResp)) }
-            : { questionId: qId, score: winner.totalScore > 0 ? qMaxScore : 0, fieldResponses: [] };
+            : { questionId: qId, score: 0, fieldResponses: [] };
 
-          if ((!respObj.score || respObj.score === 0) && winner.totalScore > 0) {
+          const isExplicitlyApproved = respObj.fieldResponses?.some((f: any) => f.evaluationStatus === 'APPROVED') ||
+            respObj.additionalFiles?.some((f: any) => f.evaluationStatus === 'APPROVED') ||
+            respObj.supportingDocumentResponses?.some((d: any) => d.files?.some((f: any) => f.evaluationStatus === 'APPROVED'));
+
+          if (isExplicitlyApproved && (!respObj.score || respObj.score === 0)) {
             respObj.score = qMaxScore;
+          } else if (!isExplicitlyApproved) {
+            respObj.score = 0;
           }
 
           respObj.topUser = winner.user;
@@ -397,6 +394,14 @@ export const updateMySubmission = async (req: any, res: Response) => {
       if (status) submission.status = status;
 
       await submission.save();
+
+      if (status === 'UNDER_REVIEW' || status === 'SUBMITTED' || submission.status === 'UNDER_REVIEW' || submission.status === 'SUBMITTED') {
+        await Assignment.updateMany(
+          { userId: submission.userId, editionId: submission.editionId, status: { $ne: 'EVALUATED' } },
+          { status: 'SUBMITTED' }
+        );
+      }
+
       return res.status(200).json(submission);
     } catch (error: any) {
       const isVersionError = error.name === 'VersionError' || error.message?.includes('VersionError') || error.kind === 'VersionError';

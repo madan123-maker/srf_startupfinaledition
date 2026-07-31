@@ -1,4 +1,15 @@
 # ==========================
+# Vite Cache & Build Outputs
+# ==========================
+.vite/
+*.vite/
+frontend/.vite/
+dist/
+backend/dist/
+frontend/dist/
+dist-ssr/
+
+# ==========================
 # Logs
 # ==========================
 logs/
@@ -17,60 +28,41 @@ backend/node_modules/
 frontend/node_modules/
 
 # ==========================
-# Build Output
-# ==========================
-dist/
-backend/dist/
-frontend/dist/
-dist-ssr/
-
-# ==========================
-# Environment Files
+# Environment Files (Secrets)
 # ==========================
 .env
 backend/.env
 frontend/.env
+*.env
+*.env.*
 *.local
 
 # ==========================
-# Prisma
+# Uploads & Media
 # ==========================
-src/generated/prisma/
+backend/uploads/
+uploads/
 
 # ==========================
-# Google Credentials
+# Google & Credentials
 # ==========================
 backend/src/config/google-credentials.json
 **/google-credentials.json
 
 # ==========================
-# Uploads
-# ==========================
-backend/uploads/
-
-# ==========================
-# macOS
+# System & Editor Files
 # ==========================
 .DS_Store
-
-# ==========================
-# VS Code
-# ==========================
-.vscode/*
-!.vscode/extensions.json
-
-# ==========================
-# JetBrains IDE
-# ==========================
+**/.DS_Store
+.vscode/
 .idea/
-
-# ==========================
-# Visual Studio
-# ==========================
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
+# ==========================
+# Large Documents
+# ==========================
 SRF_6.0_Framework_VF.pdf
