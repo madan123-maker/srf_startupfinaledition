@@ -5,8 +5,10 @@ import { Department } from '../models/Department';
 import { User } from '../models/User';
 import { Edition } from '../models/Edition';
 import { FormSchemaModel } from '../models/FormSchema';
-
 import { Submission } from '../models/Submission';
+import { Assignment } from '../models/Assignment';
+import { Evaluation } from '../models/Evaluation';
+import { StoredFile } from '../models/StoredFile';
 
 export const getStats = async (req: AuthRequest, res: Response) => {
   try {
@@ -99,13 +101,41 @@ export const restoreItem = async (req: AuthRequest, res: Response) => {
 export const permanentDelete = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const deleted = await RecycleBin.findByIdAndDelete(id);
+    const item = await RecycleBin.findById(id).lean();
 
-    if (!deleted) {
-      return res.status(404).json({ error: 'Item not found' });
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found in recycle bin' });
     }
 
-    res.status(200).json({ message: 'Item permanently deleted' });
+    const targetUserId = item.originalId || (item.data as any)?._id;
+
+    // Delete item from Recycle Bin
+    await RecycleBin.findByIdAndDelete(id);
+
+    // If it was a USER entity, purge all associated user data & uploaded files from DB
+    if (item.entityType === EntityType.USER && targetUserId) {
+      const userSubs = await Submission.find({ userId: targetUserId }).select('_id').lean();
+      const userSubIds = userSubs.map(s => s._id);
+
+      await Submission.deleteMany({ userId: targetUserId });
+      await Assignment.deleteMany({ userId: targetUserId });
+
+      if (userSubIds.length > 0) {
+        await Evaluation.deleteMany({ submissionId: { $in: userSubIds } });
+      }
+
+      await StoredFile.deleteMany({ uploadedBy: targetUserId });
+    } else if (item.entityType === EntityType.APPLICATION) {
+      const subData = item.data as any;
+      if (subData) {
+        await Submission.findByIdAndDelete(item.originalId || subData._id);
+        if (subData.userId) {
+          await StoredFile.deleteMany({ uploadedBy: subData.userId });
+        }
+      }
+    }
+
+    res.status(200).json({ message: 'Item permanently deleted and associated data cleaned up' });
   } catch (error) {
     console.error('Failed to permanently delete item:', error);
     res.status(500).json({ error: 'Failed to delete item' });

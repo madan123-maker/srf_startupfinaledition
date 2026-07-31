@@ -7,6 +7,7 @@ import { FormSchemaModel } from '../models/FormSchema';
 import { EvaluationService } from '../services/EvaluationService';
 import { Notification } from '../models/Notification';
 import { RecycleBin, EntityType } from '../models/RecycleBin';
+import { Edition, EditionStatus } from '../models/Edition';
 
 export const buildConsolidatedSubmission = async (editionId: string) => {
   const schema = await FormSchemaModel.findOne({ editionId });
@@ -125,9 +126,16 @@ export const buildConsolidatedSubmission = async (editionId: string) => {
             }
           }
 
+          const qDef = area.actionPoints.flatMap((ap) => ap.questions).find((q) => q.id === qId);
+          const qMaxScore = qDef?.maxScore || qDef?.weightage || 1;
+
           const respObj = qResp
             ? { ...JSON.parse(JSON.stringify(qResp)) }
-            : { questionId: qId, fieldResponses: [] };
+            : { questionId: qId, score: winner.totalScore > 0 ? qMaxScore : 0, fieldResponses: [] };
+
+          if ((!respObj.score || respObj.score === 0) && winner.totalScore > 0) {
+            respObj.score = qMaxScore;
+          }
 
           respObj.topUser = winner.user;
           respObj.reformAreaId = area.id;
@@ -142,19 +150,17 @@ export const buildConsolidatedSubmission = async (editionId: string) => {
   }
 
   const firstSub = submissions[0];
-  const firstUser = firstSub ? (firstSub.userId as any) : null;
-  const stateName = firstSub?.stateName || firstUser?.state || 'Andhra Pradesh';
 
   return {
     _id: `consolidated-${editionId}`,
     isConsolidated: true,
     editionId,
-    stateName,
+    stateName: 'Consolidated State',
     status: 'APPROVED',
     totalScore: grandTotalScore,
     responses: consolidatedResponses,
     reformAreaWinners,
-    userId: firstUser || { name: 'Top Performers', email: 'consolidated@srf.gov' },
+    userId: { name: 'Consolidated SRF Edition', email: 'consolidated@srf.gov' },
     createdAt: firstSub ? firstSub.createdAt : new Date(),
   };
 };
@@ -173,18 +179,59 @@ export const getConsolidatedEditionSubmission = async (req: Request, res: Respon
 export const getSubmissionsByEdition = async (req: Request, res: Response) => {
   try {
     const { editionId } = req.params;
-    const consolidated = await buildConsolidatedSubmission(editionId);
+    const edition = await Edition.findById(editionId);
 
+    // Submissions query matching either non-draft status or any submitted question response
+    const submissionFilter = {
+      editionId,
+      $or: [
+        { status: { $ne: SubmissionStatus.DRAFT } },
+        { "responses.fieldResponses.status": "SUBMITTED" },
+        { "responses.additionalFiles.status": "SUBMITTED" },
+        { "responses.supportingDocumentResponses.files.status": "SUBMITTED" }
+      ]
+    };
+
+    // Workflow 1: PUBLISHED Edition — return all individual user submissions
+    if (edition && edition.status === EditionStatus.PUBLISHED) {
+      const submissions = await Submission.find(submissionFilter)
+        .populate('userId', 'name email state')
+        .sort({ createdAt: -1 });
+
+      const validSubmissions = submissions
+        .filter((s: any) => s.userId != null)
+        .map((s: any) => {
+          const subObj = s.toObject ? s.toObject() : s;
+          if (subObj.status === 'DRAFT') {
+            subObj.status = 'UNDER_REVIEW';
+          }
+          return subObj;
+        });
+
+      return res.status(200).json(validSubmissions);
+    }
+
+    // Workflow 2: DRAFT Edition — return Consolidated SRF Edition summary
+    const consolidated = await buildConsolidatedSubmission(editionId);
     if (consolidated && consolidated.responses && consolidated.responses.length > 0) {
       return res.status(200).json([consolidated]);
     }
 
-    const submissions = await Submission.find({ 
-      editionId,
-      status: { $ne: SubmissionStatus.DRAFT }
-    }).populate('userId', 'name email state').sort({ createdAt: -1 });
+    const submissions = await Submission.find(submissionFilter)
+      .populate('userId', 'name email state')
+      .sort({ createdAt: -1 });
 
-    return res.status(200).json(submissions);
+    const validSubmissions = submissions
+      .filter((s: any) => s.userId != null)
+      .map((s: any) => {
+        const subObj = s.toObject ? s.toObject() : s;
+        if (subObj.status === 'DRAFT') {
+          subObj.status = 'UNDER_REVIEW';
+        }
+        return subObj;
+      });
+
+    return res.status(200).json(validSubmissions);
   } catch (error: any) {
     console.error('Error fetching submissions by edition:', error);
     return res.status(500).json({ error: error.message || 'Failed to fetch submissions' });

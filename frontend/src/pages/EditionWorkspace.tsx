@@ -19,11 +19,52 @@ interface Submission {
   status: string;
   totalScore: number;
   createdAt: string;
+  responses?: any[];
   userId?: {
     name: string;
     email: string;
   };
 }
+
+// Helper to derive status badge info
+const getDisplayedStatusInfo = (sub: Submission) => {
+  const isConsolidated = sub._id.startsWith('consolidated-') || (sub as any).isConsolidated;
+  if (isConsolidated) {
+    return { statusKey: 'CONSOLIDATED', label: 'Edition Consolidated', bg: '#f1f5f9', color: '#0f172a' };
+  }
+
+  // Check if admin has requested resubmission for any document or question
+  const hasResubmission = sub.responses?.some((qResp: any) => {
+    const fieldResubmit = qResp.fieldResponses?.some((f: any) => f.evaluationStatus === 'RESUBMISSION_REQUIRED');
+    const fileResubmit = qResp.additionalFiles?.some((f: any) => f.evaluationStatus === 'RESUBMISSION_REQUIRED');
+    const suppResubmit = qResp.supportingDocumentResponses?.some((d: any) =>
+      d.files?.some((f: any) => f.evaluationStatus === 'RESUBMISSION_REQUIRED')
+    );
+    return fieldResubmit || fileResubmit || suppResubmit;
+  });
+
+  if (hasResubmission || sub.status === 'PENDING') {
+    return { statusKey: 'PENDING', label: 'PENDING', bg: '#fef3c7', color: '#b45309' };
+  }
+
+  // Check if admin has approved fields or if overall submission is approved
+  const hasApprovedFields = sub.responses?.some((qResp: any) => {
+    return qResp.fieldResponses?.some((f: any) => f.evaluationStatus === 'APPROVED') ||
+           qResp.additionalFiles?.some((f: any) => f.evaluationStatus === 'APPROVED') ||
+           qResp.supportingDocumentResponses?.some((d: any) => d.files?.some((f: any) => f.evaluationStatus === 'APPROVED'));
+  });
+
+  if (sub.status === 'APPROVED' || hasApprovedFields) {
+    return { statusKey: 'APPROVED', label: 'DONE', bg: '#dcfce7', color: '#15803d' };
+  }
+
+  if (sub.status === 'REJECTED') {
+    return { statusKey: 'REJECTED', label: 'REJECTED', bg: '#fee2e2', color: '#b91c1c' };
+  }
+
+  // If admin hasn't evaluated/opened or requested resubmission yet -> UNDER REVIEW
+  return { statusKey: 'UNDER_REVIEW', label: 'UNDER REVIEW', bg: '#e0e7ff', color: '#3730a3' };
+};
 
 const EditionWorkspace: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -32,29 +73,32 @@ const EditionWorkspace: React.FC = () => {
   const [edition, setEdition] = useState<Edition | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('applications');
+  const [activeTab, setActiveTab] = useState<'applications' | 'schema'>('applications');
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   
-  // Role check for Schema Editor
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const isSuperAdmin = user.role === 'SUPER_ADMIN';
-
-  const [metrics, setMetrics] = useState<{
-    total: number | string;
-    pending: number | string;
-    approved: number | string;
-    rejected: number | string;
-    additionalDocs: number | string;
-  }>({
-    total: '-',
-    pending: '-',
-    approved: '-',
-    rejected: '-',
-    additionalDocs: '-'
+  const [metrics, setMetrics] = useState({
+    total: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    additionalDocs: 0
   });
+
+  useEffect(() => {
+    const userJson = localStorage.getItem('user');
+    if (userJson) {
+      try {
+        const u = JSON.parse(userJson);
+        if (u.role === 'SUPER_ADMIN') {
+          setIsSuperAdmin(true);
+        }
+      } catch (e) {}
+    }
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -95,9 +139,10 @@ const EditionWorkspace: React.FC = () => {
         let pending = 0, approved = 0, rejected = 0;
         
         subData.forEach((s: Submission) => {
-          if (s.status === 'UNDER_REVIEW' || s.status === 'SUBMITTED') pending++;
-          if (s.status === 'APPROVED') approved++;
-          if (s.status === 'REJECTED') rejected++;
+          const statusInfo = getDisplayedStatusInfo(s);
+          if (statusInfo.statusKey === 'UNDER_REVIEW' || statusInfo.statusKey === 'PENDING') pending++;
+          if (statusInfo.statusKey === 'APPROVED') approved++;
+          if (statusInfo.statusKey === 'REJECTED') rejected++;
         });
         
         setMetrics({
@@ -125,7 +170,8 @@ const EditionWorkspace: React.FC = () => {
   const filteredSubmissions = submissions.filter((sub) => {
     const matchesSearch = sub.stateName.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           sub._id.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter ? sub.status === statusFilter : true;
+    const statusInfo = getDisplayedStatusInfo(sub);
+    const matchesStatus = statusFilter ? statusInfo.statusKey === statusFilter || sub.status === statusFilter : true;
     return matchesSearch && matchesStatus;
   });
 
@@ -311,9 +357,8 @@ const EditionWorkspace: React.FC = () => {
                   onChange={(e) => setStatusFilter(e.target.value)}
                 >
                   <option value="">All Statuses</option>
-                  <option value="DRAFT">Draft</option>
-                  <option value="SUBMITTED">Submitted</option>
                   <option value="UNDER_REVIEW">Under Review</option>
+                  <option value="PENDING">Pending</option>
                   <option value="APPROVED">Approved</option>
                   <option value="REJECTED">Rejected</option>
                 </select>
@@ -334,7 +379,6 @@ const EditionWorkspace: React.FC = () => {
                       <th>State</th>
                       <th>User</th>
                       <th>Status</th>
-                      <th>Completion</th>
                       <th>Submitted Date</th>
                       <th>Action</th>
                     </tr>
@@ -347,6 +391,7 @@ const EditionWorkspace: React.FC = () => {
                         month: 'short',
                         year: 'numeric'
                       });
+                      const statusInfo = getDisplayedStatusInfo(sub);
 
                       return (
                         <tr key={sub._id} style={isConsolidated ? { backgroundColor: '#ffffff' } : {}}>
@@ -368,12 +413,9 @@ const EditionWorkspace: React.FC = () => {
                             )}
                           </td>
                           <td>
-                            <span className="status-badge" style={{ backgroundColor: '#f1f5f9', color: '#0f172a', fontWeight: 600, padding: '4px 10px', borderRadius: '6px' }}>
-                              {isConsolidated ? 'Edition Consolidated' : sub.status.replace('_', ' ')}
+                            <span className="status-badge" style={{ backgroundColor: statusInfo.bg, color: statusInfo.color, fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                              {statusInfo.label}
                             </span>
-                          </td>
-                          <td>
-                            <span style={{ fontWeight: 600, color: '#16a34a' }}>Completed</span>
                           </td>
                           <td style={{ color: '#475569', fontSize: '13px' }}>{formattedDate}</td>
                           <td>

@@ -577,18 +577,18 @@ const UserWorkspace: React.FC = () => {
         ...updatedResponses[qIndex],
         fieldResponses: updatedResponses[qIndex].fieldResponses.map(f => ({
           ...f,
-          status: 'SUBMITTED'
+          status: 'SUBMITTED' as const
         })),
         additionalFiles: (updatedResponses[qIndex].additionalFiles || []).map(f => ({
           ...f,
-          status: 'SUBMITTED'
+          status: 'SUBMITTED' as const
         })),
         supportingDocumentResponses: (updatedResponses[qIndex].supportingDocumentResponses || []).map(d => ({
           ...d,
-          status: 'SUBMITTED',
+          status: 'SUBMITTED' as const,
           files: (d.files || []).map(f => ({
             ...f,
-            status: 'SUBMITTED'
+            status: 'SUBMITTED' as const
           }))
         }))
       };
@@ -597,7 +597,8 @@ const UserWorkspace: React.FC = () => {
     });
 
     setTimeout(() => {
-      const nextStatus = (submission?.status === 'APPROVED') ? 'APPROVED' : 'UNDER_REVIEW';
+      // Set overall status to UNDER_REVIEW so application appears in Admin Panel for evaluation
+      const nextStatus = submission?.status === 'APPROVED' ? 'APPROVED' : 'UNDER_REVIEW';
       saveSubmission(nextStatus, false, updatedResponsesForSave).then(() => {
         alert('Question submitted successfully for review!');
       });
@@ -615,35 +616,40 @@ const UserWorkspace: React.FC = () => {
       ap.questions?.forEach(q => questionIdsInArea.push(q.id));
     });
 
+    let updatedResponsesForSave: ISubmissionResponse[] = [];
+
     setResponses(prev => {
-      return prev.map(qResp => {
+      const updated = prev.map(qResp => {
         if (questionIdsInArea.includes(qResp.questionId)) {
           return {
             ...qResp,
             fieldResponses: qResp.fieldResponses.map(f => ({
               ...f,
-              status: 'SUBMITTED'
+              status: 'SUBMITTED' as const
             })),
             additionalFiles: (qResp.additionalFiles || []).map(f => ({
               ...f,
-              status: 'SUBMITTED'
+              status: 'SUBMITTED' as const
             })),
             supportingDocumentResponses: (qResp.supportingDocumentResponses || []).map(d => ({
               ...d,
-              status: 'SUBMITTED',
+              status: 'SUBMITTED' as const,
               files: (d.files || []).map(f => ({
                 ...f,
-                status: 'SUBMITTED'
+                status: 'SUBMITTED' as const
               }))
             }))
           };
         }
         return qResp;
       });
+      updatedResponsesForSave = updated;
+      return updated;
     });
 
     setTimeout(() => {
-      saveSubmission('DRAFT', false).then(() => {
+      const nextStatus = submission?.status === 'APPROVED' ? 'APPROVED' : 'UNDER_REVIEW';
+      saveSubmission(nextStatus, false, updatedResponsesForSave).then(() => {
         alert('Reform Area submitted successfully!');
       });
     }, 100);
@@ -658,12 +664,22 @@ const UserWorkspace: React.FC = () => {
     for (const field of question.fields) {
       if (field.required) {
         const fResp = qResp.fieldResponses?.find(f => f.fieldId === field.id);
-        if (!fResp || !fResp.value) {
-          return false;
-        }
+        if (!fResp || (!fResp.value && !fResp.fileUrl)) return false;
       }
     }
     return true;
+  };
+
+  const handleNext = () => {
+    if (currentIndex < allQuestions.length - 1) {
+      setSelectedQuestionId(allQuestions[currentIndex + 1].question.id);
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentIndex > 0) {
+      setSelectedQuestionId(allQuestions[currentIndex - 1].question.id);
+    }
   };
 
   const calculateTotalScore = (): number => {
@@ -717,21 +733,9 @@ const UserWorkspace: React.FC = () => {
     );
   }
 
-  const handleNext = () => {
-    if (currentIndex < allQuestions.length - 1) {
-      setSelectedQuestionId(allQuestions[currentIndex + 1].question.id);
-    }
-  };
-
-  const handlePrev = () => {
-    if (currentIndex > 0) {
-      setSelectedQuestionId(allQuestions[currentIndex - 1].question.id);
-    }
-  };
-
   const answeredCount = allQuestions.filter(q => isQuestionAnswered(q.question)).length;
   const progressPercent = allQuestions.length > 0 ? Math.round((answeredCount / allQuestions.length) * 100) : 0;
-  const isReadOnly = submission?.status !== 'DRAFT' && submission?.status !== 'REJECTED';
+  const isReadOnly = submission?.status === 'SUBMITTED';
 
   return (
     <div className="user-workspace-container">
