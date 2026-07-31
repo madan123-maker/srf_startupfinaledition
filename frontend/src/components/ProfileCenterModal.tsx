@@ -2,14 +2,10 @@ import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 
-  Upload, 
   Camera, 
   Check, 
-  Lock, 
   Eye, 
   EyeOff, 
-  Bell, 
-  Globe, 
   ShieldCheck, 
   User as UserIcon, 
   Sliders, 
@@ -53,7 +49,6 @@ const ProfileCenterModal: React.FC<ProfileCenterModalProps> = ({ user, onClose, 
     confirmPassword: '',
     otp: ''
   });
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [passwordStep, setPasswordStep] = useState<1 | 2 | 3>(1);
   const [passwordStrength, setPasswordStrength] = useState<'Weak' | 'Medium' | 'Strong'>('Weak');

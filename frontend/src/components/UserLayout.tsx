@@ -7,10 +7,8 @@ import {
   FileText, 
   MessageSquare, 
   LogOut,
-  Lock,
   Bell
 } from 'lucide-react';
-import EditProfileModal from './EditProfileModal';
 import ProfileCenterModal from './ProfileCenterModal';
 import './AdminLayout.css'; // We'll reuse the sleek admin layout styles for the user for now
 
@@ -22,7 +20,6 @@ const UserLayout: React.FC = () => {
   const user = currentUser;
   
   // Security & Profile states
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [passwordStep, setPasswordStep] = useState(1);
   const [otp, setOtp] = useState('');
@@ -67,7 +64,6 @@ const UserLayout: React.FC = () => {
   const handleNotificationsClick = async () => {
     fetchNotifications();
     setShowNotifications(!showNotifications);
-    setShowProfileMenu(false);
     
     // Mark as read if we have unread
     if (notifications.some(n => !n.isRead)) {
