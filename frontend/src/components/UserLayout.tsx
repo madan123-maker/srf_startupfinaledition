@@ -7,8 +7,8 @@ import {
   FileText, 
   MessageSquare, 
   LogOut,
-  Lock,
-  Bell
+  Bell,
+  Copy
 } from 'lucide-react';
 import EditProfileModal from './EditProfileModal';
 import './AdminLayout.css'; // We'll reuse the sleek admin layout styles for the user for now
