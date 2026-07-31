@@ -8,10 +8,11 @@ const router = Router();
 router.get('/public', protect as any, getPublicEditions);
 router.get('/:id', protect as any, getEditionById);
 
-// Protected Admin routes
-router.get('/', protect as any, adminOnly as any, getAllEditions);
+// Protected routes
+router.get('/', protect as any, getAllEditions);
 router.post('/', protect as any, adminOnly as any, createEdition);
 router.put('/:id/status', protect as any, adminOnly as any, toggleEditionStatus);
 router.delete('/:id', protect as any, adminOnly as any, deleteEdition);
+
 
 export default router;

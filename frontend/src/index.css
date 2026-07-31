@@ -291,3 +291,62 @@ h1, h2, h3, h4, h5, h6 {
   color: #1e1b4b;
   font-weight: 600;
 }
+
+/* Accessibility Global Rules (WCAG 2.2 AA) */
+:focus-visible {
+  outline: 3px solid #2563eb !important;
+  outline-offset: 2px !important;
+}
+
+button, a, input, select, textarea {
+  min-height: 44px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9999;
+  padding: 10px 18px;
+  background: #0f4c81;
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: top 0.1s ease;
+}
+
+.skip-link:focus {
+  left: 12px;
+  top: 12px;
+}
+
+/* Global Bold & Dark Table Headers */
+table th, .users-table th, .md-table th, .al-table th, .app-table th {
+  color: #0f172a !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  letter-spacing: 0.8px !important;
+  text-transform: uppercase !important;
+}
+

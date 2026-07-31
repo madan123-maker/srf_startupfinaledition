@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Search, Download } from 'lucide-react';
+import { formatDistrictDisplay } from '../utils/districtUtils';
 import './AuditLogs.css';
 
 interface AuditLog {
@@ -30,6 +31,8 @@ const AuditLogs: React.FC = () => {
     );
   }
 
+  const [availableDistricts, setAvailableDistricts] = useState<string[]>([]);
+
   // Filters state
   const [filters, setFilters] = useState({
     search: '',
@@ -48,7 +51,9 @@ const AuditLogs: React.FC = () => {
       // Build query string
       const params = new URLSearchParams();
       if (filters.search) params.append('search', filters.search);
-      if (filters.action !== 'All Actions') params.append('action', filters.action);
+      if (filters.admin && filters.admin !== 'All Admins / Reviewers') params.append('admin', filters.admin);
+      if (filters.district && filters.district !== 'All Districts') params.append('district', filters.district);
+      if (filters.action && filters.action !== 'All Actions') params.append('action', filters.action);
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
 
@@ -57,7 +62,18 @@ const AuditLogs: React.FC = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        setLogs(data);
+        if (Array.isArray(data)) {
+          setLogs(data);
+        } else {
+          setLogs(data.logs || []);
+          if (data.availableDistricts) {
+            setAvailableDistricts(data.availableDistricts);
+            // If current selected district is no longer available in the new list, reset to All Districts
+            if (filters.district !== 'All Districts' && !data.availableDistricts.includes(filters.district)) {
+              setFilters(prev => ({ ...prev, district: 'All Districts' }));
+            }
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to fetch audit logs', error);
@@ -68,7 +84,7 @@ const AuditLogs: React.FC = () => {
 
   useEffect(() => {
     fetchLogs();
-  }, [filters.action, filters.startDate, filters.endDate]);
+  }, [filters.admin, filters.district, filters.action, filters.startDate, filters.endDate]);
 
   // Debounced search
   useEffect(() => {
@@ -123,19 +139,22 @@ const AuditLogs: React.FC = () => {
           <div className="al-filter-group">
             <label>Filter by Admin</label>
             <select name="admin" value={filters.admin} onChange={handleFilterChange}>
-              <option>All Admins / Reviewers</option>
-              <option>Super Administrators</option>
-              <option>Standard Admins</option>
+              <option value="All Admins / Reviewers">All Admins / Reviewers</option>
+              <option value="Super Administrators">Super Administrators</option>
+              <option value="Standard Admins">Standard Admins</option>
+              <option value="Regular Users">Regular Users</option>
             </select>
           </div>
 
           <div className="al-filter-group">
             <label>Filter by District</label>
             <select name="district" value={filters.district} onChange={handleFilterChange}>
-              <option>All Districts</option>
-              <option>Guntur</option>
-              <option>Krishna</option>
-              <option>Visakhapatnam</option>
+              <option value="All Districts">All Districts</option>
+              {availableDistricts.map((d) => (
+                <option key={d} value={d}>
+                  {formatDistrictDisplay(d)}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -187,46 +206,7 @@ const AuditLogs: React.FC = () => {
         </div>
       </div>
 
-      {/* Application Progress (Placeholder matching screenshot) */}
-      <div className="al-section-card">
-        <div className="al-section-header">
-          <h3>Application Progress & Score Tracking</h3>
-          <p>Track SRF compliance applications, review status, scores, and completion percentage.</p>
-        </div>
-        <div className="al-table-wrapper">
-          <table className="al-table">
-            <thead>
-              <tr>
-                <th>APPLICATION ID</th>
-                <th>SRF USER</th>
-                <th>ORGANIZATION / STATE</th>
-                <th>EDITION</th>
-                <th>STATUS</th>
-                <th>SCORE</th>
-                <th>PERCENTAGE</th>
-                <th>LAST UPDATED</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><span className="al-app-id">APP_1784218438426_CP0MN</span></td>
-                <td>
-                  <div className="al-user-cell">
-                    <span className="al-user-name">user</span>
-                    <span className="al-user-role">State Alpha</span>
-                  </div>
-                </td>
-                <td>State Alpha Startup Cell</td>
-                <td>SRF 6.0</td>
-                <td><span className="al-status-badge draft">DRAFT</span></td>
-                <td>—</td>
-                <td><div className="al-progress-bar"><div className="al-progress-fill" style={{ width: '10%' }}></div></div></td>
-                <td className="al-date-cell">16/7/2026, 9:43:50 pm</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+
 
       {/* Recent Actions (Dynamic Data) */}
       <div className="al-section-card">

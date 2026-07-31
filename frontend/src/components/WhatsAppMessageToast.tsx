@@ -118,7 +118,7 @@ const WhatsAppMessageToast: React.FC = () => {
   if (activeToasts.length === 0) return null;
 
   return (
-    <div className="whatsapp-toast-container">
+    <div className="whatsapp-toast-container" role="status" aria-live="polite">
       {activeToasts.map(toast => {
         const sender = typeof toast.senderId === 'object' ? toast.senderId : null;
         const senderName = sender?.name || sender?.state || sender?.email || 'New Sender';
@@ -146,9 +146,10 @@ const WhatsAppMessageToast: React.FC = () => {
                 <button
                   className="whatsapp-toast-close-btn"
                   onClick={(e) => handleDismiss(e, toast._id)}
+                  aria-label="Dismiss notification"
                   title="Dismiss"
                 >
-                  <X size={14} />
+                  <X size={14} aria-hidden="true" />
                 </button>
               </div>
             </div>

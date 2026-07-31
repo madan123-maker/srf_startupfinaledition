@@ -74,53 +74,61 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ user, onClose, onSu
   }, [onClose]);
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="edit-profile-modal-title">
+    <div 
+      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-profile-title"
+    >
       <div className="modal-box" style={{ maxWidth: '400px' }}>
         {/* Header */}
         <div className="cum-header">
           <div>
-            <h2 id="edit-profile-modal-title">Edit Profile</h2>
+            <h2 id="edit-profile-title">Edit Profile</h2>
             <p>Update your personal details below.</p>
           </div>
-          <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">
-            <X size={20} />
+          <button className="modal-close-btn" aria-label="Close dialog" onClick={onClose}>
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
 
         {error && <div className="modal-alert error" role="alert">{error}</div>}
-        {successMsg && <div className="modal-alert success" role="status">✅ {successMsg}</div>}
+        {successMsg && <div className="modal-alert success" role="status" aria-live="polite">✅ {successMsg}</div>}
 
         {!successMsg && (
           <form onSubmit={handleSubmit} className="cum-form">
             <div className="form-group">
-              <label htmlFor="epm-name-input">Full Name</label>
+              <label htmlFor="ep-name">Full Name <span aria-hidden="true" style={{ color: '#ef4444' }}>*</span></label>
               <input
-                id="epm-name-input"
+                id="ep-name"
                 type="text"
                 name="name"
                 placeholder="e.g. Jane Doe"
                 value={formData.name}
                 onChange={handleChange}
                 required
+                aria-required="true"
               />
             </div>
 
             <div className="form-group">
-              <label htmlFor="epm-email-input">Email Address</label>
+              <label htmlFor="ep-email">Email Address <span aria-hidden="true" style={{ color: '#ef4444' }}>*</span></label>
               <input
-                id="epm-email-input"
+                id="ep-email"
                 type="email"
                 name="email"
                 placeholder="user@example.com"
                 value={formData.email}
                 onChange={handleChange}
                 required
+                aria-required="true"
               />
             </div>
 
             <div className="form-group">
-              <label>State / Region</label>
+              <label htmlFor="ep-state">State / Region</label>
               <input
+                id="ep-state"
                 type="text"
                 name="state"
                 placeholder="e.g. Karnataka"

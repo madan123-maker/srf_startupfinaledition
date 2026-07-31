@@ -118,36 +118,49 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onSuccess })
     }
   };
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="modal-overlay">
+    <div 
+      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-user-title"
+    >
       <div className="modal-box">
         {/* Header */}
         <div className="cum-header">
           <div>
-            <h2>Create User Account</h2>
+            <h2 id="create-user-title">Create User Account</h2>
             <p>Fill out the details to register a new user.</p>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>
-            <X size={20} />
+          <button className="modal-close-btn" aria-label="Close dialog" onClick={onClose}>
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
 
-        {error && <div className="modal-alert error">{error}</div>}
-        {successMsg && <div className="modal-alert success">✅ {successMsg}</div>}
+        {error && <div className="modal-alert error" role="alert">{error}</div>}
+        {successMsg && <div className="modal-alert success" role="status" aria-live="polite">✅ {successMsg}</div>}
 
         {!successMsg && (
           <form onSubmit={handleSubmit} className="cum-form">
             {/* Row 1: State + District */}
             <div className="cum-row">
               <div className="form-group">
-                <label>State / UT</label>
-                <select name="state" value={formData.state} onChange={handleChange} required>
+                <label htmlFor="cu-state">State / UT <span aria-hidden="true" style={{ color: '#ef4444' }}>*</span></label>
+                <select id="cu-state" name="state" value={formData.state} onChange={handleChange} required aria-required="true">
                   <option value="Andhra Pradesh">Andhra Pradesh</option>
                 </select>
               </div>
               <div className="form-group">
-                <label>District</label>
-                <select name="district" value={formData.district} onChange={handleChange} required>
+                <label htmlFor="cu-district">District <span aria-hidden="true" style={{ color: '#ef4444' }}>*</span></label>
+                <select id="cu-district" name="district" value={formData.district} onChange={handleChange} required aria-required="true">
                   <option value="">Select District</option>
                   {AP_DISTRICTS.map((d) => (
                     <option key={d} value={d}>{d}</option>
@@ -159,24 +172,25 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onSuccess })
             {/* Row 2: Full Name + Organization */}
             <div className="cum-row">
               <div className="form-group">
-                <label>Full Name</label>
+                <label htmlFor="cu-name">Full Name <span aria-hidden="true" style={{ color: '#ef4444' }}>*</span></label>
                 <input
+                  id="cu-name"
                   type="text"
                   name="name"
                   placeholder="e.g. Jane Doe"
                   value={formData.name}
                   onChange={handleChange}
                   required
+                  aria-required="true"
                 />
               </div>
               <div className="form-group">
-                <label>Organization / Department</label>
-                <select name="organization" value={formData.organization} onChange={handleChange} required>
+                <label htmlFor="cu-org">Organization / Department <span aria-hidden="true" style={{ color: '#ef4444' }}>*</span></label>
+                <select id="cu-org" name="organization" value={formData.organization} onChange={handleChange} required aria-required="true">
                   <option value="">Select Department</option>
-                  {departmentsList.map((d) => (
-                    <option key={d._id} value={d.name}>{d.name}</option>
+                  {departmentsList.map((dep) => (
+                    <option key={dep._id} value={dep.name}>{dep.name} ({dep.code})</option>
                   ))}
-                  <option value="Other">Other</option>
                 </select>
               </div>
             </div>
@@ -184,34 +198,30 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onSuccess })
             {/* Row 3: Email + Username */}
             <div className="cum-row">
               <div className="form-group">
-                <label>Official Email</label>
+                <label htmlFor="cu-email">Email Address <span aria-hidden="true" style={{ color: '#ef4444' }}>*</span></label>
                 <input
+                  id="cu-email"
                   type="email"
                   name="email"
-                  placeholder="user.srf@dpiit.gov.in"
+                  placeholder="user@example.com"
                   value={formData.email}
                   onChange={handleChange}
                   required
+                  aria-required="true"
                 />
               </div>
               <div className="form-group">
-                <label>Username</label>
+                <label htmlFor="cu-username">Username <span aria-hidden="true" style={{ color: '#ef4444' }}>*</span></label>
                 <input
+                  id="cu-username"
                   type="text"
                   name="username"
-                  placeholder="e.g. user_jane"
+                  placeholder="johndoe"
                   value={formData.username}
                   onChange={handleChange}
+                  required
+                  aria-required="true"
                 />
-              </div>
-            </div>
-
-            {/* Row 4: Password (system generated) */}
-            <div className="form-group">
-              <label>Password</label>
-              <div className="password-tag-box">
-                <span className="password-tag">System Generated</span>
-                <span className="password-hint">A secure password will be auto-generated and emailed to the user.</span>
               </div>
             </div>
 
@@ -221,7 +231,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onSuccess })
                 Cancel
               </button>
               <button type="submit" className="btn-submit" disabled={loading}>
-                {loading ? 'Creating...' : 'Create User'}
+                {loading ? 'Creating...' : 'Create Account'}
               </button>
             </div>
           </form>

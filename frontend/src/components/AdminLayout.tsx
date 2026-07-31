@@ -18,18 +18,18 @@ import {
   Lock, 
   LogOut
 } from 'lucide-react';
-import EditProfileModal from './EditProfileModal';
+import ProfileCenterModal from './ProfileCenterModal';
 import './AdminLayout.css';
 
 const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const initialUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const [currentUser, setCurrentUser] = useState(initialUser);
 
   const [totalEditions, setTotalEditions] = useState<number | string>('...');
   
   // Security & Profile states
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [passwordStep, setPasswordStep] = useState(1);
   const [otp, setOtp] = useState('');
@@ -39,6 +39,17 @@ const AdminLayout: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+
+  // Update currentUser when localStorage changes
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      setCurrentUser(u);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
 
   const fetchNotifications = async () => {
     try {
@@ -64,7 +75,6 @@ const AdminLayout: React.FC = () => {
   const handleNotificationsClick = async () => {
     fetchNotifications();
     setShowNotifications(!showNotifications);
-    setShowProfileMenu(false);
     
     if (notifications.some(n => !n.isRead)) {
       try {
@@ -84,9 +94,14 @@ const AdminLayout: React.FC = () => {
     const fetchTotalEditions = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/api/editions`, {
+        let response = await fetch(`${API_BASE_URL}/api/editions`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        if (!response.ok) {
+          response = await fetch(`${API_BASE_URL}/api/editions/public`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+        }
         if (response.ok) {
           const data = await response.json();
           setTotalEditions(data.length);
@@ -111,7 +126,7 @@ const AdminLayout: React.FC = () => {
       const res = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email })
+        body: JSON.stringify({ email: currentUser.email })
       });
       if (res.ok) {
         setPasswordStep(2);
@@ -134,7 +149,7 @@ const AdminLayout: React.FC = () => {
       const res = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, otp })
+        body: JSON.stringify({ email: currentUser.email, otp })
       });
       if (res.ok) {
         setPasswordStep(3);
@@ -156,7 +171,7 @@ const AdminLayout: React.FC = () => {
       const res = await fetch(`${API_BASE_URL}/api/auth/change-password-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, otp, newPassword })
+        body: JSON.stringify({ email: currentUser.email, otp, newPassword })
       });
       if (res.ok) {
         alert('Password changed successfully! Please log in again.');
@@ -172,72 +187,68 @@ const AdminLayout: React.FC = () => {
     }
   };
 
-
-
   return (
     <div className="admin-layout">
       {/* Skip Navigation Link */}
-      <a href="#main-content" className="skip-link">
-        Skip to main content
-      </a>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
 
       {/* Sidebar */}
       <aside className="admin-sidebar" aria-label="Admin Navigation Sidebar">
         <div className="sidebar-brand">
-          <Building2 size={24} color="#e85d04" />
+          <Building2 size={24} color="#e85d04" aria-hidden="true" />
           <span className="brand-text">SRF Platform</span>
         </div>
         
         <div className="sidebar-section-title">ADMIN PANEL</div>
         
-        <nav className="sidebar-nav" aria-label="Primary Admin Navigation">
+        <nav className="sidebar-nav" aria-label="Admin Navigation">
           <NavLink to="/admin-dashboard" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <LayoutDashboard size={20} />
+            <LayoutDashboard size={20} aria-hidden="true" />
             <span>Analytics Dashboard</span>
           </NavLink>
           <NavLink to="/admin/editions" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <Layers size={20} />
+            <Layers size={20} aria-hidden="true" />
             <span>Editions Dashboard</span>
           </NavLink>
           <NavLink to="/admin/users" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <Users size={20} />
+            <Users size={20} aria-hidden="true" />
             <span>Manage Users</span>
           </NavLink>
-          {user.role === 'SUPER_ADMIN' && (
+          {currentUser.role === 'SUPER_ADMIN' && (
             <NavLink to="/admin/audit-logs" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-              <FileText size={20} />
+              <FileText size={20} aria-hidden="true" />
               <span>Audit Logs</span>
             </NavLink>
           )}
           <NavLink to="/admin/data" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <Database size={20} />
+            <Database size={20} aria-hidden="true" />
             <span>Data Management</span>
           </NavLink>
           <NavLink to="/admin/messages" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <MessageSquare size={20} />
+            <MessageSquare size={20} aria-hidden="true" />
             <span>Messages</span>
           </NavLink>
-          {user.role === 'SUPER_ADMIN' && (
+          {currentUser.role === 'SUPER_ADMIN' && (
             <NavLink to="/admin/departments" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-              <Briefcase size={20} />
+              <Briefcase size={20} aria-hidden="true" />
               <span>Manage Departments</span>
             </NavLink>
           )}
-          {user.role === 'SUPER_ADMIN' && (
+          {currentUser.role === 'SUPER_ADMIN' && (
             <NavLink to="/admin/tasks" end className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-              <GitMerge size={20} />
+              <GitMerge size={20} aria-hidden="true" />
               <span>Reassign Tasks</span>
             </NavLink>
           )}
-          {(user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
+          {(currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN') && (
             <NavLink to="/admin/evaluate-tasks" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-              <CheckCircle size={20} />
+              <CheckCircle size={20} aria-hidden="true" />
               <span>Evaluate Tasks</span>
             </NavLink>
           )}
-          {user.role === 'SUPER_ADMIN' && (
+          {currentUser.role === 'SUPER_ADMIN' && (
             <NavLink to="/admin/recycle-bin" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-              <Trash2 size={20} />
+              <Trash2 size={20} aria-hidden="true" />
               <span>Recycle Bin</span>
             </NavLink>
           )}
@@ -251,8 +262,8 @@ const AdminLayout: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Content Container */}
-      <div className="admin-main-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+      {/* Main Area Container */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Top Header */}
         <header role="banner" className="admin-header">
           <div className="header-search">
@@ -262,8 +273,14 @@ const AdminLayout: React.FC = () => {
           
           <div className="header-actions">
             <div style={{ position: 'relative' }}>
-              <button className="icon-btn" onClick={handleNotificationsClick}>
-                <Bell size={20} />
+              <button 
+                className="icon-btn" 
+                onClick={handleNotificationsClick}
+                aria-label="Open Notifications"
+                aria-expanded={showNotifications}
+                aria-haspopup="true"
+              >
+                <Bell size={20} aria-hidden="true" />
                 {notifications.some(n => !n.isRead) && (
                   <span style={{
                     position: 'absolute', top: '-2px', right: '-2px', 
@@ -275,7 +292,7 @@ const AdminLayout: React.FC = () => {
                 )}
               </button>
               {showNotifications && (
-                <div className="profile-popover" style={{ width: '350px', maxHeight: '400px', overflowY: 'auto' }}>
+                <div role="status" aria-live="polite" className="profile-popover" style={{ width: '350px', maxHeight: '400px', overflowY: 'auto' }}>
                   <div className="popover-header">
                     <strong>Notifications</strong>
                   </div>
@@ -283,152 +300,162 @@ const AdminLayout: React.FC = () => {
                     {notifications.length === 0 ? (
                       <p style={{ textAlign: 'center', color: '#64748b', padding: '1rem' }}>No new notifications at this time.</p>
                     ) : (
-                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                        {notifications.map((notif: any) => (
-                          <li key={notif._id} style={{ 
-                            padding: '1rem', 
-                            borderBottom: '1px solid #e2e8f0',
-                            background: notif.isRead ? '#ffffff' : '#f0f9ff',
-                            cursor: notif.link ? 'pointer' : 'default'
-                          }} onClick={() => {
-                            if (notif.link) {
-                              navigate(notif.link);
-                              setShowNotifications(false);
-                            }
-                          }}>
-                            <p style={{ margin: 0, fontSize: '13px', color: '#334155' }}>{notif.message}</p>
-                            <span style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(notif.createdAt).toLocaleString()}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      notifications.map((notif, idx) => (
+                        <div 
+                          key={notif._id || idx} 
+                          onClick={() => {
+                            setShowNotifications(false);
+                            if (notif.link) navigate(notif.link);
+                          }}
+                          style={{ 
+                            padding: '12px 16px', 
+                            borderBottom: '1px solid #f1f5f9', 
+                            cursor: notif.link ? 'pointer' : 'default',
+                            background: notif.isRead ? '#ffffff' : '#f8fafc'
+                          }}
+                        >
+                          <p style={{ margin: 0, fontSize: '13px', color: '#1e293b' }}>{notif.message}</p>
+                          <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                            {notif.createdAt ? new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                          </span>
+                        </div>
+                      ))
                     )}
                   </div>
                 </div>
               )}
             </div>
             
-            <div className="user-profile-container">
-              <div className="user-profile" onClick={() => { setShowProfileMenu(!showProfileMenu); setShowNotifications(false); }}>
-                <div className="avatar">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</div>
+            <div style={{ position: 'relative' }}>
+              <button 
+                className="user-profile-btn" 
+                onClick={() => { setIsEditingProfile(true); setShowNotifications(false); }}
+                aria-label="Open Profile Center"
+                title="Click to open Profile Center"
+              >
+                {currentUser.avatarUrl ? (
+                  <img src={currentUser.avatarUrl} alt="Avatar" className="avatar-img-navbar" />
+                ) : (
+                  <div className="avatar">
+                    {(currentUser.name || 'SA')
+                      .split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+                  </div>
+                )}
                 <div className="user-info">
-                  <span className="user-name">{user.name || 'Admin User'}</span>
-                  <span className="user-role">{user.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin'}</span>
+                  <span className="name">{currentUser.name || 'Admin'}</span>
+                  <span className="role">SUPER ADMIN</span>
                 </div>
-              </div>
-              
-              {showProfileMenu && (
-                <div className="profile-popover">
-                  <div className="popover-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong>User Details</strong>
-                    <button onClick={() => { setShowProfileMenu(false); setIsEditingProfile(true); }} style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', fontSize: '12px' }}>Edit</button>
-                  </div>
-                  <div className="popover-body">
-                    {user.name && <p><strong>Name:</strong> {user.name}</p>}
-                    <p><strong>Email:</strong> {user.email || 'N/A'}</p>
-                    <p><strong>Role:</strong> {user.role}</p>
-                    {user.state && user.role !== 'SUPER_ADMIN' && <p><strong>State:</strong> {user.state}</p>}
-                  </div>
-                </div>
-              )}
+              </button>
             </div>
-            
+
             <button className="action-btn" onClick={() => { setShowChangePassword(true); setPasswordStep(1); setOtp(''); setNewPassword(''); }}>
-              Change Password <Lock size={16} />
+              Change Password <Lock size={16} aria-hidden="true" />
             </button>
             
             <button className="action-btn sign-out" onClick={handleSignOut}>
-              Sign Out <LogOut size={16} />
+              Sign Out <LogOut size={16} aria-hidden="true" />
             </button>
           </div>
         </header>
 
-        {/* Main Content Landmark */}
-        <main id="main-content" className="admin-content-scroll" tabIndex={-1}>
-          <Outlet />
+        {/* Main Content Area */}
+        <main id="main-content" className="admin-main">
+          <div className="admin-content-scroll">
+            <Outlet />
+          </div>
         </main>
 
-        <footer role="contentinfo" className="admin-footer" style={{ padding: '12px 24px', textAlign: 'center', color: '#94a3b8', fontSize: '12px', borderTop: '1px solid #e2e8f0' }}>
-          <span>© {new Date().getFullYear()} SRF Management Platform. All rights reserved.</span>
+        <footer style={{ textAlign: 'center', padding: '0.75rem', color: '#64748b', fontSize: '0.8rem', background: '#ffffff', borderTop: '1px solid #e2e8f0' }}>
+          © 2026 Government of Andhra Pradesh. All rights reserved.
         </footer>
+      </div>
 
-        {showChangePassword && (
-          <div className="al-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="admin-change-password-title">
-            <div className="al-modal">
-              <div className="al-modal-header">
-                <h2 id="admin-change-password-title">Change Password</h2>
-                <button className="al-modal-close" onClick={() => setShowChangePassword(false)} aria-label="Close modal">×</button>
+      {showChangePassword && (
+        <div 
+          className="al-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="change-pwd-title"
+          onKeyDown={(e) => { if (e.key === 'Escape') setShowChangePassword(false); }}
+        >
+          <div className="al-modal">
+            <div className="al-modal-header">
+              <h2 id="change-pwd-title">Change Password</h2>
+              <button className="al-modal-close" aria-label="Close dialog" onClick={() => setShowChangePassword(false)}>×</button>
+            </div>
+            <div className="al-modal-body">
+              <div className="al-form-group">
+                <label htmlFor="cp-email">Email Address</label>
+                <input id="cp-email" type="email" value={currentUser.email} disabled className="al-input disabled" />
               </div>
-              <div className="al-modal-body">
-                <div className="al-form-group">
-                  <label>Email Address</label>
-                  <input type="email" value={user.email} disabled className="al-input disabled" />
+
+              {passwordStep === 1 && (
+                <p className="al-info-text">We will send a One-Time Password (OTP) to your email to verify this request.</p>
+              )}
+
+              {passwordStep === 2 && (
+                <div className="al-form-group mt-16">
+                  <label htmlFor="cp-otp">Enter OTP</label>
+                  <input 
+                    id="cp-otp"
+                    type="text" 
+                    value={otp} 
+                    onChange={e => setOtp(e.target.value)} 
+                    placeholder="Enter 6-digit OTP" 
+                    className="al-input"
+                  />
                 </div>
+              )}
 
-                {passwordStep === 1 && (
-                  <p className="al-info-text">We will send a One-Time Password (OTP) to your email to verify this request.</p>
-                )}
-
-                {passwordStep === 2 && (
-                  <div className="al-form-group mt-16">
-                    <label htmlFor="admin-otp-input">Enter OTP</label>
+              {passwordStep === 3 && (
+                <div className="al-form-group mt-16">
+                  <label htmlFor="cp-newpwd">New Password</label>
+                  <div style={{ position: 'relative' }}>
                     <input 
-                      id="admin-otp-input"
-                      type="text" 
-                      value={otp} 
-                      onChange={e => setOtp(e.target.value)} 
-                      placeholder="Enter 6-digit OTP" 
+                      id="cp-newpwd"
+                      type="password" 
+                      value={newPassword} 
+                      onChange={e => setNewPassword(e.target.value)} 
+                      placeholder="Enter new password" 
                       className="al-input"
+                      style={{ paddingRight: '40px', width: '100%', boxSizing: 'border-box' }}
                     />
                   </div>
-                )}
-
-                {passwordStep === 3 && (
-                  <div className="al-form-group mt-16">
-                    <label htmlFor="admin-pass-input">New Password</label>
-                    <div style={{ position: 'relative' }}>
-                      <input 
-                        id="admin-pass-input"
-                        type="password" 
-                        value={newPassword} 
-                        onChange={e => setNewPassword(e.target.value)} 
-                        placeholder="Enter new password" 
-                        className="al-input"
-                        style={{ paddingRight: '40px', width: '100%', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="al-modal-footer">
-                <button className="al-btn-secondary" onClick={() => setShowChangePassword(false)}>Cancel</button>
-                {passwordStep === 1 && (
-                  <button className="al-btn-primary" onClick={handleSendOtp} disabled={isSubmitting}>
-                    {isSubmitting ? 'Sending OTP...' : 'Send OTP'}
-                  </button>
-                )}
-                {passwordStep === 2 && (
-                  <button className="al-btn-primary" onClick={handleVerifyOtp} disabled={isSubmitting || !otp}>
-                    {isSubmitting ? 'Verifying...' : 'Verify OTP'}
-                  </button>
-                )}
-                {passwordStep === 3 && (
-                  <button className="al-btn-primary" onClick={handleChangePassword} disabled={isSubmitting || !newPassword}>
-                    {isSubmitting ? 'Updating...' : 'Change Password'}
-                  </button>
-                )}
-              </div>
+                </div>
+              )}
+            </div>
+            <div className="al-modal-footer">
+              <button className="al-btn-secondary" onClick={() => setShowChangePassword(false)}>Cancel</button>
+              {passwordStep === 1 && (
+                <button className="al-btn-primary" onClick={handleSendOtp} disabled={isSubmitting}>
+                  {isSubmitting ? 'Sending...' : 'Send OTP'}
+                </button>
+              )}
+              {passwordStep === 2 && (
+                <button className="al-btn-primary" onClick={handleVerifyOtp} disabled={isSubmitting || !otp}>
+                  {isSubmitting ? 'Verifying...' : 'Verify OTP'}
+                </button>
+              )}
+              {passwordStep === 3 && (
+                <button className="al-btn-primary" onClick={handleChangePassword} disabled={isSubmitting || !newPassword}>
+                  {isSubmitting ? 'Updating...' : 'Change Password'}
+                </button>
+              )}
             </div>
           </div>
-        )}
-        
-        {isEditingProfile && (
-          <EditProfileModal 
-            user={user}
-            onClose={() => setIsEditingProfile(false)}
-            onSuccess={() => setIsEditingProfile(false)}
-          />
-        )}
-      </div>
+        </div>
+      )}
+      
+      {isEditingProfile && (
+        <ProfileCenterModal 
+          user={currentUser}
+          onClose={() => setIsEditingProfile(false)}
+          onSuccess={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            setIsEditingProfile(false);
+          }}
+        />
+      )}
     </div>
   );
 };
