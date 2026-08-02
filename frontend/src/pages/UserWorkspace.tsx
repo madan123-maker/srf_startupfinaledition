@@ -759,7 +759,7 @@ const UserWorkspace: React.FC = () => {
 
   const answeredCount = allQuestions.filter(q => isQuestionAnswered(q.question)).length;
   const progressPercent = allQuestions.length > 0 ? Math.round((answeredCount / allQuestions.length) * 100) : 0;
-  const isReadOnly = submission?.status === 'SUBMITTED';
+  const isReadOnly = Boolean(assignmentId) || submission?.status === 'SUBMITTED' || submission?.status === 'EVALUATED' || submission?.status === 'UNDER_REVIEW';
 
   return (
     <div className="user-workspace-container">
@@ -782,26 +782,32 @@ const UserWorkspace: React.FC = () => {
           </div>
         </div>
 
-        <div className="workspace-actions">
-          <button
-            className="btn-secondary"
-            onClick={() => saveSubmission('DRAFT')}
-            disabled={saving || isReadOnly}
-          >
-            <Save size={16} /> Save Draft
-          </button>
-          <button
-            className="btn-submit"
-            onClick={() => {
-              if (window.confirm('Are you sure you want to finalize and submit this evaluation? You will not be able to edit it afterwards.')) {
-                saveSubmission('SUBMITTED');
-              }
-            }}
-            disabled={saving || isReadOnly}
-          >
-            <Send size={16} /> Submit Application
-          </button>
-        </div>
+        {isReadOnly ? (
+          <div style={{ padding: '8px 16px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', color: '#1e40af', fontSize: '13px', fontWeight: 600 }}>
+            ℹ️ Read-Only View: Submitted form entries and uploaded documents are locked for viewing.
+          </div>
+        ) : (
+          <div className="workspace-actions">
+            <button
+              className="btn-secondary"
+              onClick={() => saveSubmission('DRAFT')}
+              disabled={saving}
+            >
+              <Save size={16} /> Save Draft
+            </button>
+            <button
+              className="btn-submit"
+              onClick={() => {
+                if (window.confirm('Are you sure you want to finalize and submit this evaluation? You will not be able to edit it afterwards.')) {
+                  saveSubmission('SUBMITTED');
+                }
+              }}
+              disabled={saving}
+            >
+              <Send size={16} /> Submit Application
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="workspace-body">
@@ -1076,7 +1082,7 @@ const UserWorkspace: React.FC = () => {
                   const isQResubmit = combined.some(f => f.evaluationStatus === 'RESUBMISSION_REQUIRED');
                   const isQApproved = !isQRejected && !isQResubmit && combined.some(f => f.evaluationStatus === 'APPROVED');
 
-                  const isQuestionReadOnly = (isReadOnly || allSubmitted || isQApproved || isQRejected) && !isQResubmit;
+                  const isQuestionReadOnly = isReadOnly || ((allSubmitted || isQApproved || isQRejected) && !isQResubmit);
 
                   const suppDocsList = selectedQuestion.supportingDocuments && selectedQuestion.supportingDocuments.length > 0
                     ? selectedQuestion.supportingDocuments
@@ -1105,7 +1111,7 @@ const UserWorkspace: React.FC = () => {
                              const isRejected = fResp?.evaluationStatus === 'REJECTED';
                              const isResubmit = fResp?.evaluationStatus === 'RESUBMISSION_REQUIRED';
                              const isApproved = fResp?.evaluationStatus === 'APPROVED';
-                             const isFieldReadOnly = isRejected || isApproved || (isFieldSubmitted && !isResubmit) || (isQuestionReadOnly && !isResubmit);
+                             const isFieldReadOnly = isReadOnly || isRejected || isApproved || (isFieldSubmitted && !isResubmit) || (isQuestionReadOnly && !isResubmit);
 
                             return (
                               <div key={field.id} className="dynamic-field-group">
@@ -1337,7 +1343,9 @@ const UserWorkspace: React.FC = () => {
                                          const hasResubmit = uploadedFiles.some(f => f.evaluationStatus === 'RESUBMISSION_REQUIRED') || (docResp as any)?.evaluationStatus === 'RESUBMISSION_REQUIRED';
 
                                          let canUpload = false;
-                                         if (hasRejected) {
+                                         if (isReadOnly) {
+                                           canUpload = false;
+                                         } else if (hasRejected) {
                                            canUpload = false;
                                          } else if (hasResubmit) {
                                            canUpload = true;
@@ -1371,7 +1379,7 @@ const UserWorkspace: React.FC = () => {
                                           const isApproved = f.evaluationStatus === 'APPROVED';
                                           const isPending = !f.evaluationStatus || f.evaluationStatus === 'PENDING';
 
-                                          const canEditFile = isResubmit ? true : (isRejected || isApproved ? false : !isQuestionReadOnly);
+                                          const canEditFile = isReadOnly ? false : (isResubmit ? true : (isRejected || isApproved ? false : !isQuestionReadOnly));
 
                                           return (
                                             <div key={f.fileId} className={`uploaded-file-info ${(isRejected || isResubmit) ? 'rejected-border' : ''}`}>
