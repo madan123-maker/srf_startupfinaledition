@@ -177,7 +177,7 @@ const renderGuidelinesRef = (refText: string, editionId?: string) => {
 };
 
 const UserWorkspace: React.FC = () => {
-  const { editionId } = useParams<{ editionId: string }>();
+  const { editionId, assignmentId } = useParams<{ editionId?: string; assignmentId?: string }>();
   const navigate = useNavigate();
 
   const [schema, setSchema] = useState<{ areas: ReformArea[] } | null>(null);
@@ -193,55 +193,77 @@ const UserWorkspace: React.FC = () => {
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
   useEffect(() => {
-    if (editionId) {
+    if (editionId || assignmentId) {
       fetchSchemaAndSubmission();
     }
-  }, [editionId]);
+  }, [editionId, assignmentId]);
 
   const fetchSchemaAndSubmission = async () => {
+    setLoading(true);
     try {
       const token = localStorage.getItem('token');
-
-      // 1. Fetch Form Schema (Assigned schema first, fallback to full schema)
+      let targetEditionId = editionId;
       let schemaData = null;
-      try {
-        const assignedRes = await fetch(`${API_BASE_URL}/api/assignments/edition/${editionId}/schema`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (assignedRes.ok) {
-          const assignedData = await assignedRes.json();
-          schemaData = assignedData.filteredSchema;
+
+      // 1. Fetch Form Schema
+      if (assignmentId) {
+        try {
+          const assignRes = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/schema`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (assignRes.ok) {
+            const assignData = await assignRes.json();
+            schemaData = assignData.filteredSchema;
+            const ed = assignData.edition || assignData.assignment?.editionId;
+            targetEditionId = typeof ed === 'object' ? (ed._id || ed.id) : ed;
+          }
+        } catch (e) {
+          console.warn('Could not fetch schema by assignmentId:', e);
         }
-      } catch (e) {
-        console.warn('Could not fetch assigned schema, falling back to full schema');
       }
 
-      if (!schemaData || !schemaData.areas || schemaData.areas.length === 0) {
-        const schemaRes = await fetch(`${API_BASE_URL}/api/schemas/${editionId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (schemaRes.ok) {
-          schemaData = await schemaRes.json();
+      if ((!schemaData || !schemaData.areas || schemaData.areas.length === 0) && targetEditionId) {
+        try {
+          const assignedRes = await fetch(`${API_BASE_URL}/api/assignments/edition/${targetEditionId}/schema`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (assignedRes.ok) {
+            const assignedData = await assignedRes.json();
+            schemaData = assignedData.filteredSchema;
+          }
+        } catch (e) {
+          console.warn('Could not fetch assigned schema, falling back to full schema');
+        }
+
+        if (!schemaData || !schemaData.areas || schemaData.areas.length === 0) {
+          const schemaRes = await fetch(`${API_BASE_URL}/api/schemas/${targetEditionId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (schemaRes.ok) {
+            schemaData = await schemaRes.json();
+          }
         }
       }
 
       setSchema(schemaData);
 
       // 2. Fetch or Create Submission
-      const subRes = await fetch(`${API_BASE_URL}/api/submissions/edition/${editionId}/my-submission`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (subRes.ok) {
-        const subData = await subRes.json();
-        setSubmission(subData);
-        setResponses(subData.responses || []);
+      if (targetEditionId) {
+        const subRes = await fetch(`${API_BASE_URL}/api/submissions/edition/${targetEditionId}/my-submission`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (subRes.ok) {
+          const subData = await subRes.json();
+          setSubmission(subData);
+          setResponses(subData.responses || []);
 
-        // Auto-select first question
-        if (schemaData && schemaData.areas?.length > 0 && schemaData.areas[0].actionPoints?.length > 0) {
-          const firstAp = schemaData.areas[0].actionPoints[0];
-          if (firstAp.questions?.length > 0) {
-            setSelectedQuestionId(firstAp.questions[0].id);
-            setExpandedAreaId(schemaData.areas[0].id);
+          // Auto-select first question
+          if (schemaData && schemaData.areas?.length > 0 && schemaData.areas[0].actionPoints?.length > 0) {
+            const firstAp = schemaData.areas[0].actionPoints[0];
+            if (firstAp.questions?.length > 0) {
+              setSelectedQuestionId(firstAp.questions[0].id);
+              setExpandedAreaId(schemaData.areas[0].id);
+            }
           }
         }
       }
