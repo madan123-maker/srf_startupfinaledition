@@ -287,6 +287,7 @@ const UserWorkspace: React.FC = () => {
   };
 
   const handleFieldChange = (questionId: string, fieldId: string, value: any, extra = {}) => {
+    if (isReadOnly) return;
     setResponses(prev => {
       const qIndex = prev.findIndex(r => r.questionId === questionId);
       if (qIndex === -1) {
@@ -313,6 +314,7 @@ const UserWorkspace: React.FC = () => {
   };
 
   const handleIsApplyingChange = async (questionId: string, isApplying: boolean) => {
+    if (isReadOnly) return;
     let newResponses = [...responses];
     const qIndex = newResponses.findIndex(r => r.questionId === questionId);
     if (qIndex === -1) {
@@ -333,6 +335,7 @@ const UserWorkspace: React.FC = () => {
   };
 
   const handleFileUpload = async (questionId: string, fieldId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isReadOnly) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -391,6 +394,7 @@ const UserWorkspace: React.FC = () => {
   };
 
   const handleRemoveFile = async (questionId: string, fieldId: string) => {
+    if (isReadOnly) return;
     let newResponses = [...responses];
     const qIndex = newResponses.findIndex(r => r.questionId === questionId);
     if (qIndex !== -1) {
@@ -423,6 +427,7 @@ const UserWorkspace: React.FC = () => {
 
 
   const handleSupportingDocumentUpload = async (questionId: string, documentId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isReadOnly) return;
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
@@ -515,6 +520,7 @@ const UserWorkspace: React.FC = () => {
   };
 
   const removeSupportingDocument = async (questionId: string, documentId: string, fileId: string) => {
+    if (isReadOnly) return;
     let newResponses = [...responses];
     const qIndex = newResponses.findIndex(r => r.questionId === questionId);
 
@@ -539,7 +545,7 @@ const UserWorkspace: React.FC = () => {
   };
 
   const saveSubmission = async (status: string, notify = true, explicitResponses?: ISubmissionResponse[]) => {
-    if (!submission) return;
+    if (!submission || isReadOnly) return;
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
@@ -1236,24 +1242,32 @@ const UserWorkspace: React.FC = () => {
                                         )}
                                       </div>
                                     ) : (
-                                      <div
-                                        className="file-upload-card"
-                                        onClick={() => !isFieldReadOnly && fileInputRefs.current[field.id]?.click()}
-                                      >
-                                        <Upload size={24} style={{ color: '#64748b', marginBottom: '12px' }} />
-                                        <div style={{ fontSize: '14px', color: '#475569', fontWeight: 600 }}>
-                                          {isFieldReadOnly ? 'No file uploaded' : 'Click to Upload Document / Evidence'}
-                                        </div>
-                                        <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>
-                                          Supports PDF, DOC, images up to 10MB
-                                        </div>
-                                        <input
-                                          type="file"
-                                          ref={el => { fileInputRefs.current[field.id] = el; }}
-                                          style={{ display: 'none' }}
-                                          onChange={(e) => handleFileUpload(selectedQuestion.id, field.id, e)}
-                                        />
-                                      </div>
+                                       <div
+                                         className="file-upload-card"
+                                         style={{
+                                           cursor: isFieldReadOnly ? 'not-allowed' : 'pointer',
+                                           opacity: isFieldReadOnly ? 0.65 : 1,
+                                           pointerEvents: isFieldReadOnly ? 'none' : 'auto',
+                                           backgroundColor: isFieldReadOnly ? '#f8fafc' : undefined,
+                                           borderColor: isFieldReadOnly ? '#cbd5e1' : undefined
+                                         }}
+                                         onClick={() => !isFieldReadOnly && fileInputRefs.current[field.id]?.click()}
+                                       >
+                                         <Upload size={24} style={{ color: isFieldReadOnly ? '#94a3b8' : '#64748b', marginBottom: '12px' }} />
+                                         <div style={{ fontSize: '14px', color: isFieldReadOnly ? '#64748b' : '#475569', fontWeight: 600 }}>
+                                           {isFieldReadOnly ? 'No file uploaded' : 'Click to Upload Document / Evidence'}
+                                         </div>
+                                         <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>
+                                           {isFieldReadOnly ? 'Uploads disabled in read-only view' : 'Supports PDF, DOC, images up to 10MB'}
+                                         </div>
+                                         <input
+                                           type="file"
+                                           ref={el => { fileInputRefs.current[field.id] = el; }}
+                                           disabled={isFieldReadOnly}
+                                           style={{ display: 'none' }}
+                                           onChange={(e) => !isFieldReadOnly && handleFileUpload(selectedQuestion.id, field.id, e)}
+                                         />
+                                       </div>
                                     )}
 
                                     {fResp?.history && fResp.history.length > 0 && (
