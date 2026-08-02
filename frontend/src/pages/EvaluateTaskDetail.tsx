@@ -140,16 +140,16 @@ const EvaluateTaskDetail: React.FC = () => {
   };
 
   const getFieldValue = (qId: string, fId: string) => {
-    const qr = responses.find(r => r.questionId === qId);
+    const qr = responses.find(r => String(r.questionId) === String(qId));
     if (!qr) return '—';
-    const fr = qr.fieldResponses?.find((fr: any) => fr.fieldId === fId);
-    return fr && fr.value ? fr.value : '—';
+    const fr = qr.fieldResponses?.find((fr: any) => String(fr.fieldId) === String(fId));
+    return fr && fr.value !== undefined && fr.value !== null && fr.value !== '' ? fr.value : '—';
   };
   
   const getFieldFile = (qId: string, fId: string) => {
-    const qr = responses.find(r => r.questionId === qId);
+    const qr = responses.find(r => String(r.questionId) === String(qId));
     if (!qr) return null;
-    const fr = qr.fieldResponses?.find((fr: any) => fr.fieldId === fId);
+    const fr = qr.fieldResponses?.find((fr: any) => String(fr.fieldId) === String(fId));
     if (fr && fr.fileUrl) return fr;
     return null;
   };
@@ -225,7 +225,7 @@ const EvaluateTaskDetail: React.FC = () => {
           <div className="etd-section-title">User's Submitted Data</div>
           <div className="etd-scroll-area">
             {allQuestions.map(q => {
-              const qr = responses.find(r => r.questionId === q.id);
+              const qr = responses.find(r => String(r.questionId) === String(q.id));
               const supportingDocs = qr?.supportingDocumentResponses || [];
               const additionalFiles = qr?.additionalFiles || [];
 

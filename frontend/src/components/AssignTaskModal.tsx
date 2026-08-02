@@ -114,7 +114,7 @@ const AssignTaskModal: React.FC<Props> = ({ user, onClose }) => {
 
     const chosenEdition = editions.find((ed) => ed._id === selectedEditionId);
     if (chosenEdition && chosenEdition.status === 'PUBLISHED') {
-      return showToast('Published editions cannot be assigned to users. Only unpublished editions can be assigned.', 'error');
+      return showToast('Published editions are locked and cannot be assigned to users. Only unpublished editions can be assigned.', 'error');
     }
 
     if (selectedScope === 'REFORM_AREA' && !selectedReformArea) return showToast('Please select a Reform Area.', 'error');

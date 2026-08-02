@@ -289,26 +289,36 @@ const UserWorkspace: React.FC = () => {
   const handleFieldChange = (questionId: string, fieldId: string, value: any, extra = {}) => {
     if (isReadOnly) return;
     setResponses(prev => {
-      const qIndex = prev.findIndex(r => r.questionId === questionId);
+      const qIndex = prev.findIndex(r => String(r.questionId) === String(questionId));
+      let updatedResponses = [...prev];
       if (qIndex === -1) {
-        return [...prev, {
+        updatedResponses = [...prev, {
           questionId,
           fieldResponses: [{ fieldId, value, ...extra }]
         }];
-      }
-
-      const qResp = prev[qIndex];
-      const fIndex = qResp.fieldResponses?.findIndex(fr => fr.fieldId === fieldId) ?? -1;
-      let updatedFieldResponses = qResp.fieldResponses ? [...qResp.fieldResponses] : [];
-
-      if (fIndex === -1) {
-        updatedFieldResponses.push({ fieldId, value, ...extra });
       } else {
-        updatedFieldResponses[fIndex] = { ...updatedFieldResponses[fIndex], value, ...extra };
+        const qResp = prev[qIndex];
+        const fIndex = qResp.fieldResponses?.findIndex(fr => String(fr.fieldId) === String(fieldId)) ?? -1;
+        let updatedFieldResponses = qResp.fieldResponses ? [...qResp.fieldResponses] : [];
+
+        if (fIndex === -1) {
+          updatedFieldResponses.push({ fieldId, value, ...extra });
+        } else {
+          updatedFieldResponses[fIndex] = { ...updatedFieldResponses[fIndex], value, ...extra };
+        }
+
+        updatedResponses[qIndex] = { ...qResp, fieldResponses: updatedFieldResponses };
       }
 
-      const updatedResponses = [...prev];
-      updatedResponses[qIndex] = { ...qResp, fieldResponses: updatedFieldResponses };
+      if (submission) {
+        const token = localStorage.getItem('token');
+        fetch(`${API_BASE_URL}/api/submissions/${submission._id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ responses: updatedResponses, status: submission.status })
+        }).catch(err => console.error('Auto-save field error:', err));
+      }
+
       return updatedResponses;
     });
   };
@@ -596,32 +606,41 @@ const UserWorkspace: React.FC = () => {
     let updatedResponsesForSave: ISubmissionResponse[] = [];
 
     setResponses(prev => {
-      const qIndex = prev.findIndex(r => r.questionId === questionId);
+      const qIndex = prev.findIndex(r => String(r.questionId) === String(questionId));
+      let updatedResponses = [...prev];
+
       if (qIndex === -1) {
-        updatedResponsesForSave = prev;
-        return prev;
+        updatedResponses.push({
+          questionId,
+          fieldResponses: [],
+          supportingDocumentResponses: [],
+          additionalFiles: []
+        });
       }
 
-      const updatedResponses = [...prev];
-      updatedResponses[qIndex] = {
-        ...updatedResponses[qIndex],
-        fieldResponses: updatedResponses[qIndex].fieldResponses.map(f => ({
-          ...f,
-          status: 'SUBMITTED' as const
-        })),
-        additionalFiles: (updatedResponses[qIndex].additionalFiles || []).map(f => ({
-          ...f,
-          status: 'SUBMITTED' as const
-        })),
-        supportingDocumentResponses: (updatedResponses[qIndex].supportingDocumentResponses || []).map(d => ({
-          ...d,
-          status: 'SUBMITTED' as const,
-          files: (d.files || []).map(f => ({
+      const targetIndex = updatedResponses.findIndex(r => String(r.questionId) === String(questionId));
+      if (targetIndex !== -1) {
+        updatedResponses[targetIndex] = {
+          ...updatedResponses[targetIndex],
+          fieldResponses: (updatedResponses[targetIndex].fieldResponses || []).map(f => ({
             ...f,
             status: 'SUBMITTED' as const
+          })),
+          additionalFiles: (updatedResponses[targetIndex].additionalFiles || []).map(f => ({
+            ...f,
+            status: 'SUBMITTED' as const
+          })),
+          supportingDocumentResponses: (updatedResponses[targetIndex].supportingDocumentResponses || []).map(d => ({
+            ...d,
+            status: 'SUBMITTED' as const,
+            files: (d.files || []).map(f => ({
+              ...f,
+              status: 'SUBMITTED' as const
+            }))
           }))
-        }))
-      };
+        };
+      }
+
       updatedResponsesForSave = updatedResponses;
       return updatedResponses;
     });
@@ -765,7 +784,7 @@ const UserWorkspace: React.FC = () => {
 
   const answeredCount = allQuestions.filter(q => isQuestionAnswered(q.question)).length;
   const progressPercent = allQuestions.length > 0 ? Math.round((answeredCount / allQuestions.length) * 100) : 0;
-  const isReadOnly = Boolean(assignmentId) || submission?.status === 'SUBMITTED' || submission?.status === 'EVALUATED' || submission?.status === 'UNDER_REVIEW';
+  const isReadOnly = Boolean(assignmentId);
 
   return (
     <div className="user-workspace-container">
@@ -913,8 +932,10 @@ const UserWorkspace: React.FC = () => {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                   {isApproved ? (
                                     <CheckCircle2 size={14} color="#10b981" />
-                                  ) : isRejected || isResubmit ? (
-                                    <AlertCircle size={14} color="#ef4444" />
+                                  ) : isResubmit ? (
+                                    <AlertCircle size={14} color="#f97316" />
+                                  ) : isRejected ? (
+                                    <XCircle size={14} color="#ef4444" />
                                   ) : isSubmitted ? (
                                     <CheckCircle2 size={14} color="#3b82f6" />
                                   ) : isAnswered ? (
@@ -927,8 +948,10 @@ const UserWorkspace: React.FC = () => {
                                 <span style={{ fontSize: '11px', fontWeight: 600, color: isSelected ? '#3b82f6' : '#94a3b8' }}>
                                   {isApproved ? (
                                     <span style={{ color: '#10b981' }}>[{q.weightage}/{q.weightage}M]</span>
-                                  ) : isRejected || isResubmit ? (
-                                    <span style={{ color: '#ef4444' }}>[0/{q.weightage}M]</span>
+                                  ) : isResubmit ? (
+                                    <span style={{ color: '#f97316' }}>[Resubmit]</span>
+                                  ) : isRejected ? (
+                                    <span style={{ color: '#ef4444' }}>[Rejected]</span>
                                   ) : (
                                     <span>[{q.weightage}M]</span>
                                   )}
@@ -1113,11 +1136,11 @@ const UserWorkspace: React.FC = () => {
                           {selectedQuestion.fields?.map(field => {
                             const fieldValue = getFieldValue(selectedQuestion.id, field.id);
                             const fResp = responses.find(r => r.questionId === selectedQuestion.id)?.fieldResponses?.find(f => f.fieldId === field.id);
-                             const isFieldSubmitted = fResp?.status === 'SUBMITTED';
-                             const isRejected = fResp?.evaluationStatus === 'REJECTED';
-                             const isResubmit = fResp?.evaluationStatus === 'RESUBMISSION_REQUIRED';
-                             const isApproved = fResp?.evaluationStatus === 'APPROVED';
-                             const isFieldReadOnly = isReadOnly || isRejected || isApproved || (isFieldSubmitted && !isResubmit) || (isQuestionReadOnly && !isResubmit);
+                            const isFieldSubmitted = fResp?.status === 'SUBMITTED';
+                            const isRejected = fResp?.evaluationStatus === 'REJECTED';
+                            const isResubmit = fResp?.evaluationStatus === 'RESUBMISSION_REQUIRED';
+                            const isApproved = fResp?.evaluationStatus === 'APPROVED';
+                            const isFieldReadOnly = isReadOnly || isRejected || isApproved || (isFieldSubmitted && !isResubmit) || (isQuestionReadOnly && !isResubmit);
 
                             return (
                               <div key={field.id} className="dynamic-field-group">
@@ -1242,32 +1265,32 @@ const UserWorkspace: React.FC = () => {
                                         )}
                                       </div>
                                     ) : (
-                                       <div
-                                         className="file-upload-card"
-                                         style={{
-                                           cursor: isFieldReadOnly ? 'not-allowed' : 'pointer',
-                                           opacity: isFieldReadOnly ? 0.65 : 1,
-                                           pointerEvents: isFieldReadOnly ? 'none' : 'auto',
-                                           backgroundColor: isFieldReadOnly ? '#f8fafc' : undefined,
-                                           borderColor: isFieldReadOnly ? '#cbd5e1' : undefined
-                                         }}
-                                         onClick={() => !isFieldReadOnly && fileInputRefs.current[field.id]?.click()}
-                                       >
-                                         <Upload size={24} style={{ color: isFieldReadOnly ? '#94a3b8' : '#64748b', marginBottom: '12px' }} />
-                                         <div style={{ fontSize: '14px', color: isFieldReadOnly ? '#64748b' : '#475569', fontWeight: 600 }}>
-                                           {isFieldReadOnly ? 'No file uploaded' : 'Click to Upload Document / Evidence'}
-                                         </div>
-                                         <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>
-                                           {isFieldReadOnly ? 'Uploads disabled in read-only view' : 'Supports PDF, DOC, images up to 10MB'}
-                                         </div>
-                                         <input
-                                           type="file"
-                                           ref={el => { fileInputRefs.current[field.id] = el; }}
-                                           disabled={isFieldReadOnly}
-                                           style={{ display: 'none' }}
-                                           onChange={(e) => !isFieldReadOnly && handleFileUpload(selectedQuestion.id, field.id, e)}
-                                         />
-                                       </div>
+                                      <div
+                                        className="file-upload-card"
+                                        style={{
+                                          cursor: isFieldReadOnly ? 'not-allowed' : 'pointer',
+                                          opacity: isFieldReadOnly ? 0.65 : 1,
+                                          pointerEvents: isFieldReadOnly ? 'none' : 'auto',
+                                          backgroundColor: isFieldReadOnly ? '#f8fafc' : undefined,
+                                          borderColor: isFieldReadOnly ? '#cbd5e1' : undefined
+                                        }}
+                                        onClick={() => !isFieldReadOnly && fileInputRefs.current[field.id]?.click()}
+                                      >
+                                        <Upload size={24} style={{ color: isFieldReadOnly ? '#94a3b8' : '#64748b', marginBottom: '12px' }} />
+                                        <div style={{ fontSize: '14px', color: isFieldReadOnly ? '#64748b' : '#475569', fontWeight: 600 }}>
+                                          {isFieldReadOnly ? 'No file uploaded' : 'Click to Upload Document / Evidence'}
+                                        </div>
+                                        <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>
+                                          {isFieldReadOnly ? 'Uploads disabled in read-only view' : 'Supports PDF, DOC, images up to 10MB'}
+                                        </div>
+                                        <input
+                                          type="file"
+                                          ref={el => { fileInputRefs.current[field.id] = el; }}
+                                          disabled={isFieldReadOnly}
+                                          style={{ display: 'none' }}
+                                          onChange={(e) => !isFieldReadOnly && handleFileUpload(selectedQuestion.id, field.id, e)}
+                                        />
+                                      </div>
                                     )}
 
                                     {fResp?.history && fResp.history.length > 0 && (
@@ -1351,39 +1374,39 @@ const UserWorkspace: React.FC = () => {
                                         <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>{doc.title}</div>
                                         <div style={{ fontSize: '12px', color: '#94a3b8' }}>Formats: {doc.acceptedFileTypes.join(', ')} | Max {doc.maxFileSize}MB</div>
                                       </div>
-                                       {(() => {
-                                         const hasApproved = uploadedFiles.some(f => f.evaluationStatus === 'APPROVED');
-                                         const hasRejected = uploadedFiles.some(f => f.evaluationStatus === 'REJECTED') || (docResp as any)?.evaluationStatus === 'REJECTED';
-                                         const hasResubmit = uploadedFiles.some(f => f.evaluationStatus === 'RESUBMISSION_REQUIRED') || (docResp as any)?.evaluationStatus === 'RESUBMISSION_REQUIRED';
+                                      {(() => {
+                                        const hasApproved = uploadedFiles.some(f => f.evaluationStatus === 'APPROVED');
+                                        const hasRejected = uploadedFiles.some(f => f.evaluationStatus === 'REJECTED') || (docResp as any)?.evaluationStatus === 'REJECTED';
+                                        const hasResubmit = uploadedFiles.some(f => f.evaluationStatus === 'RESUBMISSION_REQUIRED') || (docResp as any)?.evaluationStatus === 'RESUBMISSION_REQUIRED';
 
-                                         let canUpload = false;
-                                         if (isReadOnly) {
-                                           canUpload = false;
-                                         } else if (hasRejected) {
-                                           canUpload = false;
-                                         } else if (hasResubmit) {
-                                           canUpload = true;
-                                         } else if (hasApproved) {
-                                           canUpload = false;
-                                         } else {
-                                           canUpload = !isQuestionReadOnly && (uploadedFiles.length < (doc.maxFiles || 1));
-                                         }
+                                        let canUpload = false;
+                                        if (isReadOnly) {
+                                          canUpload = false;
+                                        } else if (hasRejected) {
+                                          canUpload = false;
+                                        } else if (hasResubmit) {
+                                          canUpload = true;
+                                        } else if (hasApproved) {
+                                          canUpload = false;
+                                        } else {
+                                          canUpload = !isQuestionReadOnly && (uploadedFiles.length < (doc.maxFiles || 1));
+                                        }
 
-                                         return (
-                                           <label className={`btn-outline btn-sm ${!canUpload ? 'disabled' : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: !canUpload ? 'not-allowed' : 'pointer', opacity: !canUpload ? 0.5 : 1 }}>
-                                             <Upload size={14} /> Upload
-                                             <input
-                                               type="file"
-                                               style={{ display: 'none' }}
-                                               accept={doc.acceptedFileTypes.join(',')}
-                                               disabled={!canUpload}
-                                               multiple={doc.maxFiles > 1}
-                                               onChange={(e) => handleSupportingDocumentUpload(selectedQuestion.id, doc.id, e)}
-                                             />
-                                           </label>
-                                         );
-                                       })()}
-                                     </div>
+                                        return (
+                                          <label className={`btn-outline btn-sm ${!canUpload ? 'disabled' : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: !canUpload ? 'not-allowed' : 'pointer', opacity: !canUpload ? 0.5 : 1 }}>
+                                            <Upload size={14} /> Upload
+                                            <input
+                                              type="file"
+                                              style={{ display: 'none' }}
+                                              accept={doc.acceptedFileTypes.join(',')}
+                                              disabled={!canUpload}
+                                              multiple={doc.maxFiles > 1}
+                                              onChange={(e) => handleSupportingDocumentUpload(selectedQuestion.id, doc.id, e)}
+                                            />
+                                          </label>
+                                        );
+                                      })()}
+                                    </div>
 
                                     {uploadedFiles.length > 0 && (
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
@@ -1463,27 +1486,41 @@ const UserWorkspace: React.FC = () => {
                               Previous
                             </button>
                             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                              <button
-                                className="btn-primary"
-                                onClick={() => submitQuestion(selectedQuestion.id)}
-                                disabled={allSubmitted || saving || isQApproved}
-                                style={{
-                                  padding: '10px 18px',
-                                  opacity: (allSubmitted || saving || isQApproved) ? 0.6 : 1,
-                                  cursor: (allSubmitted || saving || isQApproved) ? 'not-allowed' : 'pointer',
-                                  backgroundColor: isQApproved ? '#10b981' : (allSubmitted ? '#10b981' : '#4f46e5')
-                                }}
-                              >
-                                {saving ? 'Submitting...' : isQApproved ? (
-                                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <CheckCircle2 size={16} /> Approved
-                                  </span>
-                                ) : allSubmitted ? (
-                                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <CheckCircle2 size={16} /> Submitted
-                                  </span>
-                                ) : 'Submit Question for Review'}
-                              </button>
+                              {isQApproved ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#10b981', color: '#ffffff', padding: '8px 16px', borderRadius: '8px', fontWeight: 600, fontSize: '13px' }}>
+                                  <CheckCircle2 size={16} /> Approved
+                                </span>
+                              ) : isQResubmit ? (
+                                <button
+                                  className="btn-primary"
+                                  onClick={() => submitQuestion(selectedQuestion.id)}
+                                  disabled={saving}
+                                  style={{ backgroundColor: '#f97316', padding: '10px 18px' }}
+                                >
+                                  {saving ? 'Submitting...' : (
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <AlertCircle size={16} /> Resubmit Question
+                                    </span>
+                                  )}
+                                </button>
+                              ) : isQRejected ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#ef4444', color: '#ffffff', padding: '8px 16px', borderRadius: '8px', fontWeight: 600, fontSize: '13px' }}>
+                                  <XCircle size={16} /> Rejected
+                                </span>
+                              ) : allSubmitted ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#3b82f6', color: '#ffffff', padding: '8px 16px', borderRadius: '8px', fontWeight: 600, fontSize: '13px' }}>
+                                  <CheckCircle2 size={16} /> Submitted
+                                </span>
+                              ) : (
+                                <button
+                                  className="btn-primary"
+                                  onClick={() => submitQuestion(selectedQuestion.id)}
+                                  disabled={saving}
+                                  style={{ padding: '10px 18px', backgroundColor: '#4f46e5' }}
+                                >
+                                  {saving ? 'Submitting...' : 'Submit Question for Review'}
+                                </button>
+                              )}
                               <button
                                 className="btn-outline"
                                 onClick={handleNext}
@@ -1500,16 +1537,16 @@ const UserWorkspace: React.FC = () => {
                 })()}
               </div>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
-                  <CheckCircle2 size={48} color="#e2e8f0" style={{ marginBottom: '16px' }} />
-                  <p style={{ fontSize: '16px', fontWeight: 500 }}>Select a question from the sidebar to begin.</p>
-                </div>
-            )}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
+                <CheckCircle2 size={48} color="#e2e8f0" style={{ marginBottom: '16px' }} />
+                <p style={{ fontSize: '16px', fontWeight: 500 }}>Select a question from the sidebar to begin.</p>
               </div>
-        </div>
+            )}
+          </div>
         </div>
       </div>
-      );
+    </div>
+  );
 };
 
-      export default UserWorkspace;
+export default UserWorkspace;

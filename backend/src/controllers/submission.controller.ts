@@ -303,15 +303,26 @@ export const updateMySubmission = async (req: any, res: Response) => {
         q.supportingDocumentResponses?.some((d: any) => d.files.some((f: any) => f.evaluationStatus === 'RESUBMISSION_REQUIRED' || f.evaluationStatus === 'REJECTED'))
       );
 
-      // Only allow edit if draft, rejected, or if resubmission is required
-      if (submission.status !== SubmissionStatus.DRAFT && submission.status !== SubmissionStatus.REJECTED && !hasResubmission) {
-        return res.status(400).json({ error: 'Cannot edit a submitted or reviewed application unless resubmission is required' });
+      // Allow edit if submission is DRAFT, UNDER_REVIEW, REJECTED, has resubmission, or contains newly added/unsubmitted question responses
+      const canEdit = submission.status === SubmissionStatus.DRAFT ||
+        submission.status === SubmissionStatus.UNDER_REVIEW ||
+        submission.status === SubmissionStatus.REJECTED ||
+        hasResubmission ||
+        responses?.some((newQ: any) => {
+          const oldQ = submission.responses.find(r => String(r.questionId) === String(newQ.questionId));
+          if (!oldQ) return true; // Newly added question response for newly assigned task
+          return newQ.fieldResponses?.some((f: any) => f.status !== 'SUBMITTED' || f.evaluationStatus === 'RESUBMISSION_REQUIRED' || f.evaluationStatus === 'REJECTED') ||
+            newQ.supportingDocumentResponses?.some((d: any) => d.files?.some((f: any) => f.status !== 'SUBMITTED' || f.evaluationStatus === 'RESUBMISSION_REQUIRED' || f.evaluationStatus === 'REJECTED'));
+        });
+
+      if (!canEdit && submission.status === SubmissionStatus.APPROVED) {
+        return res.status(400).json({ error: 'Cannot edit a fully approved application unless resubmission is required' });
       }
 
       if (responses) {
         // Merge logic to handle file rejection history
         for (const newQ of responses) {
-          const oldQ = submission.responses.find(r => r.questionId === newQ.questionId);
+          const oldQ = submission.responses.find(r => String(r.questionId) === String(newQ.questionId));
           if (oldQ) {
             for (const newF of newQ.fieldResponses) {
               const oldF = oldQ.fieldResponses.find((f: any) => f.fieldId === newF.fieldId);
