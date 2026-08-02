@@ -343,3 +343,36 @@
   cursor: not-allowed;
   background: #f1f5f9;
 }
+
+.etd-fe-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.etd-fe-status-badge.APPROVED {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+.etd-fe-status-badge.RESUBMISSION_REQUIRED {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+.etd-fe-status-badge.REJECTED {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+.etd-fe-status-badge.PENDING {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+

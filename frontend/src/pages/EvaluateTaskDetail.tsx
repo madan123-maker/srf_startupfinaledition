@@ -54,7 +54,7 @@ const EvaluateTaskDetail: React.FC = () => {
               initialScores[r.questionId] = r.score;
             }
             r.fieldResponses?.forEach((fr: any) => {
-              if (fr.evaluationStatus && fr.evaluationStatus !== 'PENDING') {
+              if (fr.evaluationStatus) {
                 initialFieldEvals[`${r.questionId}_${fr.fieldId}`] = {
                   status: fr.evaluationStatus,
                   remarks: fr.evaluationRemarks || ''
@@ -64,7 +64,7 @@ const EvaluateTaskDetail: React.FC = () => {
 
             r.supportingDocumentResponses?.forEach((docResp: any) => {
               docResp.files?.forEach((f: any) => {
-                if (f.evaluationStatus && f.evaluationStatus !== 'PENDING') {
+                if (f.evaluationStatus) {
                   const val = { status: f.evaluationStatus, remarks: f.evaluationRemarks || '' };
                   initialFieldEvals[`${r.questionId}_${f.fileId}`] = val;
                   initialFieldEvals[`${r.questionId}_${docResp.documentId}`] = val;
@@ -73,7 +73,7 @@ const EvaluateTaskDetail: React.FC = () => {
             });
 
             r.additionalFiles?.forEach((af: any) => {
-              if (af.evaluationStatus && af.evaluationStatus !== 'PENDING') {
+              if (af.evaluationStatus) {
                 initialFieldEvals[`${r.questionId}_${af.fileId}`] = {
                   status: af.evaluationStatus,
                   remarks: af.evaluationRemarks || ''
@@ -192,14 +192,14 @@ const EvaluateTaskDetail: React.FC = () => {
         </button>
         <div className="etd-header-main">
           <div>
-            <h1>{isSuperAdmin ? 'Task Review & Approval' : 'Task Evaluation'}</h1>
+            <h1>{isSuperAdmin ? 'Task Submission Review' : 'Task Evaluation'}</h1>
             <p>Reviewing submission for <strong>{assignment.userId?.state}</strong> ({assignment.userId?.name})</p>
           </div>
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
             <div className="etd-status-badge">
               Status: {assignment.status}
             </div>
-            {!isFrozen && (
+            {!isFrozen && !isSuperAdmin && (
               <button 
                 className="etd-save-btn" 
                 onClick={handleSaveEvaluation}
@@ -207,14 +207,14 @@ const EvaluateTaskDetail: React.FC = () => {
                 style={{ margin: 0, padding: '10px 16px' }}
               >
                 {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                {isSuperAdmin ? 'Save Document Status' : 'Save Evaluation'}
+                Save Evaluation
               </button>
             )}
           </div>
         </div>
         {isSuperAdmin && (
           <div style={{ marginTop: '12px', padding: '10px 16px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', color: '#1e40af', fontSize: '13px', fontWeight: 600 }}>
-            ℹ️ Super Admin Review Mode: Direct form scoring is managed by Admin. Super Admin has document approval and final verification authority.
+            ℹ️ Super Admin View Mode: Direct form scoring and document status are managed by Admin. Super Admin has read-only access to view the evaluation done by Admin.
           </div>
         )}
       </div>
@@ -268,6 +268,8 @@ const EvaluateTaskDetail: React.FC = () => {
 
                         if (file) {
                           const fileLinkUrl = file.fileUrl.startsWith('http') ? file.fileUrl : `${API_BASE_URL}${file.fileUrl}`;
+                          const evalData = fieldEvaluations[fieldKey] || { status: file.evaluationStatus || 'PENDING', remarks: file.evaluationRemarks || '' };
+
                           return (
                             <div key={f.id} className="etd-field">
                               <div className="etd-field-label">{f.label}</div>
@@ -275,19 +277,37 @@ const EvaluateTaskDetail: React.FC = () => {
                                 <a href={fileLinkUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
                                   <Paperclip size={14} /> {file.fileName || 'View Document'}
                                 </a>
-                                <div className="etd-field-eval-controls">
-                                  <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[fieldKey]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(fieldKey, 'APPROVED') }}>Approve</button>
-                                  <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[fieldKey]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(fieldKey, 'RESUBMISSION_REQUIRED') }}>Resubmit</button>
-                                  <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[fieldKey]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(fieldKey, 'REJECTED') }}>Reject</button>
-                                </div>
-                                <input 
-                                  type="text" 
-                                  className="etd-fe-remark" 
-                                  placeholder="Remarks for this file..." 
-                                  value={fieldEvaluations[fieldKey]?.remarks || ''}
-                                  onChange={(e) => handleFieldRemarkChange(fieldKey, e.target.value)}
-                                  disabled={isFrozen}
-                                />
+                                {isSuperAdmin ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                                      <span style={{ fontWeight: 600, color: '#475569' }}>Status:</span>
+                                      <span className={`etd-fe-status-badge ${evalData.status || 'PENDING'}`}>
+                                        {evalData.status === 'RESUBMISSION_REQUIRED' ? 'RESUBMIT' : (evalData.status || 'PENDING')}
+                                      </span>
+                                    </div>
+                                    {evalData.remarks && (
+                                      <div style={{ fontSize: '13px', color: '#334155', background: '#f8fafc', padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                        <strong>Admin Remarks:</strong> {evalData.remarks}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="etd-field-eval-controls">
+                                      <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[fieldKey]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(fieldKey, 'APPROVED') }}>Approve</button>
+                                      <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[fieldKey]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(fieldKey, 'RESUBMISSION_REQUIRED') }}>Resubmit</button>
+                                      <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[fieldKey]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(fieldKey, 'REJECTED') }}>Reject</button>
+                                    </div>
+                                    <input 
+                                      type="text" 
+                                      className="etd-fe-remark" 
+                                      placeholder="Remarks for this file..." 
+                                      value={fieldEvaluations[fieldKey]?.remarks || ''}
+                                      onChange={(e) => handleFieldRemarkChange(fieldKey, e.target.value)}
+                                      disabled={isFrozen}
+                                    />
+                                  </>
+                                )}
                               </div>
                             </div>
                           );
@@ -303,6 +323,7 @@ const EvaluateTaskDetail: React.FC = () => {
                                   const sfKey = `${q.id}_${sf.fileId}`;
                                   const docKey = `${q.id}_${docResp.documentId}`;
                                   const activeKey = fieldEvaluations[sfKey] ? sfKey : docKey;
+                                  const evalData = fieldEvaluations[activeKey] || { status: sf.evaluationStatus || docResp.evaluationStatus || 'PENDING', remarks: sf.evaluationRemarks || docResp.evaluationRemarks || '' };
 
                                   return (
                                     <div key={sf.fileId || sf._id} className="etd-file-eval-box" style={{ marginBottom: '12px' }}>
@@ -319,19 +340,37 @@ const EvaluateTaskDetail: React.FC = () => {
                                           {docResp.remarks && <span><strong>Remarks:</strong> {docResp.remarks}</span>}
                                         </div>
                                       )}
-                                      <div className="etd-field-eval-controls">
-                                        <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'APPROVED'); handleFieldEvalChange(docKey, 'APPROVED'); } }}>Approve</button>
-                                        <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'RESUBMISSION_REQUIRED'); handleFieldEvalChange(docKey, 'RESUBMISSION_REQUIRED'); } }}>Resubmit</button>
-                                        <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'REJECTED'); handleFieldEvalChange(docKey, 'REJECTED'); } }}>Reject</button>
-                                      </div>
-                                      <input 
-                                        type="text" 
-                                        className="etd-fe-remark" 
-                                        placeholder="Remarks for this document..." 
-                                        value={fieldEvaluations[activeKey]?.remarks || ''}
-                                        onChange={(e) => { handleFieldRemarkChange(sfKey, e.target.value); handleFieldRemarkChange(docKey, e.target.value); }}
-                                        disabled={isFrozen}
-                                      />
+                                      {isSuperAdmin ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                                            <span style={{ fontWeight: 600, color: '#475569' }}>Status:</span>
+                                            <span className={`etd-fe-status-badge ${evalData.status || 'PENDING'}`}>
+                                              {evalData.status === 'RESUBMISSION_REQUIRED' ? 'RESUBMIT' : (evalData.status || 'PENDING')}
+                                            </span>
+                                          </div>
+                                          {evalData.remarks && (
+                                            <div style={{ fontSize: '13px', color: '#334155', background: '#f8fafc', padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                              <strong>Admin Remarks:</strong> {evalData.remarks}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <div className="etd-field-eval-controls">
+                                            <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'APPROVED'); handleFieldEvalChange(docKey, 'APPROVED'); } }}>Approve</button>
+                                            <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'RESUBMISSION_REQUIRED'); handleFieldEvalChange(docKey, 'RESUBMISSION_REQUIRED'); } }}>Resubmit</button>
+                                            <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'REJECTED'); handleFieldEvalChange(docKey, 'REJECTED'); } }}>Reject</button>
+                                          </div>
+                                          <input 
+                                            type="text" 
+                                            className="etd-fe-remark" 
+                                            placeholder="Remarks for this document..." 
+                                            value={fieldEvaluations[activeKey]?.remarks || ''}
+                                            onChange={(e) => { handleFieldRemarkChange(sfKey, e.target.value); handleFieldRemarkChange(docKey, e.target.value); }}
+                                            disabled={isFrozen}
+                                          />
+                                        </>
+                                      )}
                                     </div>
                                   );
                                 })
@@ -360,6 +399,7 @@ const EvaluateTaskDetail: React.FC = () => {
                               const sfKey = `${q.id}_${sf.fileId}`;
                               const docKey = `${q.id}_${docResp.documentId}`;
                               const activeKey = fieldEvaluations[sfKey] ? sfKey : docKey;
+                              const evalData = fieldEvaluations[activeKey] || { status: sf.evaluationStatus || docResp.evaluationStatus || 'PENDING', remarks: sf.evaluationRemarks || docResp.evaluationRemarks || '' };
 
                               return (
                                 <div key={sf.fileId || sf._id} className="etd-file-eval-box" style={{ marginBottom: '12px' }}>
@@ -374,19 +414,37 @@ const EvaluateTaskDetail: React.FC = () => {
                                       {docResp.remarks && <span><strong>Remarks:</strong> {docResp.remarks}</span>}
                                     </div>
                                   )}
-                                  <div className="etd-field-eval-controls">
-                                    <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'APPROVED'); handleFieldEvalChange(docKey, 'APPROVED'); } }}>Approve</button>
-                                    <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'RESUBMISSION_REQUIRED'); handleFieldEvalChange(docKey, 'RESUBMISSION_REQUIRED'); } }}>Resubmit</button>
-                                    <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'REJECTED'); handleFieldEvalChange(docKey, 'REJECTED'); } }}>Reject</button>
-                                  </div>
-                                  <input 
-                                    type="text" 
-                                    className="etd-fe-remark" 
-                                    placeholder="Remarks for this document..." 
-                                    value={fieldEvaluations[activeKey]?.remarks || ''}
-                                    onChange={(e) => { handleFieldRemarkChange(sfKey, e.target.value); handleFieldRemarkChange(docKey, e.target.value); }}
-                                    disabled={isFrozen}
-                                  />
+                                  {isSuperAdmin ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                                        <span style={{ fontWeight: 600, color: '#475569' }}>Status:</span>
+                                        <span className={`etd-fe-status-badge ${evalData.status || 'PENDING'}`}>
+                                          {evalData.status === 'RESUBMISSION_REQUIRED' ? 'RESUBMIT' : (evalData.status || 'PENDING')}
+                                        </span>
+                                      </div>
+                                      {evalData.remarks && (
+                                        <div style={{ fontSize: '13px', color: '#334155', background: '#f8fafc', padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                          <strong>Admin Remarks:</strong> {evalData.remarks}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="etd-field-eval-controls">
+                                        <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'APPROVED'); handleFieldEvalChange(docKey, 'APPROVED'); } }}>Approve</button>
+                                        <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'RESUBMISSION_REQUIRED'); handleFieldEvalChange(docKey, 'RESUBMISSION_REQUIRED'); } }}>Resubmit</button>
+                                        <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[activeKey]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) { handleFieldEvalChange(sfKey, 'REJECTED'); handleFieldEvalChange(docKey, 'REJECTED'); } }}>Reject</button>
+                                      </div>
+                                      <input 
+                                        type="text" 
+                                        className="etd-fe-remark" 
+                                        placeholder="Remarks for this document..." 
+                                        value={fieldEvaluations[activeKey]?.remarks || ''}
+                                        onChange={(e) => { handleFieldRemarkChange(sfKey, e.target.value); handleFieldRemarkChange(docKey, e.target.value); }}
+                                        disabled={isFrozen}
+                                      />
+                                    </>
+                                  )}
                                 </div>
                               );
                             })
@@ -401,25 +459,44 @@ const EvaluateTaskDetail: React.FC = () => {
                           {additionalFiles.map((af: any) => {
                             const afLinkUrl = af.fileUrl.startsWith('http') ? af.fileUrl : `${API_BASE_URL}${af.fileUrl}`;
                             const afKey = `${q.id}_${af.fileId}`;
+                            const evalData = fieldEvaluations[afKey] || { status: af.evaluationStatus || 'PENDING', remarks: af.evaluationRemarks || '' };
 
                             return (
                               <div key={af.fileId || af._id} className="etd-file-eval-box" style={{ marginBottom: '12px' }}>
                                 <a href={afLinkUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
                                   <Paperclip size={14} /> {af.fileName || 'View Additional File'}
                                 </a>
-                                <div className="etd-field-eval-controls">
-                                  <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[afKey]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(afKey, 'APPROVED') }}>Approve</button>
-                                  <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[afKey]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(afKey, 'RESUBMISSION_REQUIRED') }}>Resubmit</button>
-                                  <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[afKey]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(afKey, 'REJECTED') }}>Reject</button>
-                                </div>
-                                <input 
-                                  type="text" 
-                                  className="etd-fe-remark" 
-                                  placeholder="Remarks for this file..." 
-                                  value={fieldEvaluations[afKey]?.remarks || ''}
-                                  onChange={(e) => handleFieldRemarkChange(afKey, e.target.value)}
-                                  disabled={isFrozen}
-                                />
+                                {isSuperAdmin ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                                      <span style={{ fontWeight: 600, color: '#475569' }}>Status:</span>
+                                      <span className={`etd-fe-status-badge ${evalData.status || 'PENDING'}`}>
+                                        {evalData.status === 'RESUBMISSION_REQUIRED' ? 'RESUBMIT' : (evalData.status || 'PENDING')}
+                                      </span>
+                                    </div>
+                                    {evalData.remarks && (
+                                      <div style={{ fontSize: '13px', color: '#334155', background: '#f8fafc', padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                        <strong>Admin Remarks:</strong> {evalData.remarks}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="etd-field-eval-controls">
+                                      <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[afKey]?.status === 'APPROVED' ? 'active approve' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(afKey, 'APPROVED') }}>Approve</button>
+                                      <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[afKey]?.status === 'RESUBMISSION_REQUIRED' ? 'active resubmit' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(afKey, 'RESUBMISSION_REQUIRED') }}>Resubmit</button>
+                                      <button disabled={isFrozen} className={`etd-fe-btn ${fieldEvaluations[afKey]?.status === 'REJECTED' ? 'active reject' : ''}`} onClick={() => { if (!isFrozen) handleFieldEvalChange(afKey, 'REJECTED') }}>Reject</button>
+                                    </div>
+                                    <input 
+                                      type="text" 
+                                      className="etd-fe-remark" 
+                                      placeholder="Remarks for this file..." 
+                                      value={fieldEvaluations[afKey]?.remarks || ''}
+                                      onChange={(e) => handleFieldRemarkChange(afKey, e.target.value)}
+                                      disabled={isFrozen}
+                                    />
+                                  </>
+                                )}
                               </div>
                             );
                           })}

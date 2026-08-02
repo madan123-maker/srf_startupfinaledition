@@ -152,7 +152,7 @@ const EvaluateTasks: React.FC = () => {
                     {(() => {
                       const userObj = JSON.parse(localStorage.getItem('user') || '{}');
                       const isSuperAdmin = userObj?.role === 'SUPER_ADMIN';
-                      const btnLabel = a.status === 'EVALUATED' ? 'View Details' : (isSuperAdmin ? 'Review Task' : 'Evaluate Task');
+                      const btnLabel = a.status === 'EVALUATED' ? 'View Details' : (isSuperAdmin ? 'View Submission' : 'Evaluate Task');
 
                       return (
                         <button 
