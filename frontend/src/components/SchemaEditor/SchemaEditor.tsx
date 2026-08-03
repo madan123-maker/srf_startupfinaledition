@@ -698,7 +698,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
             
             <form onSubmit={handlePdfUpload} className="se-pdf-modal-body">
               <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
-                Upload an official SRF Framework PDF (e.g. <strong>SRF 7.0 Framework.pdf</strong>). The system will automatically extract Reform Areas, Action Points, Question numbers, Guidelines, and Supporting Document requirements.
+                Upload an official SRF Framework PDF (e.g. <strong>SRF 6.0 Framework.pdf</strong>). The system will automatically extract Reform Areas, Action Points, Question numbers, Guidelines, and Supporting Document requirements.
               </p>
 
               {pdfError && (

@@ -65,7 +65,7 @@ const CreateEditionModal: React.FC<CreateEditionModalProps> = ({ onClose, onSucc
               <input 
                 type="text" 
                 name="name" 
-                placeholder="e.g. SRF 7.0" 
+                placeholder="e.g. SRF 6.0" 
                 required 
                 value={formData.name}
                 onChange={handleChange}
@@ -76,7 +76,7 @@ const CreateEditionModal: React.FC<CreateEditionModalProps> = ({ onClose, onSucc
               <input 
                 type="text" 
                 name="version" 
-                placeholder="7.0" 
+                placeholder="6.0" 
                 required
                 value={formData.version}
                 onChange={handleChange}
