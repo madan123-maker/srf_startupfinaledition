@@ -135,9 +135,8 @@ interface ISubmission {
 }
 
 const getGuidelinePdfUrl = (editionId?: string, pageNum?: string | number) => {
-  const baseUrl = editionId
-    ? `${API_BASE_URL}/api/guidelines/${editionId}`
-    : '/guidelines.pdf';
+  const activeEd = editionId || '6a5910cf9a111637d8ace40e';
+  const baseUrl = `${API_BASE_URL}/api/guidelines/${activeEd}.pdf`;
   return pageNum ? `${baseUrl}#page=${pageNum}` : baseUrl;
 };
 
@@ -180,6 +179,7 @@ const UserWorkspace: React.FC = () => {
   const { editionId, assignmentId } = useParams<{ editionId?: string; assignmentId?: string }>();
   const navigate = useNavigate();
 
+  const [activeEditionId, setActiveEditionId] = useState<string | undefined>(editionId);
   const [schema, setSchema] = useState<{ areas: ReformArea[] } | null>(null);
   const [submission, setSubmission] = useState<ISubmission | null>(null);
   const [responses, setResponses] = useState<ISubmissionResponse[]>([]);
@@ -220,6 +220,10 @@ const UserWorkspace: React.FC = () => {
         } catch (e) {
           console.warn('Could not fetch schema by assignmentId:', e);
         }
+      }
+
+      if (targetEditionId) {
+        setActiveEditionId(targetEditionId);
       }
 
       if ((!schemaData || !schemaData.areas || schemaData.areas.length === 0) && targetEditionId) {
@@ -988,7 +992,7 @@ const UserWorkspace: React.FC = () => {
                     {selectedQuestion.guidelinesRef && (
                       <div className="elegant-detail-item">
                         <BookOpen size={16} className="detail-icon guidelines" />
-                        <span className="detail-label">Guidelines:</span> {renderGuidelinesRef(selectedQuestion.guidelinesRef, editionId)}
+                        <span className="detail-label">Guidelines:</span> {renderGuidelinesRef(selectedQuestion.guidelinesRef, activeEditionId || editionId)}
                       </div>
                     )}
                     {selectedQuestion.scoringCriteria && (

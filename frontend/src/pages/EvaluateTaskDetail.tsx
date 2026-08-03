@@ -1,11 +1,11 @@
 import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Paperclip, Check } from 'lucide-react';
+import { ArrowLeft, Loader2, Paperclip, Check, BookOpen } from 'lucide-react';
 import './EvaluateTaskDetail.css';
 
 interface Field { id: string; label: string; type: string; options?: string[]; required?: boolean; }
-interface Question { id: string; questionNumber: string; title: string; fields: Field[]; points?: number; weightage?: number; }
+interface Question { id: string; questionNumber: string; title: string; fields: Field[]; points?: number; weightage?: number; guidelinesRef?: string; }
 interface ActionPoint { id: string; title: string; questions: Question[]; }
 interface ReformArea { id: string; title: string; actionPoints: ActionPoint[]; }
 
@@ -234,7 +234,27 @@ const EvaluateTaskDetail: React.FC = () => {
                   <div className="etd-q-num">Q{q.questionNumber}</div>
                   <div className="etd-q-content" style={{ width: '100%' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                      <h3 style={{ margin: 0, flex: 1, paddingRight: '16px' }}>{q.title}</h3>
+                      <div style={{ flex: 1, paddingRight: '16px' }}>
+                        <h3 style={{ margin: 0 }}>{q.title}</h3>
+                        {q.guidelinesRef && (
+                          <div style={{ marginTop: '6px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <BookOpen size={15} color="#4f46e5" />
+                            <span style={{ fontWeight: 600, color: '#475569' }}>Guidelines:</span>
+                            {(() => {
+                              const rawEd = typeof assignment.editionId === 'object' ? assignment.editionId?._id : assignment.editionId;
+                              const activeEd = rawEd || '6a5910cf9a111637d8ace40e';
+                              const baseUrl = `${API_BASE_URL}/api/guidelines/${activeEd}.pdf`;
+                              const match = q.guidelinesRef.match(/page\s*(\d+)/i) || q.guidelinesRef.match(/(\d+)/);
+                              const href = match ? `${baseUrl}#page=${match[1]}` : baseUrl;
+                              return (
+                                <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline', fontWeight: 600 }}>
+                                  {q.guidelinesRef}
+                                </a>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
                       {(q.weightage || 0) > 0 && (
                         <div className="etd-q-score-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                           <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Score:</span>

@@ -541,7 +541,8 @@ const FocusedFormView: React.FC = () => {
                           <span className="detail-label">Guidelines:</span> 
                           {(() => {
                             const resolvedEd = routeEditionId || (typeof assignment?.editionId === 'object' ? (assignment?.editionId as any)?._id : assignment?.editionId);
-                            const baseUrl = resolvedEd ? `${API_BASE_URL}/api/guidelines/${resolvedEd}` : '/guidelines.pdf';
+                            const activeEd = resolvedEd || '6a5910cf9a111637d8ace40e';
+                            const baseUrl = `${API_BASE_URL}/api/guidelines/${activeEd}.pdf`;
                             const match = currentQuestion.guidelinesRef.match(/page\s*(\d+)/i) || currentQuestion.guidelinesRef.match(/(\d+)/);
                             const href = match ? `${baseUrl}#page=${match[1]}` : baseUrl;
                             return <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>{currentQuestion.guidelinesRef}</a>;

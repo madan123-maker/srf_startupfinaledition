@@ -357,7 +357,10 @@ export default function AdminSubmissionView() {
                               <BookOpen size={16} className="detail-icon guidelines" />
                               <span className="detail-label">Guidelines:</span> 
                               {(() => {
-                                const baseUrl = editionId ? `${API_BASE_URL}/api/guidelines/${editionId}` : '/guidelines.pdf';
+                                const rawEd = editionId || (submission as any)?.editionId;
+                                const edId = typeof rawEd === 'object' ? (rawEd?._id || rawEd?.id) : rawEd;
+                                const activeEd = edId || '6a5910cf9a111637d8ace40e';
+                                const baseUrl = `${API_BASE_URL}/api/guidelines/${activeEd}.pdf`;
                                 const match = q.guidelinesRef.match(/page\s*(\d+)/i) || q.guidelinesRef.match(/(\d+)/);
                                 const href = match ? `${baseUrl}#page=${match[1]}` : baseUrl;
                                 return <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>{q.guidelinesRef}</a>;

@@ -87,17 +87,26 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
 });
 
 // ─── Serve edition-specific guideline PDFs from GuidelinePdf collection ──────
-app.get('/api/guidelines/:editionId', async (req: Request, res: Response) => {
+app.get(['/api/guidelines/:editionId', '/api/guidelines/:editionId.pdf'], async (req: Request, res: Response) => {
   try {
-    const { editionId } = req.params;
-    if (mongoose.Types.ObjectId.isValid(editionId)) {
-      const pdf = await GuidelinePdf.findOne({ editionId: new mongoose.Types.ObjectId(editionId) });
-      if (pdf) {
-        res.setHeader('Content-Type', pdf.contentType || 'application/pdf');
-        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(pdf.filename)}"`);
-        res.setHeader('Content-Length', pdf.size || pdf.data.length);
-        return res.send(pdf.data);
-      }
+    const rawEditionId = req.params.editionId || '';
+    const cleanId = rawEditionId.replace(/\.pdf$/i, '').trim();
+    let pdf = null;
+
+    if (cleanId && mongoose.Types.ObjectId.isValid(cleanId)) {
+      pdf = await GuidelinePdf.findOne({ editionId: new mongoose.Types.ObjectId(cleanId) });
+    }
+
+    // Fallback: If not found by specific ID, find latest uploaded GuidelinePdf in MongoDB
+    if (!pdf) {
+      pdf = await GuidelinePdf.findOne({}).sort({ createdAt: -1 });
+    }
+
+    if (pdf) {
+      res.setHeader('Content-Type', pdf.contentType || 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(pdf.filename)}"`);
+      res.setHeader('Content-Length', pdf.size || pdf.data.length);
+      return res.send(pdf.data);
     }
 
     // Fallback: Check local filesystem for default guidelines.pdf
