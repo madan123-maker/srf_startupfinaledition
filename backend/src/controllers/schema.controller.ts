@@ -43,8 +43,9 @@ export const parseSrfPdf = async (req: AuthRequest, res: Response) => {
 
     if (editionId && mongoose.Types.ObjectId.isValid(editionId)) {
       const { GuidelinePdf } = await import('../models/GuidelinePdf');
+      const { Edition } = await import('../models/Edition');
       // Upsert: one guideline PDF per edition — replaces previous if re-uploaded
-      await GuidelinePdf.findOneAndUpdate(
+      const pdfDoc = await GuidelinePdf.findOneAndUpdate(
         { editionId: new mongoose.Types.ObjectId(editionId) },
         {
           editionId: new mongoose.Types.ObjectId(editionId),
@@ -54,8 +55,15 @@ export const parseSrfPdf = async (req: AuthRequest, res: Response) => {
           size: req.file.size,
           uploadedBy: req.user.id,
         },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
+
+      if (pdfDoc) {
+        await Edition.findByIdAndUpdate(editionId, {
+          guidelineFileId: pdfDoc._id,
+          guidelineFileName: req.file.originalname,
+        });
+      }
     }
 
     const areas = await parseSrfPdfBuffer(req.file.buffer);
