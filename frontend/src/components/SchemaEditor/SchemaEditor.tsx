@@ -260,6 +260,28 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
     }));
   };
 
+  const moveArea = (e: React.MouseEvent, index: number, direction: 'up' | 'down') => {
+    e.stopPropagation();
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= areas.length) return;
+    const updated = [...areas];
+    const [moved] = updated.splice(index, 1);
+    updated.splice(targetIndex, 0, moved);
+    setAreas(updated);
+  };
+
+  const moveActionPoint = (e: React.MouseEvent, areaId: string, apIndex: number, direction: 'up' | 'down') => {
+    e.stopPropagation();
+    const area = areas.find(a => a.id === areaId);
+    if (!area) return;
+    const targetIndex = direction === 'up' ? apIndex - 1 : apIndex + 1;
+    if (targetIndex < 0 || targetIndex >= area.actionPoints.length) return;
+    const updatedActionPoints = [...area.actionPoints];
+    const [moved] = updatedActionPoints.splice(apIndex, 1);
+    updatedActionPoints.splice(targetIndex, 0, moved);
+    updateArea(areaId, { actionPoints: updatedActionPoints });
+  };
+
   const updateArea = (areaId: string, updates: Partial<ReformArea>) => {
     setAreas(areas.map(area => area.id === areaId ? { ...area, ...updates } : area));
   };
@@ -444,20 +466,22 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
                 className={`schema-card ${selectedAreaId === area.id ? 'active' : ''}`}
                 onClick={() => { setSelectedAreaId(area.id); setSelectedActionPointId(null); setSelectedQuestionId(null); }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <div className="schema-card-title" style={{ margin: 0 }}>Reform Area {index + 1}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span className="area-badge" style={{ background: '#e0e7ff', color: '#4338ca', fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    Reform Area {index + 1}
+                  </span>
                   <div className="schema-card-actions" style={{ display: 'flex', gap: '4px', marginTop: 0 }}>
-                    <button className="icon-btn" onClick={(e) => e.stopPropagation()}><ChevronUp size={12} /></button>
-                    <button className="icon-btn" onClick={(e) => e.stopPropagation()}><ChevronDown size={12} /></button>
-                    <button className="icon-btn delete-btn" onClick={(e) => removeArea(e, area.id)}><X size={12} /></button>
+                    <button className="icon-btn" title="Move Up" onClick={(e) => moveArea(e, index, 'up')} disabled={index === 0}><ChevronUp size={12} /></button>
+                    <button className="icon-btn" title="Move Down" onClick={(e) => moveArea(e, index, 'down')} disabled={index === areas.length - 1}><ChevronDown size={12} /></button>
+                    <button className="icon-btn delete-btn" title="Delete Area" onClick={(e) => removeArea(e, area.id)}><X size={12} /></button>
                   </div>
                 </div>
-                <div className="schema-card-subtitle" style={{ fontWeight: 600, color: '#475569', marginTop: '8px' }}>
-                  <input 
-                    type="text" 
+                <div className="schema-card-subtitle" style={{ fontWeight: 600, color: '#475569', marginTop: '6px' }}>
+                  <textarea 
                     value={area.title} 
                     onChange={(e) => updateArea(area.id, { title: e.target.value })} 
-                    style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '4px 8px', fontSize: '13px' }}
+                    rows={2}
+                    style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px 8px', fontSize: '13px', fontWeight: 600, resize: 'vertical', lineHeight: '1.3', fontFamily: 'inherit' }}
                     onClick={(e) => e.stopPropagation()}
                     placeholder="Reform Area Name"
                   />
@@ -481,20 +505,22 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
             {selectedArea?.actionPoints.map((ap, apIndex) => (
               <div key={ap.id} style={{ marginBottom: '24px' }}>
                 <div className="schema-card" style={{ marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <span style={{ fontWeight: 700, fontSize: '12px', color: '#4f46e5' }}>Action Point {apIndex + 1}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ background: '#f1f5f9', color: '#475569', fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      Action Point {apIndex + 1}
+                    </span>
                     <div className="schema-card-actions" style={{ display: 'flex', gap: '4px', marginTop: 0 }}>
-                      <button className="icon-btn"><ChevronUp size={12} /></button>
-                      <button className="icon-btn"><ChevronDown size={12} /></button>
-                      <button className="icon-btn delete-btn" onClick={(e) => removeActionPoint(e, selectedArea!.id, ap.id)}><X size={12} /></button>
+                      <button className="icon-btn" title="Move Up" onClick={(e) => moveActionPoint(e, selectedArea!.id, apIndex, 'up')} disabled={apIndex === 0}><ChevronUp size={12} /></button>
+                      <button className="icon-btn" title="Move Down" onClick={(e) => moveActionPoint(e, selectedArea!.id, apIndex, 'down')} disabled={apIndex === selectedArea!.actionPoints.length - 1}><ChevronDown size={12} /></button>
+                      <button className="icon-btn delete-btn" title="Delete Action Point" onClick={(e) => removeActionPoint(e, selectedArea!.id, ap.id)}><X size={12} /></button>
                     </div>
                   </div>
                   <div style={{ fontWeight: 600, fontSize: '13.5px', color: '#1e293b', lineHeight: '1.4' }}>
-                    <input 
-                      type="text" 
+                    <textarea 
                       value={ap.title} 
                       onChange={(e) => updateActionPoint(selectedArea!.id, ap.id, { title: e.target.value })} 
-                      style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', fontWeight: 600 }}
+                      rows={2}
+                      style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px 8px', fontSize: '13px', fontWeight: 600, resize: 'vertical', lineHeight: '1.3', fontFamily: 'inherit' }}
                       onClick={(e) => e.stopPropagation()}
                       placeholder="Action Point Name"
                     />
@@ -507,11 +533,14 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
                       key={q.id}
                       className={`question-item ${selectedQuestionId === q.id ? 'active' : ''}`}
                       onClick={() => { setSelectedActionPointId(ap.id); setSelectedQuestionId(q.id); }}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}
                     >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: '8px' }}>
-                        <span className="q-badge">Q {q.questionNumber}</span> {q.title.length > 25 ? q.title.substring(0, 25) + '...' : q.title}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flex: 1 }}>
+                        <span className="q-badge" style={{ flexShrink: 0 }}>Q {q.questionNumber}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12.5px', fontWeight: 500, color: '#334155' }} title={q.title}>
+                          {q.title}
+                        </span>
+                      </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                         <span style={{ color: '#3b82f6', fontWeight: 600, fontSize: '12px' }}>[{q.weightage}M]</span>
                         <button 

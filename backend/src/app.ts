@@ -28,28 +28,51 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Helper function to send stored file with smart content-type detection
+const sendStoredFileResponse = (res: Response, dbFile: any) => {
+  let contentType = dbFile.contentType || 'application/octet-stream';
+
+  // If registered as PDF but buffer is ascii text (e.g. mock test data), serve as text/plain so browser displays it instead of PDF parse error
+  if ((contentType === 'application/pdf' || dbFile.filename?.toLowerCase().endsWith('.pdf')) && dbFile.data) {
+    const headerStr = dbFile.data.toString('utf-8', 0, 5);
+    if (!headerStr.startsWith('%PDF')) {
+      contentType = 'text/plain; charset=utf-8';
+    }
+  }
+
+  const safeFilename = (dbFile.filename || 'file').replace(/["\r\n]/g, '_');
+  const encodedFilename = encodeURIComponent(dbFile.filename || 'file');
+
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
+  res.setHeader('Content-Length', dbFile.size || dbFile.data.length);
+  return res.send(dbFile.data);
+};
+
 // Serve files from MongoDB Database (with disk fallback for legacy uploads)
 app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
   try {
     const { fileId } = req.params;
 
-    if (mongoose.Types.ObjectId.isValid(fileId)) {
-      const dbFile = await StoredFile.findById(fileId);
+    let cleanId = fileId;
+    if (!mongoose.Types.ObjectId.isValid(cleanId) && cleanId.includes('.')) {
+      const possibleId = cleanId.replace(/\.[^/.]+$/, '');
+      if (mongoose.Types.ObjectId.isValid(possibleId)) {
+        cleanId = possibleId;
+      }
+    }
+
+    if (mongoose.Types.ObjectId.isValid(cleanId)) {
+      const dbFile = await StoredFile.findById(cleanId);
       if (dbFile) {
-        res.setHeader('Content-Type', dbFile.contentType || 'application/octet-stream');
-        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(dbFile.filename)}"`);
-        res.setHeader('Content-Length', dbFile.size || dbFile.data.length);
-        return res.send(dbFile.data);
+        return sendStoredFileResponse(res, dbFile);
       }
     }
 
     // Check MongoDB database by filename
     const dbFileByName = await StoredFile.findOne({ filename: fileId });
     if (dbFileByName) {
-      res.setHeader('Content-Type', dbFileByName.contentType || 'application/octet-stream');
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(dbFileByName.filename)}"`);
-      res.setHeader('Content-Length', dbFileByName.size || dbFileByName.data.length);
-      return res.send(dbFileByName.data);
+      return sendStoredFileResponse(res, dbFileByName);
     }
 
     const localFilePath = path.join(__dirname, '../uploads', fileId);

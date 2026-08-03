@@ -177,7 +177,7 @@
 /* 3-Column Layout */
 .schema-workspace {
   display: grid;
-  grid-template-columns: 250px 320px 1fr;
+  grid-template-columns: 290px 340px 1fr;
   gap: 20px;
   flex: 1;
   min-height: 0; /* Crucial to trigger flex item shrink & internal scroll */
@@ -257,13 +257,23 @@
 }
 
 .schema-card-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: #4f46e5;
   margin-bottom: 4px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.area-badge {
+  background: #e0e7ff;
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .schema-card-subtitle {
@@ -275,21 +285,25 @@
 .schema-card-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
+  align-items: center;
+  gap: 4px;
 }
 
 .icon-btn {
   background: white;
   border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  border-radius: 4px;
   color: #475569;
   cursor: pointer;
-  padding: 4px 6px;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease-in-out;
+  flex-shrink: 0;
 }
 
 .icon-btn:hover {
@@ -298,13 +312,19 @@
   background-color: #f8fafc;
 }
 
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .icon-btn.delete-btn {
-  color: #dc2626;
+  color: #ef4444;
+  border-color: #fca5a5;
 }
 
 .icon-btn.delete-btn:hover {
-  border-color: #fca5a5;
-  color: #b91c1c;
+  border-color: #f87171;
+  color: #dc2626;
   background-color: #fef2f2;
 }
 

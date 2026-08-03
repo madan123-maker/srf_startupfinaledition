@@ -15,6 +15,7 @@ import fs from 'fs';
 import { isDriveEnabled, getOrCreateFolder, uploadFileToDrive } from '../services/googleDriveService';
 
 import { StoredFile } from '../models/StoredFile';
+import mongoose from 'mongoose';
 
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -59,13 +60,33 @@ router.post('/upload', protect as any, upload.single('file'), async (req: any, r
 router.get('/files/:fileId', async (req: any, res: any) => {
   try {
     const { fileId } = req.params;
-    const dbFile = await StoredFile.findById(fileId);
+
+    let cleanId = fileId;
+    if (!mongoose.Types.ObjectId.isValid(cleanId) && cleanId.includes('.')) {
+      const possibleId = cleanId.replace(/\.[^/.]+$/, '');
+      if (mongoose.Types.ObjectId.isValid(possibleId)) {
+        cleanId = possibleId;
+      }
+    }
+
+    const dbFile = await StoredFile.findById(cleanId);
     if (!dbFile) {
       return res.status(404).json({ error: 'File not found in database' });
     }
 
-    res.setHeader('Content-Type', dbFile.contentType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(dbFile.filename)}"`);
+    let contentType = dbFile.contentType || 'application/octet-stream';
+    if ((contentType === 'application/pdf' || dbFile.filename?.toLowerCase().endsWith('.pdf')) && dbFile.data) {
+      const headerStr = dbFile.data.toString('utf-8', 0, 5);
+      if (!headerStr.startsWith('%PDF')) {
+        contentType = 'text/plain; charset=utf-8';
+      }
+    }
+
+    const safeFilename = (dbFile.filename || 'file').replace(/["\r\n]/g, '_');
+    const encodedFilename = encodeURIComponent(dbFile.filename || 'file');
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
     res.setHeader('Content-Length', dbFile.size || dbFile.data.length);
     return res.send(dbFile.data);
   } catch (error: any) {
