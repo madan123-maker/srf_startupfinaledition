@@ -1,6 +1,6 @@
 import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText } from 'lucide-react';
 import CreateEditionModal from '../components/CreateEditionModal';
 import './EditionsDashboard.css';
 
@@ -160,29 +160,41 @@ const EditionsDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {isSuperAdmin && (
-                <div className="card-actions">
-                  <button className="btn-secondary" onClick={(e) => e.stopPropagation()}><Edit size={14} /> Edit</button>
-                  <button 
-                    className="btn-secondary" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleStatus(edition._id);
-                    }}
-                  >
-                    {edition.status === 'PUBLISHED' ? 'Unpublish' : 'Publish'}
-                  </button>
-                  <button 
-                    className="btn-danger"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteEdition(edition._id);
-                    }}
-                  >
-                    <Trash2 size={14} /> Delete
-                  </button>
-                </div>
-              )}
+              <div className="card-actions">
+                <a 
+                  href={`${API_BASE_URL}/api/guidelines/${edition._id}.pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ textDecoration: 'none', color: '#4f46e5', borderColor: '#c7d2fe', backgroundColor: '#eef2ff', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <FileText size={14} /> Guidelines PDF ↗
+                </a>
+                {isSuperAdmin && (
+                  <>
+                    <button className="btn-secondary" onClick={(e) => e.stopPropagation()}><Edit size={14} /> Edit</button>
+                    <button 
+                      className="btn-secondary" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleStatus(edition._id);
+                      }}
+                    >
+                      {edition.status === 'PUBLISHED' ? 'Unpublish' : 'Publish'}
+                    </button>
+                    <button 
+                      className="btn-danger"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteEdition(edition._id);
+                      }}
+                    >
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           ))
         )}

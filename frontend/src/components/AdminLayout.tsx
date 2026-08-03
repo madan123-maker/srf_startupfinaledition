@@ -16,7 +16,8 @@ import {
   Search, 
   Bell, 
   Lock, 
-  LogOut
+  LogOut,
+  BookOpen
 } from 'lucide-react';
 import ProfileCenterModal from './ProfileCenterModal';
 import './AdminLayout.css';
@@ -252,6 +253,16 @@ const AdminLayout: React.FC = () => {
               <span>Recycle Bin</span>
             </NavLink>
           )}
+          <a 
+            href={`${API_BASE_URL}/api/guidelines/6a5910cf9a111637d8ace40e.pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="nav-item"
+            style={{ color: '#4f46e5', fontWeight: 600, marginTop: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}
+          >
+            <BookOpen size={20} aria-hidden="true" />
+            <span>SRF 6.0 Guidelines ↗</span>
+          </a>
         </nav>
         
         <div className="sidebar-footer">

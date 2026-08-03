@@ -284,6 +284,15 @@ const EditionWorkspace: React.FC = () => {
             <p>{edition.description || `States' Startup Ranking Framework ${edition.version}`}</p>
           </div>
           <div className="workspace-actions">
+            <a 
+              href={`${API_BASE_URL}/api/guidelines/${edition._id}.pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#eef2ff', color: '#4f46e5', borderColor: '#c7d2fe', textDecoration: 'none', fontWeight: 600 }}
+            >
+              <FileText size={15} /> View Guidelines PDF ↗
+            </a>
             <button className="btn-secondary" onClick={fetchData}>
               <RefreshCw size={14} /> Refresh
             </button>
