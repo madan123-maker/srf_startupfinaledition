@@ -344,7 +344,11 @@ const AdminLayout: React.FC = () => {
                 )}
                 <div className="user-info">
                   <span className="name">{currentUser.name || 'Admin'}</span>
-                  <span className="role">SUPER ADMIN</span>
+                  <span className="role">
+                    {currentUser.role === 'SUPER_ADMIN' ? 'SUPER ADMIN' :
+                     currentUser.role === 'ADMIN' ? 'EVALUATOR' :
+                     currentUser.role || 'ADMIN'}
+                  </span>
                 </div>
               </button>
             </div>
