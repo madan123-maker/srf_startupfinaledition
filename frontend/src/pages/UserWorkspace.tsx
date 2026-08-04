@@ -484,7 +484,7 @@ const UserWorkspace: React.FC = () => {
       const qIndex = newResponses.findIndex(r => r.questionId === questionId);
 
       const newFilesToPush = uploadedFilesData.map(fileData => ({
-        fileId: Math.random().toString(36).substr(2, 9),
+        fileId: fileData.fileId || (fileData.fileUrl ? fileData.fileUrl.replace('/uploads/', '') : Math.random().toString(36).substr(2, 9)),
         fileUrl: fileData.fileUrl,
         fileName: fileData.fileName,
         status: 'DRAFT' as const,
@@ -562,7 +562,7 @@ const UserWorkspace: React.FC = () => {
     }
   };
 
-  const saveSubmission = async (status: string, notify = true, explicitResponses?: ISubmissionResponse[]) => {
+  const saveSubmission = async (status: string, notify = true, explicitResponses?: ISubmissionResponse[], redirectOnSubmit = false) => {
     if (!submission || isReadOnly) return;
     setSaving(true);
     try {
@@ -592,7 +592,7 @@ const UserWorkspace: React.FC = () => {
           } catch (e) {
             console.error('Failed to submit edition assignments:', e);
           }
-          if (status === 'SUBMITTED') {
+          if (redirectOnSubmit) {
             navigate('/user-dashboard/assigned-tasks');
           }
         }
@@ -832,7 +832,7 @@ const UserWorkspace: React.FC = () => {
               className="btn-submit"
               onClick={() => {
                 if (window.confirm('Are you sure you want to finalize and submit this evaluation? You will not be able to edit it afterwards.')) {
-                  saveSubmission('SUBMITTED');
+                  saveSubmission('SUBMITTED', true, undefined, true);
                 }
               }}
               disabled={saving}

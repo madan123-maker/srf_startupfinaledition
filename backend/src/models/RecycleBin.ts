@@ -30,8 +30,7 @@ const RecycleBinSchema: Schema = new Schema(
   { timestamps: { createdAt: 'deletedAt', updatedAt: false } }
 );
 
-// TTL Index: automatically delete document 30 days after `deletedAt`
-RecycleBinSchema.index({ deletedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+RecycleBinSchema.index({ deletedAt: 1 });
 RecycleBinSchema.index({ entityType: 1 });
 RecycleBinSchema.index({ deletedBy: 1 });
 

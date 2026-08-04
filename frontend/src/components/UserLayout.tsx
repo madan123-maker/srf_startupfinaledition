@@ -259,7 +259,7 @@ const UserLayout: React.FC = () => {
                   </div>
                 )}
                 <div className="user-info">
-                  <span className="name">{currentUser.name || 'Evaluator User'}</span>
+                  <span className="name">{currentUser.name || 'User'}</span>
                   <span className="role">{currentUser.role || 'USER'}</span>
                 </div>
               </button>
