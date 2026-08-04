@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { API_BASE_URL, getFileUrl } from '../config/api';
+import { API_BASE_URL } from '../config/api';
+import { openDocumentPreview } from '../utils/documentUtils';
 import {
   Save,
   Send,
@@ -134,13 +135,16 @@ interface ISubmission {
   adminRemarks?: string;
 }
 
-const getGuidelinePdfUrl = (editionId?: string, pageNum?: string | number) => {
-  const activeEd = editionId || '6a5910cf9a111637d8ace40e';
+const getGuidelinePdfUrl = (editionId?: any, pageNum?: string | number) => {
+  const edId = typeof editionId === 'object' ? (editionId?._id || editionId?.id) : editionId;
+  const activeEd = String(edId || '').trim();
   const baseUrl = `${API_BASE_URL}/api/guidelines/${activeEd}.pdf`;
-  return pageNum ? `${baseUrl}#page=${pageNum}` : baseUrl;
+  const finalUrl = pageNum ? `${baseUrl}#page=${pageNum}` : baseUrl;
+  console.log('[FRONTEND GUIDELINES URL GENERATED]', { inputEditionId: editionId, resolvedId: activeEd, finalUrl });
+  return finalUrl;
 };
 
-const renderGuidelinesRef = (refText: string, editionId?: string) => {
+const renderGuidelinesRef = (refText: string, editionId?: any) => {
   const match = refText.match(/Page\s*(\d+)/i) || refText.match(/(\d+)/);
   const pdfHref = match
     ? getGuidelinePdfUrl(editionId, match[1])
@@ -1250,15 +1254,14 @@ const UserWorkspace: React.FC = () => {
                                   <div style={{ marginTop: '8px' }}>
                                     {getFieldFile(selectedQuestion.id, field.id) ? (
                                       <div className={`uploaded-file-info ${(isRejected || isResubmit) ? 'rejected-border' : ''}`}>
-                                        <a
-                                          href={getFileUrl(getFieldFile(selectedQuestion.id, field.id)?.fileUrl)}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
+                                        <button
+                                          onClick={() => openDocumentPreview(getFieldFile(selectedQuestion.id, field.id)?.fileUrl, getFieldFile(selectedQuestion.id, field.id)?.fileName)}
                                           className="file-link"
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#2563eb', fontWeight: 600, padding: 0 }}
                                         >
                                           <Paperclip size={14} />
                                           <span>{getFieldFile(selectedQuestion.id, field.id)?.fileName}</span>
-                                        </a>
+                                        </button>
                                         {!isFieldReadOnly && (
                                           <button
                                             className="remove-file-btn"
@@ -1302,14 +1305,12 @@ const UserWorkspace: React.FC = () => {
                                         <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>Document History (Rejected)</div>
                                         {fResp.history.map((hist, idx) => (
                                           <div key={idx} style={{ display: 'flex', flexDirection: 'column', padding: '8px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', marginBottom: idx !== fResp.history!.length - 1 ? '6px' : '0' }}>
-                                            <a
-                                              href={getFileUrl(hist.fileUrl)}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}
+                                            <button
+                                              onClick={() => openDocumentPreview(hist.fileUrl, hist.fileName)}
+                                              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500, padding: 0, textAlign: 'left' }}
                                             >
                                               <Paperclip size={12} /> {hist.fileName}
-                                            </a>
+                                            </button>
                                             {hist.evaluationRemarks && (
                                               <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>
                                                 Remarks: {hist.evaluationRemarks}
@@ -1426,10 +1427,14 @@ const UserWorkspace: React.FC = () => {
                                             <div key={f.fileId} className={`uploaded-file-info ${(isRejected || isResubmit) ? 'rejected-border' : ''}`}>
                                               <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                  <a href={getFileUrl(f.fileUrl)} target="_blank" rel="noopener noreferrer" className="file-link">
+                                                  <button 
+                                                    onClick={() => openDocumentPreview(f.fileUrl, f.fileName)}
+                                                    className="file-link"
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#2563eb', fontWeight: 600, padding: 0 }}
+                                                  >
                                                     <Paperclip size={14} />
                                                     <span>{f.fileName}</span>
-                                                  </a>
+                                                  </button>
                                                   {canEditFile && (
                                                     <button className="remove-file-btn" onClick={() => removeSupportingDocument(selectedQuestion.id, doc.id, f.fileId)}>
                                                       <Trash2 size={16} />

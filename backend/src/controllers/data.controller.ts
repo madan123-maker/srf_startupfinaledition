@@ -60,10 +60,18 @@ const applyStatusStyle = (cell: ExcelJS.Cell, status: string) => {
   }
 };
 
+const BASE_URL = process.env.BACKEND_URL || 'http://localhost:5001';
+
 const addHyperlinkCell = (cell: ExcelJS.Cell, text: string, url: string | undefined) => {
   if (url && url !== '—' && url !== 'N/A') {
-    cell.value = { text: text || 'View Link', hyperlink: url };
-    cell.font = { color: { argb: 'FF2563EB' }, underline: true, bold: true };
+    let fullUrl = url.trim();
+    if (fullUrl.startsWith('/uploads/')) {
+      fullUrl = `${BASE_URL}${fullUrl}`;
+    } else if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+      fullUrl = `${BASE_URL}/uploads/${fullUrl}`;
+    }
+    cell.value = { text: text || 'View Link', hyperlink: fullUrl };
+    cell.font = { color: { argb: 'FF0563C1' }, underline: true, bold: true };
     cell.alignment = { vertical: 'middle', horizontal: 'center' };
   } else {
     cell.value = '—';
@@ -568,6 +576,8 @@ async function generateSubmissionsExcel(
 
             row.alignment = { vertical: 'middle' };
             applyStatusStyle(row.getCell(8), docStatus);
+            addHyperlinkCell(row.getCell(6), docName, targetUrl);
+            row.getCell(6).alignment = { vertical: 'middle', horizontal: 'left' };
             addHyperlinkCell(row.getCell(10), 'Preview', targetUrl);
             addHyperlinkCell(row.getCell(11), 'Download', targetUrl);
           }
@@ -601,6 +611,8 @@ async function generateSubmissionsExcel(
 
             row.alignment = { vertical: 'middle' };
             applyStatusStyle(row.getCell(8), docStatus);
+            addHyperlinkCell(row.getCell(6), docName, af.fileUrl);
+            row.getCell(6).alignment = { vertical: 'middle', horizontal: 'left' };
             addHyperlinkCell(row.getCell(10), 'Preview', af.fileUrl);
             addHyperlinkCell(row.getCell(11), 'Download', af.fileUrl);
           }
@@ -636,6 +648,8 @@ async function generateSubmissionsExcel(
 
                 row.alignment = { vertical: 'middle' };
                 applyStatusStyle(row.getCell(8), docStatus);
+                addHyperlinkCell(row.getCell(6), docName, sf.fileUrl);
+                row.getCell(6).alignment = { vertical: 'middle', horizontal: 'left' };
                 addHyperlinkCell(row.getCell(10), 'Preview', sf.fileUrl);
                 addHyperlinkCell(row.getCell(11), 'Download', sf.fileUrl);
               }

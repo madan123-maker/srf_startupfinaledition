@@ -19,18 +19,7 @@ export class SchemaService {
       };
     }
     
-    if (schema && schema.areas && schema.areas.length > 0) {
-      const ap1 = schema.areas[0]?.actionPoints?.[0];
-      if (ap1 && ap1.questions && !ap1.questions.some((q: any) => q.id === 'q_1_1')) {
-        const q11 = SEED_SCHEMA.areas[0].actionPoints[0].questions[0];
-        ap1.questions.unshift(q11 as any);
-        await FormSchemaModel.updateOne(
-          { editionId: cleanId },
-          { $set: { areas: schema.areas } }
-        );
-      }
-    }
-    
+    // Return clean stored schema
     return {
       ...schema,
       guidelineFileId: edition?.guidelineFileId || null,

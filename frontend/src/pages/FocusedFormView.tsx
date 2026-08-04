@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../config/api';
+import { openDocumentPreview } from '../utils/documentUtils';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -379,9 +380,13 @@ const FocusedFormView: React.FC = () => {
             {fileData ? (
               <div className="ffv-file-uploaded">
                 <Paperclip size={14} />
-                <a href={fileData.fileUrl} target="_blank" rel="noopener noreferrer" className="ffv-file-link">
+                <button 
+                  onClick={() => openDocumentPreview(fileData.fileUrl, fileData.fileName)}
+                  className="ffv-file-link"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', color: '#2563eb', fontWeight: 600, padding: 0 }}
+                >
                   {fileData.fileName || 'Uploaded file'}
-                </a>
+                </button>
                 {!fieldIsReadOnly && (
                   <button className="ffv-file-remove" onClick={() => handleRemoveFile(question.id, field.id)}>
                     <Trash2 size={13} /> Remove
@@ -540,11 +545,12 @@ const FocusedFormView: React.FC = () => {
                           <BookOpen size={16} className="detail-icon guidelines" />
                           <span className="detail-label">Guidelines:</span> 
                           {(() => {
-                            const resolvedEd = routeEditionId || (typeof assignment?.editionId === 'object' ? (assignment?.editionId as any)?._id : assignment?.editionId);
-                            const activeEd = resolvedEd || '6a5910cf9a111637d8ace40e';
+                            const edObj = routeEditionId || (typeof assignment?.editionId === 'object' ? (assignment?.editionId as any)?._id : assignment?.editionId);
+                            const activeEd = String(edObj || '').trim();
                             const baseUrl = `${API_BASE_URL}/api/guidelines/${activeEd}.pdf`;
                             const match = currentQuestion.guidelinesRef.match(/page\s*(\d+)/i) || currentQuestion.guidelinesRef.match(/(\d+)/);
                             const href = match ? `${baseUrl}#page=${match[1]}` : baseUrl;
+                            console.log('[FRONTEND FOCUSED FORM GUIDELINES LINK]', { inputEdition: edObj, resolvedId: activeEd, href });
                             return <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>{currentQuestion.guidelinesRef}</a>;
                           })()}
                         </div>

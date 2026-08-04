@@ -1,3 +1,5 @@
+import pdfParse from 'pdf-parse';
+
 export interface ParsedFormField {
   id: string;
   type: string;
@@ -36,50 +38,139 @@ export interface ParsedReformArea {
 }
 
 /**
- * Universal PDF text extractor supporting v1, v2 class constructors, and ES module defaults
+ * Universal PDF text extractor using pdf-parse with fallback handling
  */
-async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  const pdfLib = require('pdf-parse');
+async function extractTextFromPdf(buffer: Buffer): Promise<{ text: string; pageCount: number }> {
+  try {
+    const data = await pdfParse(buffer);
+    return {
+      text: data.text || '',
+      pageCount: data.numpages || 1,
+    };
+  } catch (err: any) {
+    console.warn('[PDF PARSER WARNING] pdf-parse fallback:', err.message);
+    const rawText = buffer.toString('utf-8');
+    return { text: rawText, pageCount: 1 };
+  }
+}
 
-  // Case 1: Standard pdf-parse function export
-  if (typeof pdfLib === 'function') {
-    const res = await pdfLib(buffer);
-    return res.text || '';
+/**
+ * Check if a text line is noise/junk (headers, footers, answer choices, upload buttons, decorative text)
+ */
+function isJunkOrNoiseLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.length < 2) return true;
+
+  const lower = trimmed.toLowerCase();
+
+  // 1. Answer choices & options
+  const answerChoices = [
+    'yes',
+    'no',
+    'yes / no',
+    'yes/no',
+    'applicable',
+    'not applicable',
+    'tick yes',
+    'tick no',
+    'score',
+    'for',
+    'category a',
+    'category b',
+    'absolute scoring',
+    'relative scoring',
+    'document weightage: 100%',
+    'document weightage:',
+    '100%',
+  ];
+  if (answerChoices.includes(lower)) return true;
+
+  // 2. Exact match noise phrases
+  if (/^(?:yes|no)\s*=\s*\d+/i.test(trimmed)) return true;
+  if (/^>\s*\d+\s*(?:startups|departments|incubators|initiatives|connects)\s*=\s*[\d\.]+/i.test(trimmed)) return true;
+  if (/^\d+-\d+\s*(?:startups|departments|incubators|initiatives|connects)\s*=\s*[\d\.]+/i.test(trimmed)) return true;
+  if (/^metric\s*\d+\.\d+/i.test(trimmed)) return true;
+  if (/^max\s*score\s*[-–:]?\s*\d+/i.test(trimmed)) return true;
+  if (/^total\s*score\s*for\s*this\s*action\s*point\s*=\s*\d+/i.test(trimmed)) return true;
+
+  // 3. System UI instructions & prompts
+  const uiPrompts = [
+    'upload pdf',
+    'upload document',
+    'choose file',
+    'select file',
+    'click here',
+    'view document',
+    'download pdf',
+  ];
+  if (uiPrompts.includes(lower)) return true;
+
+  // 4. Document headers, footers & branding metadata
+  if (
+    lower.includes('government of india') ||
+    lower.includes('ministry of commerce') ||
+    lower.includes('department for promotion of industry') ||
+    lower.includes('dpiit') ||
+    lower.includes('#startupindia') ||
+    lower.includes('census 2011') ||
+    lower.includes('states’ startup ranking framework') ||
+    lower.includes('states startup ranking framework')
+  ) {
+    return true;
   }
 
-  // Case 2: pdf-parse Class export (PDFParse)
-  if (pdfLib.PDFParse) {
-    try {
-      const uint8Arr = new Uint8Array(buffer);
-      const parser = new pdfLib.PDFParse(uint8Arr);
-      if (typeof parser.getText === 'function') {
-        const res = await parser.getText();
-        if (typeof res === 'string') return res;
-        if (res && res.text) return res.text;
-        if (res && Array.isArray(res.pages)) {
-          return res.pages.map((p: any) => p.text || (typeof p === 'string' ? p : '')).join('\n');
-        }
-      }
-    } catch (err: any) {
-      console.warn('PDFParse class extraction warning:', err.message);
+  // 5. Bare page numbers or table section headers
+  if (/^(?:page|pg)\.?\s*\d+\s*(?:of\s*\d+)?$/i.test(trimmed)) return true;
+  if (/^\d+\s*of\s*\d+$/i.test(trimmed)) return true;
+
+  const sectionHeaders = [
+    'questions',
+    'scoring criteria',
+    'scoring metric',
+    'supporting documents',
+    'guidelines',
+    'mandatory:',
+    'recommended:',
+    'summary',
+    'vision',
+    'general principles',
+    'scoring details',
+    'feedback mechanism',
+    'details & abbreviations',
+  ];
+  if (sectionHeaders.includes(lower)) return true;
+
+  return false;
+}
+
+/**
+ * Check if a text line is a genuine evaluation question prompt
+ */
+function isGenuineQuestionLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (isJunkOrNoiseLine(trimmed)) return false;
+
+  // Pattern A: Numbered question prefix like "1.1", "1.2", "2.1", "Q1.1", "Question 1.1"
+  if (/^(?:Question|Q)?\s*\d+\.\d+(?:\.[a-z\d]+)?[\s\:\-\.]/i.test(trimmed)) {
+    return true;
+  }
+
+  // Pattern B: Question sentence starting with interrogative or prompt verbs
+  if (/^(?:Does|Has|Is|Are|How many|Provide|Details of|What is|Have there|List of|Number of)\b/i.test(trimmed)) {
+    // Exclude simple options like "Details of support provided under each scheme" if it's bullet list
+    if (trimmed.endsWith('?') || /^(?:Does|Has|Is|Are|How many|Have there)/i.test(trimmed)) {
+      return true;
     }
   }
 
-  // Case 3: Default export function
-  if (pdfLib.default && typeof pdfLib.default === 'function') {
-    const res = await pdfLib.default(buffer);
-    return res.text || '';
-  }
-
-  // Case 4: Raw text conversion fallback
-  return buffer.toString('utf-8');
+  return false;
 }
 
 /**
  * Parse an SRF Framework PDF buffer and return structured Reform Areas, Action Points & Questions
  */
 export async function parseSrfPdfBuffer(buffer: Buffer): Promise<ParsedReformArea[]> {
-  const rawText: string = await extractTextFromPdf(buffer);
+  const { text: rawText } = await extractTextFromPdf(buffer);
 
   const lines = rawText
     .split(/\r?\n/)
@@ -94,13 +185,14 @@ export async function parseSrfPdfBuffer(buffer: Buffer): Promise<ParsedReformAre
   let areaCounter = 0;
   let apCounter = 0;
   let qCounter = 0;
+  let currentPage = 1;
 
   const ensureArea = (title?: string): ParsedReformArea => {
     if (!currentArea) {
       areaCounter++;
       currentArea = {
         id: `ra_${Date.now()}_${areaCounter}`,
-        title: title || `Reform Area ${areaCounter}`,
+        title: title || `Reform Area ${areaCounter}: General Reforms`,
         description: '',
         actionPoints: [],
       };
@@ -117,7 +209,7 @@ export async function parseSrfPdfBuffer(buffer: Buffer): Promise<ParsedReformAre
       apCounter++;
       currentActionPoint = {
         id: `ap_${Date.now()}_${apCounter}`,
-        title: title || `Action Point ${apCounter}`,
+        title: title || `Action Point ${apCounter}: Framework Action Point`,
         questions: [],
       };
       area.actionPoints.push(currentActionPoint);
@@ -126,12 +218,12 @@ export async function parseSrfPdfBuffer(buffer: Buffer): Promise<ParsedReformAre
     return currentActionPoint;
   };
 
-  let currentPage = 1;
+  let inGuidelinesSection = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Page Number Marker Detection (e.g. "Page 12" or "Pg. 12")
+    // Page marker tracking
     const pageMatch = line.match(/^(?:Page|\f)\s*(\d+)/i) || line.match(/\b(?:Page|Pg)\.?\s*(\d+)\b/i);
     if (pageMatch) {
       const parsedPg = parseInt(pageMatch[1], 10);
@@ -140,9 +232,11 @@ export async function parseSrfPdfBuffer(buffer: Buffer): Promise<ParsedReformAre
       }
     }
 
-    // Check 1: Reform Area Pattern (e.g. "Reform Area 1: Institutional Support" or "REFORM AREA 2")
+    // 1. REFORM AREA DETECTION
+    // Examples: "Reform Area 1: Institutional Support", "Reform Area 2: Infrastructure Support"
     const raMatch = line.match(/^(?:Reform\s+Area|RA)\s*(\d+)[\:\s\-]*(.*)$/i);
     if (raMatch) {
+      inGuidelinesSection = false;
       areaCounter++;
       const raNum = raMatch[1];
       const raTitle = raMatch[2] ? raMatch[2].trim() : `Reform Area ${raNum}`;
@@ -158,30 +252,84 @@ export async function parseSrfPdfBuffer(buffer: Buffer): Promise<ParsedReformAre
       continue;
     }
 
-    // Check 2: Action Point Pattern (e.g. "Action Point 1.1: Dedicated Portal" or "Action Point 2")
-    const apMatch = line.match(/^(?:Action\s+Point|AP)\s*(\d+(?:\.\d+)?)[\:\s\-]*(.*)$/i);
-    if (apMatch) {
-      const area = ensureArea();
-      apCounter++;
+    // 2. ACTION POINT DETECTION
+    // Examples: "Action Point 1: Support Provided...", "1. Support Provided to Startups by State/UT Department(s)", "2. For development..."
+    const apMatch =
+      line.match(/^(?:Action\s+Point|AP)\s*(\d+(?:\.\d+)?)[\:\s\-]*(.*)$/i) ||
+      line.match(/^(\d{1,2})\.\s+([A-Z][A-Za-z0-9\s\/\(\)\,\-\&]{8,120})$/);
+
+    if (apMatch && !isJunkOrNoiseLine(line)) {
       const apNum = apMatch[1];
-      const apTitle = apMatch[2] ? apMatch[2].trim() : `Action Point ${apNum}`;
-      currentActionPoint = {
-        id: `ap_${Date.now()}_${apCounter}`,
-        title: `Action Point ${apNum}${apTitle ? `: ${apTitle}` : ''}`,
-        questions: [],
-      };
-      area.actionPoints.push(currentActionPoint);
-      currentQuestion = null;
-      continue;
+      const apTitleCandidate = apMatch[2] ? apMatch[2].trim() : line;
+
+      // Ensure it is not a question or guideline bullet (e.g. 1.1 Does your state... or Recommended 1. Details...)
+      if (!/^\d+\.\d+/.test(apNum) && !isGenuineQuestionLine(line) && !/^(?:Recommended|Mandatory|Details|G\.O\.|Policy)/i.test(apTitleCandidate)) {
+        inGuidelinesSection = false;
+        const area = ensureArea();
+        apCounter++;
+        currentActionPoint = {
+          id: `ap_${Date.now()}_${apCounter}`,
+          title: `Action Point ${apNum}: ${apTitleCandidate}`,
+          questions: [],
+        };
+        area.actionPoints.push(currentActionPoint);
+        currentQuestion = null;
+        continue;
+      }
     }
 
-    // Check 3: Question Pattern (e.g. "Question 1.1.1: Does the state..." or "1.1.1 Does the state...")
-    const qMatch = line.match(/^(?:Question|Q)?\s*(\d+\.\d+(?:\.\d+)?)[\:\s\-]*(.+)$/i);
-    if (qMatch) {
-      const ap = ensureActionPoint();
+    // Check for Guidelines section boundary
+    if (/^(?:Guidelines?|Recommended:|Mandatory:|Supporting\s+Documents?|Scoring\s+Criteria)/i.test(line)) {
+      inGuidelinesSection = true;
+    }
+
+    // 3. GENUINE QUESTION DETECTION
+    // Examples: "1.1 Does your State/UT have an active Startup Policy?", "Q2.1 How many Priority Sectors..."
+    if (isGenuineQuestionLine(line)) {
+      const qNumMatch = line.match(/^(?:Question|Q)?\s*(\d+\.\d+(?:\.[a-z\d]+)?)/i);
       qCounter++;
-      const qNum = qMatch[1];
-      const qTitle = qMatch[2].trim();
+      const qNum = qNumMatch ? qNumMatch[1] : `${apCounter || 1}.${qCounter}`;
+
+      // Clean title text removing prefix
+      let qTitle = line
+        .replace(/^(?:Question|Q)?\s*\d+\.\d+(?:\.[a-z\d]+)?[\:\s\-\.]*/i, '')
+        .trim() || line;
+
+      // Ignore title if it is a bare answer option like "Yes / No" or "Yes"
+      if (/^(?:yes\s*\/\s*no|yes|no|applicable)$/i.test(qTitle)) {
+        if (currentQuestion) {
+          currentQuestion.scoringCriteria = qTitle;
+        }
+        continue;
+      }
+
+      const ap = ensureActionPoint();
+
+      // Search if a question with this exact questionNumber already exists anywhere in this Action Point or Area
+      let existingQ: ParsedQuestion | undefined;
+      for (const ra of areas) {
+        for (const actPt of ra.actionPoints) {
+          const found = actPt.questions.find((eq) => eq.questionNumber === qNum);
+          if (found) {
+            existingQ = found;
+            break;
+          }
+        }
+        if (existingQ) break;
+      }
+
+      if (existingQ) {
+        // Enrich existing question title and update current pointer to merge metadata
+        if (qTitle && (qTitle.length > existingQ.title.length || existingQ.title.length < 10)) {
+          existingQ.title = qTitle;
+        }
+        if (currentPage > 1) {
+          existingQ.guidelinesPage = currentPage;
+          existingQ.guidelinesRef = `SRF Guidelines Page ${currentPage}`;
+        }
+        currentQuestion = existingQ;
+        continue;
+      }
 
       currentQuestion = {
         id: `q_${Date.now()}_${qCounter}`,
@@ -192,103 +340,69 @@ export async function parseSrfPdfBuffer(buffer: Buffer): Promise<ParsedReformAre
         scoringRules: {},
         isEvaluatable: true,
         title: qTitle,
-        requiredDocuments: 'Upload supporting official documentation / screenshot',
+        requiredDocuments: 'Upload supporting official documentation (PDF)',
         guidelinesRef: `SRF Guidelines Page ${currentPage}`,
         guidelinesPage: currentPage,
-        scoringCriteria: 'Yes: Full Marks, No: 0 Marks',
+        scoringCriteria: 'Yes = Full Marks, No = 0 Marks',
         fields: [
           {
-            id: `f_${Date.now()}_1`,
+            id: `f_${Date.now()}_${qCounter}_1`,
             type: 'PDF Upload',
             label: 'Upload Supporting Document (PDF)',
             required: true,
           },
           {
-            id: `f_${Date.now()}_2`,
+            id: `f_${Date.now()}_${qCounter}_2`,
             type: 'Textarea',
-            label: 'Response Summary & Remarks',
+            label: 'Response Remarks & Details',
             required: false,
           },
         ],
       };
+
       ap.questions.push(currentQuestion);
       continue;
     }
 
-    // Check 4: Metadata parsing for current question if present
+    // 4. METADATA ATTACHMENT TO PARENT QUESTION
     if (currentQuestion) {
-      const weightMatch = line.match(/(?:Weightage|Marks|Score)[\:\s]+(\d+)/i);
+      // Score / Weightage
+      const weightMatch = line.match(/(?:Weightage|Marks|Total\s*Score|Max\s*Score)[\:\s=]+(\d+)/i);
       if (weightMatch) {
         const val = parseInt(weightMatch[1], 10);
-        if (!isNaN(val)) {
+        if (!isNaN(val) && val > 0 && val <= 100) {
           currentQuestion.weightage = val;
           currentQuestion.maxScore = val;
         }
       }
 
-      const docMatch = line.match(/(?:Required\s+Documents?|Supporting\s+Docs?|Documents?)[\:\s]+(.+)/i);
-      if (docMatch) {
+      // Required Evidence / Documents
+      const docMatch = line.match(/(?:Required\s+Evidence|Supporting\s+Documents?|Document\s+Submission)[\:\s]+(.+)/i);
+      if (docMatch && !isJunkOrNoiseLine(docMatch[1])) {
         currentQuestion.requiredDocuments = docMatch[1].trim();
       }
 
-      const guideMatch = line.match(/(?:Guidelines?|Reference)[\:\s]+(.+)/i);
-      if (guideMatch) {
+      // Guidelines Reference
+      const guideMatch = line.match(/(?:Guidelines?|Page\s+Reference)[\:\s]+(.+)/i);
+      if (guideMatch && !isJunkOrNoiseLine(guideMatch[1])) {
         currentQuestion.guidelinesRef = guideMatch[1].trim();
       }
 
-      const scoringMatch = line.match(/(?:Scoring\s+Criteria|Evaluation\s+Criteria)[\:\s]+(.+)/i);
-      if (scoringMatch) {
+      // Scoring Criteria
+      const scoringMatch = line.match(/(?:Scoring\s+Criteria|Scoring\s+Metric)[\:\s]+(.+)/i);
+      if (scoringMatch && !isJunkOrNoiseLine(scoringMatch[1])) {
         currentQuestion.scoringCriteria = scoringMatch[1].trim();
       }
     }
   }
 
-  // Fallback: If no areas or questions were extracted due to unusual PDF text formatting,
-  // create a default Reform Area with extracted lines as questions.
-  if (areas.length === 0 || areas.every((a) => a.actionPoints.length === 0)) {
-    const fallbackArea: ParsedReformArea = {
-      id: `ra_${Date.now()}_1`,
-      title: 'Reform Area 1: Framework Overview',
-      description: 'Extracted from uploaded SRF PDF',
-      actionPoints: [
-        {
-          id: `ap_${Date.now()}_1`,
-          title: 'Action Point 1.1: General Guidelines & Questions',
-          questions: lines
-            .filter((l) => l.length > 20 && !l.toLowerCase().includes('page'))
-            .slice(0, 10)
-            .map((lineText, idx) => ({
-              id: `q_${Date.now()}_${idx + 1}`,
-              questionNumber: `1.1.${idx + 1}`,
-              weightage: 5,
-              maxScore: 5,
-              scoringType: 'DIRECT',
-              scoringRules: {},
-              isEvaluatable: true,
-              title: lineText,
-              requiredDocuments: 'Upload supporting proof (PDF)',
-              guidelinesRef: `SRF Guidelines 1.1.${idx + 1}`,
-              scoringCriteria: 'Yes: 5 marks, No: 0 marks',
-              fields: [
-                {
-                  id: `f_${Date.now()}_${idx}_1`,
-                  type: 'PDF Upload',
-                  label: 'Upload Supporting Document',
-                  required: true,
-                },
-                {
-                  id: `f_${Date.now()}_${idx}_2`,
-                  type: 'Textarea',
-                  label: 'Remarks / Explanation',
-                  required: false,
-                },
-              ],
-            })),
-        },
-      ],
-    };
-    return [fallbackArea];
-  }
+  // Cleanup: Filter out any action points with 0 questions or reform areas with 0 action points
+  const cleanAreas = areas
+    .map((area) => ({
+      ...area,
+      actionPoints: area.actionPoints.filter((ap) => ap.questions.length > 0),
+    }))
+    .filter((area) => area.actionPoints.length > 0);
 
-  return areas;
+  return cleanAreas;
 }

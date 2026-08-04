@@ -74,21 +74,8 @@ router.get('/files/:fileId', async (req: any, res: any) => {
       return res.status(404).json({ error: 'File not found in database' });
     }
 
-    let contentType = dbFile.contentType || 'application/octet-stream';
-    if ((contentType === 'application/pdf' || dbFile.filename?.toLowerCase().endsWith('.pdf')) && dbFile.data) {
-      const headerStr = dbFile.data.toString('utf-8', 0, 5);
-      if (!headerStr.startsWith('%PDF')) {
-        contentType = 'text/plain; charset=utf-8';
-      }
-    }
-
-    const safeFilename = (dbFile.filename || 'file').replace(/["\r\n]/g, '_');
-    const encodedFilename = encodeURIComponent(dbFile.filename || 'file');
-
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
-    res.setHeader('Content-Length', dbFile.size || dbFile.data.length);
-    return res.send(dbFile.data);
+    const { sendStoredFileResponse } = require('../app');
+    return sendStoredFileResponse(res, dbFile);
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Error fetching file from database' });
   }

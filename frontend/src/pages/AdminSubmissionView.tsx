@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle, FileText, Loader2, AlertCircle, Download, Eye, BookOpen, Award, RotateCcw, Paperclip } from 'lucide-react';
 import './AdminSubmissionView.css';
 import { API_BASE_URL, getFileUrl } from '../config/api';
+import { openDocumentPreview, downloadDocument } from '../utils/documentUtils';
 
 interface FieldResponse {
   fieldId: string;
@@ -221,23 +222,7 @@ export default function AdminSubmissionView() {
 
 
 
-  const handleDownload = async (url: string, fileName: string) => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const objectUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objectUrl;
-      a.download = fileName || 'Document';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(objectUrl);
-      document.body.removeChild(a);
-    } catch (err) {
-      console.error('Download failed', err);
-      alert('Failed to download file. It might not be available or there is a network issue.');
-    }
-  };
+
 
   if (loading) {
     return (
@@ -359,10 +344,11 @@ export default function AdminSubmissionView() {
                               {(() => {
                                 const rawEd = editionId || (submission as any)?.editionId;
                                 const edId = typeof rawEd === 'object' ? (rawEd?._id || rawEd?.id) : rawEd;
-                                const activeEd = edId || '6a5910cf9a111637d8ace40e';
+                                const activeEd = edId || '';
                                 const baseUrl = `${API_BASE_URL}/api/guidelines/${activeEd}.pdf`;
                                 const match = q.guidelinesRef.match(/page\s*(\d+)/i) || q.guidelinesRef.match(/(\d+)/);
                                 const href = match ? `${baseUrl}#page=${match[1]}` : baseUrl;
+                                console.log('[FRONTEND GUIDELINES LINK OPENED]', { guidelinesRef: q.guidelinesRef, editionId: activeEd, href });
                                 return <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>{q.guidelinesRef}</a>;
                               })()}
                             </div>
@@ -388,7 +374,8 @@ export default function AdminSubmissionView() {
                       <div className="responses-grid">
                         {q.fields?.map((field: any) => {
                           const resp = fieldResponses.find((r: any) => r.fieldId === field.id);
-                          const isFile = field.type === 'File Upload' || field.type === 'PDF Upload' || field.type === 'Image Upload';
+                          const fieldType = (field.type || '').toLowerCase();
+                          const isFile = fieldType.includes('file') || fieldType.includes('pdf') || fieldType.includes('image') || fieldType.includes('upload') || Boolean(resp?.fileUrl);
 
                           if (!resp) {
                             if (field.type === 'Heading' || field.type === 'Sub Heading' || field.type === 'Instruction' || field.type === 'Description') {
@@ -417,26 +404,24 @@ export default function AdminSubmissionView() {
                                   {resp.fileUrl ? (
                                     <div className="doc-content">
                                       <div className="doc-link-container">
-                                        <a 
-                                          href={resp.googleDriveFileId ? resp.fileUrl : getFileUrl(resp.fileUrl)} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer"
+                                        <button 
+                                          onClick={() => resp.googleDriveFileId ? window.open(resp.fileUrl, '_blank') : openDocumentPreview(resp.fileUrl, resp.fileName)}
                                           className="doc-link"
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#2563eb', fontWeight: 600 }}
                                         >
                                           <FileText size={18} />
                                           {resp.fileName || 'Document'}
-                                        </a>
-                                        <a 
-                                          href={resp.googleDriveFileId ? resp.fileUrl : getFileUrl(resp.fileUrl)} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer"
+                                        </button>
+                                        <button 
+                                          onClick={() => resp.googleDriveFileId ? window.open(resp.fileUrl, '_blank') : openDocumentPreview(resp.fileUrl, resp.fileName)}
                                           className="icon-action-btn view-btn"
                                           title="View Document"
+                                          style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '6px' }}
                                         >
                                           <Eye size={16} />
-                                        </a>
+                                        </button>
                                         <button 
-                                          onClick={() => handleDownload(resp.googleDriveFileId ? (resp.fileUrl || '') : getFileUrl(resp.fileUrl), resp.fileName || 'Document')}
+                                          onClick={() => resp.googleDriveFileId ? window.open(resp.fileUrl, '_blank') : downloadDocument(resp.fileUrl, resp.fileName || 'Document')}
                                           className="icon-action-btn download-btn"
                                           title="Download Document"
                                           style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '6px' }}
@@ -552,9 +537,21 @@ export default function AdminSubmissionView() {
                                         <div key={file.fileId} className="document-eval-card" style={{ margin: 0 }}>
                                           <div className="doc-content" style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: '12px' }}>
                                             <div className="doc-link-container">
-                                              <a href={getFileUrl(file.fileUrl)} target="_blank" rel="noopener noreferrer" className="doc-link">
+                                              <button 
+                                                onClick={() => openDocumentPreview(file.fileUrl, file.fileName)}
+                                                className="doc-link"
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#2563eb', fontWeight: 600 }}
+                                              >
                                                 <FileText size={18} /> {file.fileName}
-                                              </a>
+                                              </button>
+                                              <button 
+                                                onClick={() => downloadDocument(file.fileUrl, file.fileName)}
+                                                className="icon-action-btn download-btn"
+                                                title="Download Document"
+                                                style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '6px' }}
+                                              >
+                                                <Download size={16} />
+                                              </button>
                                             </div>
                                             <div className="eval-controls">
                                               {file.evaluationStatus === 'APPROVED' && (
@@ -611,9 +608,21 @@ export default function AdminSubmissionView() {
                                 <div className="document-eval-card">
                                   <div className="doc-content">
                                     <div className="doc-link-container">
-                                      <a href={getFileUrl(af.fileUrl)} target="_blank" rel="noopener noreferrer" className="doc-link">
+                                      <button 
+                                        onClick={() => openDocumentPreview(af.fileUrl, af.fileName)}
+                                        className="doc-link"
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#2563eb', fontWeight: 600 }}
+                                      >
                                         <FileText size={18} /> {af.fileName}
-                                      </a>
+                                      </button>
+                                      <button 
+                                        onClick={() => downloadDocument(af.fileUrl, af.fileName)}
+                                        className="icon-action-btn download-btn"
+                                        title="Download Document"
+                                        style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '6px' }}
+                                      >
+                                        <Download size={16} />
+                                      </button>
                                     </div>
                                     <div className="eval-controls">
                                       {af.evaluationStatus === 'APPROVED' && (
@@ -648,9 +657,12 @@ export default function AdminSubmissionView() {
                                       <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>Previously Rejected</div>
                                       {af.history.map((hist: any, idx: number) => (
                                         <div key={idx} style={{ display: 'flex', flexDirection: 'column', padding: '8px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', marginBottom: idx !== af.history.length - 1 ? '6px' : '0' }}>
-                                          <a href={getFileUrl(hist.fileUrl)} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}>
+                                          <button 
+                                            onClick={() => openDocumentPreview(hist.fileUrl, hist.fileName)}
+                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500, padding: 0 }}
+                                          >
                                             <Paperclip size={12} /> {hist.fileName}
-                                          </a>
+                                          </button>
                                           {hist.evaluationRemarks && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>Remarks: {hist.evaluationRemarks}</div>}
                                         </div>
                                       ))}

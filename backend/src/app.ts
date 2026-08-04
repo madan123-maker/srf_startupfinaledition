@@ -21,6 +21,7 @@ import mongoose from 'mongoose';
 import fs from 'fs';
 import { StoredFile } from './models/StoredFile';
 import { GuidelinePdf } from './models/GuidelinePdf';
+import { Edition } from './models/Edition';
 
 const app: Application = express();
 
@@ -29,24 +30,74 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Helper function to send stored file with smart content-type detection
-const sendStoredFileResponse = (res: Response, dbFile: any) => {
-  let contentType = dbFile.contentType || 'application/octet-stream';
+const getMimeType = (filename: string, fallback: string = 'application/octet-stream'): string => {
+  const ext = (filename || '').toLowerCase().split('.').pop() || '';
+  switch (ext) {
+    case 'pdf': return 'application/pdf';
+    case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    case 'xlsx': return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    case 'png': return 'image/png';
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    case 'zip': return 'application/zip';
+    case 'csv': return 'text/csv';
+    case 'doc': return 'application/msword';
+    case 'xls': return 'application/vnd.ms-excel';
+    case 'txt': return 'text/plain; charset=utf-8';
+    default: return fallback;
+  }
+};
 
-  // If registered as PDF but buffer is ascii text (e.g. mock test data), serve as text/plain so browser displays it instead of PDF parse error
-  if ((contentType === 'application/pdf' || dbFile.filename?.toLowerCase().endsWith('.pdf')) && dbFile.data) {
-    const headerStr = dbFile.data.toString('utf-8', 0, 5);
-    if (!headerStr.startsWith('%PDF')) {
-      contentType = 'text/plain; charset=utf-8';
+const isPreviewSupported = (mime: string, filename: string): boolean => {
+  const ext = (filename || '').toLowerCase().split('.').pop() || '';
+  if (['pdf', 'png', 'jpg', 'jpeg', 'csv', 'txt'].includes(ext)) return true;
+  if (mime.startsWith('image/') || mime.startsWith('text/') || mime === 'application/pdf') return true;
+  return false;
+};
+
+export const sendStoredFileResponse = (res: Response, dbFile: any) => {
+  let buffer: Buffer;
+  if (Buffer.isBuffer(dbFile.data)) {
+    buffer = dbFile.data;
+  } else if (dbFile.data && dbFile.data.buffer && Buffer.isBuffer(dbFile.data.buffer)) {
+    buffer = Buffer.from(dbFile.data.buffer);
+  } else {
+    buffer = Buffer.from(dbFile.data || '');
+  }
+
+  let contentType = dbFile.contentType && dbFile.contentType !== 'application/octet-stream'
+    ? dbFile.contentType
+    : getMimeType(dbFile.filename || '');
+
+  // Magic byte inspection for accurate Content-Type header matching real binary stream
+  if (buffer && buffer.length >= 4) {
+    const hex = buffer.subarray(0, 4).toString('hex');
+    const ascii = buffer.subarray(0, 4).toString('utf-8');
+
+    if (ascii === '%PDF') {
+      contentType = 'application/pdf';
+    } else if (hex.startsWith('ffd8')) {
+      contentType = 'image/jpeg';
+    } else if (hex.startsWith('8950')) {
+      contentType = 'image/png';
+    } else if (hex.startsWith('4749')) {
+      contentType = 'image/gif';
     }
   }
 
   const safeFilename = (dbFile.filename || 'file').replace(/["\r\n]/g, '_');
   const encodedFilename = encodeURIComponent(dbFile.filename || 'file');
 
+  const dispositionType = isPreviewSupported(contentType, dbFile.filename || '') ? 'inline' : 'attachment';
+
   res.setHeader('Content-Type', contentType);
-  res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
-  res.setHeader('Content-Length', dbFile.size || dbFile.data.length);
-  return res.send(dbFile.data);
+  res.setHeader('Content-Disposition', `${dispositionType}; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Content-Length', buffer.length);
+  return res.end(buffer);
 };
 
 // Serve files from MongoDB Database (with disk fallback for legacy uploads)
@@ -62,6 +113,7 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
       }
     }
 
+    // 1. Direct MongoDB lookup by _id
     if (mongoose.Types.ObjectId.isValid(cleanId)) {
       const dbFile = await StoredFile.findById(cleanId);
       if (dbFile) {
@@ -69,63 +121,141 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
       }
     }
 
-    // Check MongoDB database by filename
+    // 2. Check MongoDB database by exact filename
     const dbFileByName = await StoredFile.findOne({ filename: fileId });
     if (dbFileByName) {
       return sendStoredFileResponse(res, dbFileByName);
     }
 
+    // 3. Check local disk file
     const localFilePath = path.join(__dirname, '../uploads', fileId);
     if (fs.existsSync(localFilePath) && fs.statSync(localFilePath).isFile()) {
+      const mime = getMimeType(fileId);
+      const disposition = isPreviewSupported(mime, fileId) ? 'inline' : 'attachment';
+      res.setHeader('Content-Type', mime);
+      res.setHeader('Content-Disposition', `${disposition}; filename="${fileId}"`);
       return res.sendFile(localFilePath);
     }
 
-    return res.status(404).json({ error: 'File not found' });
+    // 4. Smart Fallback: Check if fileId is referenced inside any Submission record to get its original filename
+    const submissionMatch = await mongoose.connection.collection('submissions').findOne({
+      $or: [
+        { 'responses.fieldResponses.fileUrl': { $regex: fileId, $options: 'i' } },
+        { 'responses.supportingDocumentResponses.files.fileUrl': { $regex: fileId, $options: 'i' } },
+        { 'responses.additionalFiles.fileUrl': { $regex: fileId, $options: 'i' } }
+      ]
+    });
+
+    if (submissionMatch && submissionMatch.responses) {
+      let targetFileName = '';
+      for (const resp of submissionMatch.responses) {
+        if (resp.fieldResponses) {
+          const found = resp.fieldResponses.find((f: any) => f.fileUrl && f.fileUrl.includes(fileId));
+          if (found && found.fileName) { targetFileName = found.fileName; break; }
+        }
+        if (resp.supportingDocumentResponses) {
+          for (const sdr of resp.supportingDocumentResponses) {
+            const found = sdr.files?.find((f: any) => f.fileUrl && f.fileUrl.includes(fileId));
+            if (found && found.fileName) { targetFileName = found.fileName; break; }
+          }
+        }
+        if (targetFileName) break;
+        if (resp.additionalFiles) {
+          const found = resp.additionalFiles.find((f: any) => f.fileUrl && f.fileUrl.includes(fileId));
+          if (found && found.fileName) { targetFileName = found.fileName; break; }
+        }
+      }
+
+      if (targetFileName) {
+        const fallbackDbFile = await StoredFile.findOne({ filename: targetFileName });
+        if (fallbackDbFile) {
+          return sendStoredFileResponse(res, fallbackDbFile);
+        }
+        const fallbackLocal = path.join(__dirname, '../uploads', targetFileName);
+        if (fs.existsSync(fallbackLocal) && fs.statSync(fallbackLocal).isFile()) {
+          const mime = getMimeType(targetFileName);
+          const disposition = isPreviewSupported(mime, targetFileName) ? 'inline' : 'attachment';
+          res.setHeader('Content-Type', mime);
+          res.setHeader('Content-Disposition', `${disposition}; filename="${targetFileName}"`);
+          return res.sendFile(fallbackLocal);
+        }
+
+        // Return virtual mock document for legacy reference
+        const mime = getMimeType(targetFileName, 'text/plain; charset=utf-8');
+        const disposition = isPreviewSupported(mime, targetFileName) ? 'inline' : 'attachment';
+        const safeFilename = targetFileName.replace(/["\r\n]/g, '_');
+        res.setHeader('Content-Type', mime);
+        res.setHeader('Content-Disposition', `${disposition}; filename="${safeFilename}"`);
+        return res.send(Buffer.from(`Supporting Document Content: ${targetFileName}`));
+      }
+    }
+
+    return res.status(404).json({ error: 'Document Not Found' });
   } catch (err) {
     next(err);
   }
 });
 
-// ─── Serve edition-specific guideline PDFs from GuidelinePdf collection ──────
+// ─── Serve edition-specific guideline PDFs strictly matching Edition _id ──────
 app.get(['/api/guidelines/:editionId', '/api/guidelines/:editionId.pdf'], async (req: Request, res: Response) => {
   try {
     const rawEditionId = req.params.editionId || '';
     const cleanId = rawEditionId.replace(/\.pdf$/i, '').trim();
-    let pdf = null;
 
-    if (cleanId && mongoose.Types.ObjectId.isValid(cleanId)) {
-      pdf = await GuidelinePdf.findOne({ editionId: new mongoose.Types.ObjectId(cleanId) });
+    console.log(`[BACKEND GUIDELINES REQUEST] URL: "${req.originalUrl}" | Param: "${rawEditionId}" | Clean ID: "${cleanId}"`);
+
+    if (!cleanId) {
+      console.log('[BACKEND GUIDELINES ERROR] Missing edition ID');
+      return res.status(400).json({ error: 'Edition ID is required.' });
     }
 
-    // Fallback: If not found by specific ID, find latest uploaded GuidelinePdf in MongoDB
-    if (!pdf) {
-      pdf = await GuidelinePdf.findOne({}).sort({ createdAt: -1 });
+    // Disable browser caching so updates or deletions in MongoDB take effect immediately
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    // 1. Resolve Edition: Primary lookup by MongoDB _id
+    let edition = null;
+    if (mongoose.Types.ObjectId.isValid(cleanId)) {
+      edition = await Edition.findById(cleanId);
     }
 
+    // Secondary compatibility lookup for legacy name/version strings (e.g. "SRF 6.0")
+    if (!edition) {
+      const safeRegex = new RegExp(`^${cleanId.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}$`, 'i');
+      edition = await Edition.findOne({
+        $or: [{ name: safeRegex }, { version: safeRegex }]
+      });
+    }
+
+    if (!edition) {
+      console.log(`[BACKEND GUIDELINES ERROR 404] No Edition found matching cleanId: "${cleanId}"`);
+      return res.status(404).json({ error: 'Edition not found.' });
+    }
+
+    console.log(`[BACKEND GUIDELINES] Resolved Edition: "${edition.name}" (ID: ${edition._id})`);
+
+    // 2. Query GuidelinePdf EXCLUSIVELY using the exact Edition _id
+    const pdf = await GuidelinePdf.findOne({ editionId: edition._id });
+
+    // 3. Return document if found in GuidelinePdf collection
     if (pdf) {
+      const safeFilename = (pdf.filename || 'guidelines.pdf').replace(/["\r\n]/g, '_');
+      const encodedFilename = encodeURIComponent(pdf.filename || 'guidelines.pdf');
+
+      console.log(`[BACKEND GUIDELINES SUCCESS] Serving from GuidelinePdf collection: "${pdf.filename}" (ID: ${pdf._id}, Size: ${pdf.size} bytes) for Edition "${edition.name}"`);
+
       res.setHeader('Content-Type', pdf.contentType || 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(pdf.filename)}"`);
+      res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
       res.setHeader('Content-Length', pdf.size || pdf.data.length);
       return res.send(pdf.data);
     }
 
-    // Fallback: Check local filesystem for default guidelines.pdf
-    const fallbackPaths = [
-      path.join(__dirname, '../../frontend/public/guidelines.pdf'),
-      path.join(__dirname, '../uploads/guidelines.pdf'),
-      '/Users/nithishkumar07/srf_startupfinalproduction/frontend/public/guidelines.pdf',
-    ];
-
-    for (const fbPath of fallbackPaths) {
-      if (fs.existsSync(fbPath) && fs.statSync(fbPath).isFile()) {
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'inline; filename="guidelines.pdf"');
-        return res.sendFile(fbPath);
-      }
-    }
-
-    return res.status(404).json({ error: 'No guideline PDF found for this edition.' });
+    // 4. Explicit 404 response — DO NOT fallback to StoredFile, disk files, or any other edition's guideline PDF
+    console.log(`[BACKEND GUIDELINES 404] No document in GuidelinePdf collection for editionId: ${edition._id}`);
+    return res.status(404).json({ error: 'Guidelines not uploaded for this edition.' });
   } catch (err: any) {
+    console.error('[BACKEND GUIDELINES EXCEPTION]', err);
     return res.status(500).json({ error: err.message || 'Failed to serve guideline PDF.' });
   }
 });

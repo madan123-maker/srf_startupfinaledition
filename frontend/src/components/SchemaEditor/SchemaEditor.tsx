@@ -613,7 +613,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ editionId, editionName: _ed
                         {selectedQuestion.guidelinesRef && editionId && (() => {
                           const match = selectedQuestion.guidelinesRef.match(/page\s*(\d+)/i) || selectedQuestion.guidelinesRef.match(/(\d+)/);
                           const pageNum = match ? match[1] : null;
-                          const activeEd = editionId || '6a5910cf9a111637d8ace40e';
+                          const activeEd = editionId || '';
                           const pdfHref = pageNum
                             ? `${API_BASE_URL}/api/guidelines/${activeEd}.pdf#page=${pageNum}`
                             : `${API_BASE_URL}/api/guidelines/${activeEd}.pdf`;

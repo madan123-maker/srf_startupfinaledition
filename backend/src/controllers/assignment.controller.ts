@@ -574,16 +574,16 @@ export const getSubmittedAssignments = async (req: AuthRequest, res: Response) =
       ]
     } as any);
 
-    for (const sub of activeSubmissions) {
-      if (sub.userId && sub.editionId) {
-        await Assignment.updateMany(
-          { userId: sub.userId, editionId: sub.editionId, status: { $ne: 'EVALUATED' } },
-          { status: 'SUBMITTED' }
-        );
-      }
-    }
+    const pairs = activeSubmissions
+      .filter(s => s.userId && s.editionId)
+      .map(s => ({ userId: s.userId, editionId: s.editionId }));
 
-    const assignments = await Assignment.find({ status: { $in: ['SUBMITTED', 'EVALUATED'] } })
+    const baseQuery = { status: { $in: ['SUBMITTED', 'EVALUATED'] as any } };
+    const query = pairs.length > 0 
+      ? { $or: [baseQuery, ...pairs] } as any
+      : baseQuery as any;
+
+    const assignments = await Assignment.find(query)
       .populate('userId', 'name email state')
       .populate('editionId', 'name version')
       .sort({ updatedAt: -1 });

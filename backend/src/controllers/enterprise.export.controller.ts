@@ -13,7 +13,7 @@ const WHITE_FG     = 'FFFFFFFF';
 const ROW_ODD_BG   = 'FFFFFFFF';
 const ROW_EVEN_BG  = 'F8FAFC';
 const BORDER_COLOR = 'CBD5E1';
-const LINK_COLOR   = '2563EB';
+const LINK_COLOR   = '0563C1';
 
 const STATUS_FILLS: Record<string, { bg: string; fg: string }> = {
   APPROVED:              { bg: 'D1FAE5', fg: '065F46' },
@@ -491,7 +491,7 @@ export const exportEnterpriseReport = async (req: AuthRequest, res: Response) =>
   try {
     const protocol = req.protocol || 'http';
     const host = req.get('host') || 'localhost:5001';
-    const baseUrl = `${protocol}://${host}`;
+    const baseUrl = process.env.BACKEND_URL || `${protocol}://${host}`;
 
     const subFilter = await resolveFilterQuery(req.query);
 
@@ -832,7 +832,7 @@ export const exportEnterpriseReport = async (req: AuthRequest, res: Response) =>
           doc.reformArea,
           doc.actionPoint,
           doc.question,
-          doc.docName,
+          { text: doc.docName || 'Uploaded File', hyperlink: doc.downloadLink },
           doc.origFileName,
           doc.fileType,
           doc.fileSize,
@@ -848,9 +848,9 @@ export const exportEnterpriseReport = async (req: AuthRequest, res: Response) =>
           cell.border = cellBorder;
           cell.alignment = { vertical: 'middle', wrapText: true };
 
-          if (colNum === 13 && cell.value && typeof cell.value === 'object' && 'hyperlink' in cell.value) {
+          if ((colNum === 8 || colNum === 13) && cell.value && typeof cell.value === 'object' && 'hyperlink' in cell.value) {
             cell.font = { color: { argb: LINK_COLOR }, underline: true, bold: true };
-            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            cell.alignment = { vertical: 'middle', horizontal: colNum === 8 ? 'left' : 'center' };
           }
         });
       });

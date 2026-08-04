@@ -350,3 +350,37 @@ table th, .users-table th, .md-table th, .al-table th, .app-table th {
   text-transform: uppercase !important;
 }
 
+
+/* Status Badges & Indicators Color Coding */
+.status-indicator.submitted, .status-badge.submitted, .status-badge.submit, .status-indicator.submit, .status-indicator.under_review, .status-badge.under_review {
+  background-color: #e0f2fe !important;
+  color: #0369a1 !important;
+}
+.status-indicator.submitted .dot, .status-badge.submitted .dot, .status-indicator.under_review .dot, .status-badge.under_review .dot {
+  background-color: #0ea5e9 !important;
+}
+
+.status-indicator.approved, .status-badge.approved {
+  background-color: #dcfce7 !important;
+  color: #15803d !important;
+}
+.status-indicator.approved .dot, .status-badge.approved .dot {
+  background-color: #22c55e !important;
+}
+
+.status-indicator.rejected, .status-indicator.reject, .status-badge.rejected, .status-badge.reject {
+  background-color: #fee2e2 !important;
+  color: #b91c1c !important;
+}
+.status-indicator.rejected .dot, .status-badge.rejected .dot {
+  background-color: #ef4444 !important;
+}
+
+.status-indicator.resubmission, .status-indicator.resubmission_required, .status-badge.resubmission, .status-badge.resubmission_required {
+  background-color: #fef9c3 !important;
+  color: #a16207 !important;
+}
+.status-indicator.resubmission .dot, .status-badge.resubmission .dot {
+  background-color: #eab308 !important;
+}
+

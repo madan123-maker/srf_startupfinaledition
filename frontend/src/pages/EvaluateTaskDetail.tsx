@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../config/api';
+import { openDocumentPreview } from '../utils/documentUtils';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Paperclip, Check, BookOpen } from 'lucide-react';
@@ -241,11 +242,13 @@ const EvaluateTaskDetail: React.FC = () => {
                             <BookOpen size={15} color="#4f46e5" />
                             <span style={{ fontWeight: 600, color: '#475569' }}>Guidelines:</span>
                             {(() => {
-                              const rawEd = typeof assignment.editionId === 'object' ? assignment.editionId?._id : assignment.editionId;
-                              const activeEd = rawEd || '6a5910cf9a111637d8ace40e';
+                              const edObj = (assignment as any)?.editionId || (assignment as any)?.edition;
+                              const rawEd = typeof edObj === 'object' ? (edObj?._id || edObj?.id) : edObj;
+                              const activeEd = String(rawEd || '').trim();
                               const baseUrl = `${API_BASE_URL}/api/guidelines/${activeEd}.pdf`;
                               const match = q.guidelinesRef.match(/page\s*(\d+)/i) || q.guidelinesRef.match(/(\d+)/);
                               const href = match ? `${baseUrl}#page=${match[1]}` : baseUrl;
+                              console.log('[FRONTEND EVALUATE TASK GUIDELINES LINK]', { inputEdition: edObj, resolvedId: activeEd, href });
                               return (
                                 <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline', fontWeight: 600 }}>
                                   {q.guidelinesRef}
@@ -287,16 +290,19 @@ const EvaluateTaskDetail: React.FC = () => {
                         const fieldKey = `${q.id}_${f.id}`;
 
                         if (file) {
-                          const fileLinkUrl = file.fileUrl.startsWith('http') ? file.fileUrl : `${API_BASE_URL}${file.fileUrl}`;
                           const evalData = fieldEvaluations[fieldKey] || { status: file.evaluationStatus || 'PENDING', remarks: file.evaluationRemarks || '' };
 
                           return (
                             <div key={f.id} className="etd-field">
                               <div className="etd-field-label">{f.label}</div>
                               <div className="etd-file-eval-box">
-                                <a href={fileLinkUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
+                                <button 
+                                  onClick={() => openDocumentPreview(file.fileUrl, file.fileName)}
+                                  className="etd-file-link"
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#2563eb', fontWeight: 600, padding: 0 }}
+                                >
                                   <Paperclip size={14} /> {file.fileName || 'View Document'}
-                                </a>
+                                </button>
                                 {isSuperAdmin ? (
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
@@ -339,7 +345,6 @@ const EvaluateTaskDetail: React.FC = () => {
                               <div className="etd-field-label">{f.label}</div>
                               {supportingDocs.map((docResp: any) => (
                                 (docResp.files || []).map((sf: any) => {
-                                  const sfLinkUrl = sf.fileUrl.startsWith('http') ? sf.fileUrl : `${API_BASE_URL}${sf.fileUrl}`;
                                   const sfKey = `${q.id}_${sf.fileId}`;
                                   const docKey = `${q.id}_${docResp.documentId}`;
                                   const activeKey = fieldEvaluations[sfKey] ? sfKey : docKey;
@@ -348,9 +353,13 @@ const EvaluateTaskDetail: React.FC = () => {
                                   return (
                                     <div key={sf.fileId || sf._id} className="etd-file-eval-box" style={{ marginBottom: '12px' }}>
                                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                                        <a href={sfLinkUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
+                                        <button 
+                                          onClick={() => openDocumentPreview(sf.fileUrl, sf.fileName)}
+                                          className="etd-file-link"
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#2563eb', fontWeight: 600, padding: 0 }}
+                                        >
                                           <Paperclip size={14} /> {sf.fileName || 'View Submitted Document'}
-                                        </a>
+                                        </button>
                                       </div>
                                       {(docResp.issuedBy || docResp.issueDate || docResp.validTill || docResp.remarks) && (
                                         <div style={{ fontSize: '12px', color: '#475569', backgroundColor: '#f1f5f9', padding: '6px 10px', borderRadius: '6px', marginBottom: '8px' }}>
@@ -415,7 +424,6 @@ const EvaluateTaskDetail: React.FC = () => {
                           <div className="etd-field-label">Uploaded Supporting Documents</div>
                           {supportingDocs.map((docResp: any) => (
                             (docResp.files || []).map((sf: any) => {
-                              const sfLinkUrl = sf.fileUrl.startsWith('http') ? sf.fileUrl : `${API_BASE_URL}${sf.fileUrl}`;
                               const sfKey = `${q.id}_${sf.fileId}`;
                               const docKey = `${q.id}_${docResp.documentId}`;
                               const activeKey = fieldEvaluations[sfKey] ? sfKey : docKey;
@@ -423,9 +431,13 @@ const EvaluateTaskDetail: React.FC = () => {
 
                               return (
                                 <div key={sf.fileId || sf._id} className="etd-file-eval-box" style={{ marginBottom: '12px' }}>
-                                  <a href={sfLinkUrl} target="_blank" rel="noopener noreferrer" className="etd-file-link">
+                                  <button 
+                                    onClick={() => openDocumentPreview(sf.fileUrl, sf.fileName)}
+                                    className="etd-file-link"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#2563eb', fontWeight: 600, padding: 0 }}
+                                  >
                                     <Paperclip size={14} /> {sf.fileName || 'View Submitted Document'}
-                                  </a>
+                                  </button>
                                   {(docResp.issuedBy || docResp.issueDate || docResp.validTill || docResp.remarks) && (
                                     <div style={{ fontSize: '12px', color: '#475569', backgroundColor: '#f1f5f9', padding: '6px 10px', borderRadius: '6px', margin: '6px 0' }}>
                                       {docResp.issuedBy && <span style={{ marginRight: '12px' }}><strong>Issued By:</strong> {docResp.issuedBy}</span>}
