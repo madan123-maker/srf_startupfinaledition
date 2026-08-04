@@ -165,15 +165,27 @@ async function resolveFilterQuery(reqQuery: any) {
     }
   }
 
-  // 3. Resolve Status Filter
+  // 3. Resolve Status Filter (checks top-level status + nested response/document evaluation statuses)
   if (status && status !== 'all') {
     const statusStr = String(status).trim().toUpperCase();
+    const stRegex = new RegExp(`^${statusStr}$`, 'i');
+
+    const statusOrConditions: any[] = [
+      { status: stRegex },
+      { "responses.fieldResponses.evaluationStatus": stRegex },
+      { "responses.additionalFiles.evaluationStatus": stRegex },
+      { "responses.supportingDocumentResponses.files.evaluationStatus": stRegex }
+    ];
+
     if (statusStr === 'APPROVED') {
-      // Include APPROVED, SUBMITTED, and UNDER_REVIEW submissions when APPROVED filter is selected
-      subFilter.status = { $in: [/^APPROVED$/i, /^SUBMITTED$/i, /^UNDER_REVIEW$/i] };
-    } else {
-      subFilter.status = { $regex: new RegExp(`^${statusStr}$`, 'i') };
+      // Include submissions that are APPROVED, SUBMITTED, or UNDER_REVIEW, or have any approved responses/files
+      statusOrConditions.push(
+        { status: { $regex: /^(APPROVED|SUBMITTED|UNDER_REVIEW)$/i } },
+        { "responses.fieldResponses.status": "SUBMITTED" }
+      );
     }
+
+    subFilter.$or = statusOrConditions;
   }
 
   console.log('[Export Debug] Resolved Submission Filter:', JSON.stringify(subFilter));

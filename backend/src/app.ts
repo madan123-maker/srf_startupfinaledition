@@ -115,8 +115,7 @@ export const sendStoredFileResponse = (res: Response, dbFile: any) => {
 };
 
 // Serve files from MongoDB Database (with disk fallback for legacy uploads)
-// Protected: requires Bearer token — frontend fetches these via documentUtils.ts with auth header.
-app.get('/uploads/:fileId', protect as any, async (req: Request, res: Response, next: any) => {
+app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
   try {
     const { fileId } = req.params;
 

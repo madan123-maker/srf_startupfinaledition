@@ -15,25 +15,28 @@ if (!JWT_SECRET) {
 }
 
 export const protect = (req: AuthRequest, res: Response, next: NextFunction) => {
-  let token;
+  let token: string | undefined;
 
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith('Bearer')
   ) {
+    token = req.headers.authorization.split(' ')[1];
+  } else if (req.query && typeof req.query.token === 'string') {
+    token = req.query.token;
+  }
+
+  if (token) {
     try {
-      token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, JWT_SECRET) as any;
       req.user = decoded;
-      next();
+      return next();
     } catch (error) {
-      res.status(401).json({ error: 'Not authorized, token failed' });
+      return res.status(401).json({ error: 'Not authorized, token failed' });
     }
   }
 
-  if (!token) {
-    res.status(401).json({ error: 'Not authorized, no token' });
-  }
+  return res.status(401).json({ error: 'Not authorized, no token' });
 };
 
 export const adminOnly = (req: AuthRequest, res: Response, next: NextFunction) => {
