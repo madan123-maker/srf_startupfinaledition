@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle, FileText, Loader2, AlertCircle, Download, Eye, BookOpen, Award, RotateCcw, Paperclip } from 'lucide-react';
 import './AdminSubmissionView.css';
-import { API_BASE_URL, getFileUrl } from '../config/api';
+import { API_BASE_URL } from '../config/api';
+
 import { openDocumentPreview, downloadDocument } from '../utils/documentUtils';
 
 interface FieldResponse {
@@ -486,14 +487,12 @@ export default function AdminSubmissionView() {
                                       <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>Previously Rejected Documents</div>
                                       {resp.history.map((hist, idx) => (
                                         <div key={idx} style={{ display: 'flex', flexDirection: 'column', padding: '8px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', marginBottom: idx !== resp.history!.length - 1 ? '6px' : '0' }}>
-                                          <a 
-                                            href={getFileUrl(hist.fileUrl)} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}
+                                          <span
+                                            onClick={() => downloadDocument(hist.fileUrl, hist.fileName)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#3b82f6', textDecoration: 'none', fontWeight: 500, cursor: 'pointer' }}
                                           >
                                             <Paperclip size={12} /> {hist.fileName}
-                                          </a>
+                                          </span>
                                           {hist.evaluationRemarks && (
                                             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>
                                               Remarks: {hist.evaluationRemarks}

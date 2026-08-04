@@ -9,6 +9,11 @@ export interface AuthRequest extends Request {
   };
 }
 
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is not set');
+}
+
 export const protect = (req: AuthRequest, res: Response, next: NextFunction) => {
   let token;
 
@@ -18,7 +23,7 @@ export const protect = (req: AuthRequest, res: Response, next: NextFunction) => 
   ) {
     try {
       token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret') as any;
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
       req.user = decoded;
       next();
     } catch (error) {

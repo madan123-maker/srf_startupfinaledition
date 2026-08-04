@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import path from 'path';
 import authRoutes from './routes/auth.routes';
 import dashboardRoutes from './routes/dashboard.routes';
@@ -22,10 +23,23 @@ import fs from 'fs';
 import { StoredFile } from './models/StoredFile';
 import { GuidelinePdf } from './models/GuidelinePdf';
 import { Edition } from './models/Edition';
+import { protect } from './middleware/auth.middleware';
 
 const app: Application = express();
 
-app.use(cors());
+// Security headers
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false,
+}));
+
+// CORS — restrict to origins listed in FRONTEND_URL (comma-separated)
+const allowedOrigins = (process.env.FRONTEND_URL || '').split(',').map(o => o.trim()).filter(Boolean);
+app.use(cors({
+  origin: allowedOrigins.length ? allowedOrigins : true,
+  credentials: true,
+}));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -101,7 +115,8 @@ export const sendStoredFileResponse = (res: Response, dbFile: any) => {
 };
 
 // Serve files from MongoDB Database (with disk fallback for legacy uploads)
-app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
+// Protected: requires Bearer token — frontend fetches these via documentUtils.ts with auth header.
+app.get('/uploads/:fileId', protect as any, async (req: Request, res: Response, next: any) => {
   try {
     const { fileId } = req.params;
 
@@ -121,11 +136,6 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
       }
     }
 
-    // 2. Check MongoDB database by exact filename
-    const dbFileByName = await StoredFile.findOne({ filename: fileId });
-    if (dbFileByName) {
-      return sendStoredFileResponse(res, dbFileByName);
-    }
 
     // 3. Check local disk file
     const localFilePath = path.join(__dirname, '../uploads', fileId);
@@ -167,7 +177,13 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
       }
 
       if (targetFileName) {
-        const fallbackDbFile = await StoredFile.findOne({ filename: targetFileName });
+        // Scope by the submission owner's userId to prevent filename collisions
+        // where multiple states upload files with the same original filename.
+        const submissionOwnerId = submissionMatch?.userId;
+        const fallbackQuery = submissionOwnerId
+          ? { filename: targetFileName, uploadedBy: submissionOwnerId }
+          : { filename: targetFileName };
+        const fallbackDbFile = await StoredFile.findOne(fallbackQuery);
         if (fallbackDbFile) {
           return sendStoredFileResponse(res, fallbackDbFile);
         }

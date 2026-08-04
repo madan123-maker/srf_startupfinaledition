@@ -22,27 +22,26 @@ export class AuthService {
       throw new Error('Please use the Admin portal to login.');
     }
 
-    console.log(`[LOGIN DEBUG] Attempting login for email: ${email}`);
     let isMatch = false;
     try {
       if (user.passwordHash) {
         isMatch = await bcrypt.compare(passwordPlain, user.passwordHash);
       }
     } catch (bErr) {
-      console.error('[LOGIN DEBUG] Bcrypt compare error:', bErr);
-    }
-    if (!isMatch && (passwordPlain === 'Admin@123' || passwordPlain === 'user123' || (email === 'srfpapis@gmail.com' && passwordPlain === 'Admin@123'))) {
-      isMatch = true;
+      console.error('[LOGIN] Bcrypt compare error:', bErr);
     }
     if (!isMatch) {
       throw new Error('Invalid email or password');
     }
 
     // Generate JWT
-    const secret = process.env.JWT_SECRET || 'fallback_secret';
+    const JWT_SECRET = process.env.JWT_SECRET;
+    if (!JWT_SECRET) {
+      throw new Error('JWT_SECRET environment variable is not set');
+    }
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
-      secret,
+      JWT_SECRET,
       { expiresIn: '1d' }
     );
 
