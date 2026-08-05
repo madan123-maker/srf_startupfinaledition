@@ -69,7 +69,7 @@ const isPreviewSupported = (mime: string, filename: string): boolean => {
   return false;
 };
 
-export const sendStoredFileResponse = async (res: Response, dbFile: any) => {
+export const sendStoredFileResponse = async (res: Response, dbFile: any, req?: Request) => {
   let buffer: Buffer;
   if (Buffer.isBuffer(dbFile.data)) {
     buffer = dbFile.data;
@@ -133,7 +133,8 @@ export const sendStoredFileResponse = async (res: Response, dbFile: any) => {
   const safeFilename = filename.replace(/["\r\n]/g, '_');
   const encodedFilename = encodeURIComponent(filename);
 
-  const dispositionType = isPreviewSupported(contentType, filename) ? 'inline' : 'attachment';
+  const isForceDownload = req?.query?.download === 'true' || req?.query?.dl === '1' || req?.query?.download === '1';
+  const dispositionType = (isForceDownload || !isPreviewSupported(contentType, filename)) ? 'attachment' : 'inline';
 
   res.setHeader('Content-Type', contentType);
   res.setHeader('Content-Disposition', `${dispositionType}; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
@@ -162,7 +163,7 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
     if (mongoose.Types.ObjectId.isValid(cleanId)) {
       const dbFile = await StoredFile.findById(cleanId);
       if (dbFile) {
-        return await sendStoredFileResponse(res, dbFile);
+        return await sendStoredFileResponse(res, dbFile, req);
       }
     }
 
@@ -215,7 +216,7 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
           : { filename: targetFileName };
         const fallbackDbFile = await StoredFile.findOne(fallbackQuery);
         if (fallbackDbFile) {
-          return await sendStoredFileResponse(res, fallbackDbFile);
+          return await sendStoredFileResponse(res, fallbackDbFile, req);
         }
         const fallbackLocal = path.join(__dirname, '../uploads', targetFileName);
         if (fs.existsSync(fallbackLocal) && fs.statSync(fallbackLocal).isFile()) {

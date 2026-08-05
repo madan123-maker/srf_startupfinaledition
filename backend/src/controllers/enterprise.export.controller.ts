@@ -701,7 +701,10 @@ export const exportEnterpriseReport = async (req: AuthRequest, res: Response) =>
 
               if (isFile) {
                 const rawUrl = fr.fileUrl || (fr.value?.startsWith?.('http') ? fr.value : `/uploads/${fr.value}`);
-                const fullUrl = rawUrl.startsWith('http') ? rawUrl : `${baseUrl}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+                let fullUrl = rawUrl.startsWith('http') ? rawUrl : `${baseUrl}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+                if (fullUrl.includes('/uploads/')) {
+                  fullUrl = fullUrl.includes('?') ? `${fullUrl}&download=true` : `${fullUrl}?download=true`;
+                }
                 const fileName = fr.fileName || (typeof fr.value === 'string' ? fr.value.split('/').pop() : 'Uploaded File');
 
                 filesList.push({ fileName, fullUrl, rawUrl });
@@ -719,7 +722,10 @@ export const exportEnterpriseReport = async (req: AuthRequest, res: Response) =>
             for (const af of resp.additionalFiles) {
               if (!af.fileUrl) continue;
               const rawUrl = af.fileUrl;
-              const fullUrl = rawUrl.startsWith('http') ? rawUrl : `${baseUrl}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+              let fullUrl = rawUrl.startsWith('http') ? rawUrl : `${baseUrl}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+              if (fullUrl.includes('/uploads/')) {
+                fullUrl = fullUrl.includes('?') ? `${fullUrl}&download=true` : `${fullUrl}?download=true`;
+              }
               const fileName = af.fileName || 'Attachment';
 
               filesList.push({ fileName, fullUrl, rawUrl });
@@ -733,7 +739,10 @@ export const exportEnterpriseReport = async (req: AuthRequest, res: Response) =>
               for (const sf of sdr.files) {
                 if (!sf.fileUrl) continue;
                 const rawUrl = sf.fileUrl;
-                const fullUrl = rawUrl.startsWith('http') ? rawUrl : `${baseUrl}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+                let fullUrl = rawUrl.startsWith('http') ? rawUrl : `${baseUrl}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+                if (fullUrl.includes('/uploads/')) {
+                  fullUrl = fullUrl.includes('?') ? `${fullUrl}&download=true` : `${fullUrl}?download=true`;
+                }
                 const fileName = sf.fileName || 'Supporting Document';
 
                 filesList.push({ fileName, fullUrl, rawUrl });

@@ -70,6 +70,9 @@ const addHyperlinkCell = (cell: ExcelJS.Cell, text: string, url: string | undefi
     } else if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
       fullUrl = `${BASE_URL}/uploads/${fullUrl}`;
     }
+    if (fullUrl.includes('/uploads/')) {
+      fullUrl = fullUrl.includes('?') ? `${fullUrl}&download=true` : `${fullUrl}?download=true`;
+    }
     cell.value = { text: text || 'View Link', hyperlink: fullUrl };
     cell.font = { color: { argb: 'FF0563C1' }, underline: true, bold: true };
     cell.alignment = { vertical: 'middle', horizontal: 'center' };
