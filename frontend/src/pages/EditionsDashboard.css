@@ -207,6 +207,27 @@
   background-color: #f8fafc;
 }
 
+.btn-publish {
+  flex: 1;
+  background-color: #10b981;
+  border: 1px solid #10b981;
+  color: white;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background-color 0.2s;
+}
+
+.btn-publish:hover {
+  background-color: #059669;
+}
+
 .btn-danger {
   flex: 1;
   background-color: #ef4444;

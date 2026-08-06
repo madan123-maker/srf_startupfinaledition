@@ -379,6 +379,7 @@ const EditionWorkspace: React.FC = () => {
                       <th>State</th>
                       <th>User</th>
                       <th>Status</th>
+                      <th>Marks</th>
                       <th>Submitted Date</th>
                       <th>Action</th>
                     </tr>
@@ -416,6 +417,9 @@ const EditionWorkspace: React.FC = () => {
                             <span className="status-badge" style={{ backgroundColor: statusInfo.bg, color: statusInfo.color, fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
                               {statusInfo.label}
                             </span>
+                          </td>
+                          <td style={{ fontWeight: 700, color: '#4f46e5', fontSize: '14px' }}>
+                            {typeof sub.totalScore === 'number' ? sub.totalScore : 0}
                           </td>
                           <td style={{ color: '#475569', fontSize: '13px' }}>{formattedDate}</td>
                           <td>

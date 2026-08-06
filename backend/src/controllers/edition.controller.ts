@@ -72,3 +72,15 @@ export const getEditionById = async (req: Request, res: Response) => {
     return res.status(404).json({ error: error.message || 'Edition not found' });
   }
 };
+
+export const updateEdition = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user || req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'Only Super Admins can edit Editions.' });
+    }
+    const updated = await editionService.updateEdition(req.params.id, req.body);
+    return res.status(200).json(updated);
+  } catch (error: any) {
+    return res.status(400).json({ error: error.message || 'Failed to update edition' });
+  }
+};

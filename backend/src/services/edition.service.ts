@@ -230,4 +230,28 @@ export class EditionService {
 
     return { success: true, message: 'Edition deleted successfully' };
   }
+
+  async updateEdition(editionId: string, editionData: Partial<IEdition>) {
+    const cleanId = editionId.trim();
+    const existingEdition = await Edition.findById(cleanId);
+    if (!existingEdition) {
+      throw new Error(`Edition not found for id: ${cleanId}`);
+    }
+
+    if (editionData.name && editionData.name !== existingEdition.name) {
+      const duplicate = await Edition.findOne({ name: editionData.name, _id: { $ne: cleanId } });
+      if (duplicate) {
+        throw new Error(`An edition with the name "${editionData.name}" already exists.`);
+      }
+      existingEdition.name = editionData.name;
+    }
+
+    if (editionData.version !== undefined) existingEdition.version = editionData.version;
+    if (editionData.description !== undefined) existingEdition.description = editionData.description;
+    if (editionData.startDate !== undefined) existingEdition.startDate = editionData.startDate;
+    if (editionData.endDate !== undefined) existingEdition.endDate = editionData.endDate;
+
+    await existingEdition.save();
+    return existingEdition;
+  }
 }

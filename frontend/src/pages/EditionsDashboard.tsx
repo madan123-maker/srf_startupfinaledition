@@ -2,12 +2,16 @@ import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import CreateEditionModal from '../components/CreateEditionModal';
+import EditEditionModal from '../components/EditEditionModal';
 import './EditionsDashboard.css';
 
 interface Edition {
   _id: string;
   name: string;
   version: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
   status: string;
   stats: {
     totalSubmissions: number | string;
@@ -20,6 +24,7 @@ interface Edition {
 
 const EditionsDashboard: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingEdition, setEditingEdition] = useState<Edition | null>(null);
   const [editions, setEditions] = useState<Edition[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -129,7 +134,7 @@ const EditionsDashboard: React.FC = () => {
                   </div>
                   <div>
                     <h3>{edition.name}</h3>
-                    <p>States' Startup Ranking Framework...</p>
+                    <p>{edition.description || "States' Startup Ranking Framework..."}</p>
                   </div>
                 </div>
                 <div className={`status-badge ${edition.status.toLowerCase()}`}>
@@ -154,17 +159,21 @@ const EditionsDashboard: React.FC = () => {
                   <span className="stat-value red">{edition.stats.rejected}</span>
                   <span className="stat-label">Rejected</span>
                 </div>
-                <div className="stat-item">
-                  <span className="stat-value purple">{typeof edition.stats.avgScore === 'number' ? edition.stats.avgScore.toFixed(1) : edition.stats.avgScore}</span>
-                  <span className="stat-label">Avg Score</span>
-                </div>
               </div>
 
               {isSuperAdmin && (
                 <div className="card-actions">
-                  <button className="btn-secondary" onClick={(e) => e.stopPropagation()}><Edit size={14} /> Edit</button>
                   <button 
                     className="btn-secondary" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingEdition(edition);
+                    }}
+                  >
+                    <Edit size={14} /> Edit
+                  </button>
+                  <button 
+                    className={edition.status === 'PUBLISHED' ? "btn-secondary" : "btn-publish"} 
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleStatus(edition._id);
@@ -202,6 +211,17 @@ const EditionsDashboard: React.FC = () => {
           onClose={() => setIsModalOpen(false)} 
           onSuccess={() => {
             setIsModalOpen(false);
+            fetchEditions();
+          }} 
+        />
+      )}
+
+      {editingEdition && (
+        <EditEditionModal 
+          edition={editingEdition}
+          onClose={() => setEditingEdition(null)} 
+          onSuccess={() => {
+            setEditingEdition(null);
             fetchEditions();
           }} 
         />

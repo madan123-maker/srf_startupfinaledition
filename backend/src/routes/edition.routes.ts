@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createEdition, getAllEditions, toggleEditionStatus, getPublicEditions, deleteEdition, getEditionById } from '../controllers/edition.controller';
+import { createEdition, getAllEditions, toggleEditionStatus, getPublicEditions, deleteEdition, getEditionById, updateEdition } from '../controllers/edition.controller';
 import { protect, adminOnly } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -12,6 +12,7 @@ router.get('/:id', protect as any, getEditionById);
 router.get('/', protect as any, getAllEditions);
 router.post('/', protect as any, adminOnly as any, createEdition);
 router.put('/:id/status', protect as any, adminOnly as any, toggleEditionStatus);
+router.put('/:id', protect as any, adminOnly as any, updateEdition);
 router.delete('/:id', protect as any, adminOnly as any, deleteEdition);
 
 

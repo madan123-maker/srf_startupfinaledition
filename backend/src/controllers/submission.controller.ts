@@ -204,15 +204,68 @@ export const getSubmissionsByEdition = async (req: Request, res: Response) => {
       .populate('userId', 'name email state')
       .sort({ createdAt: -1 });
 
-    const validSubmissions = submissions
-      .filter((s: any) => s.userId != null)
-      .map((s: any) => {
-        const subObj = s.toObject ? s.toObject() : s;
-        if (subObj.status === 'DRAFT') {
-          subObj.status = 'UNDER_REVIEW';
-        }
-        return subObj;
-      });
+    const validSubmissions = await Promise.all(
+      submissions
+        .filter((s: any) => s.userId != null)
+        .map(async (s: any) => {
+          const subObj = s.toObject ? s.toObject() : s;
+          if (subObj.status === 'DRAFT') {
+            subObj.status = 'UNDER_REVIEW';
+          }
+
+          // Calculate evaluated score from Evaluation documents
+          const evaluations = await Evaluation.find({ submissionId: subObj._id }).lean();
+          let evalScore = 0;
+          if (evaluations && evaluations.length > 0) {
+            evaluations.forEach((ev: any) => {
+              if (Array.isArray(ev.answers)) {
+                ev.answers.forEach((ans: any) => {
+                  if (typeof ans.awardedScore === 'number') {
+                    evalScore += ans.awardedScore;
+                  }
+                });
+              }
+            });
+          }
+
+          // Fallback score calculation from embedded response objects
+          let respScore = 0;
+          if (Array.isArray(subObj.responses)) {
+            subObj.responses.forEach((r: any) => {
+              if (r.score) respScore += r.score;
+              if (Array.isArray(r.fieldResponses)) {
+                r.fieldResponses.forEach((f: any) => {
+                  if (f.score) respScore += f.score;
+                });
+              }
+              if (Array.isArray(r.additionalFiles)) {
+                r.additionalFiles.forEach((f: any) => {
+                  if (f.score) respScore += f.score;
+                });
+              }
+              if (Array.isArray(r.supportingDocumentResponses)) {
+                r.supportingDocumentResponses.forEach((d: any) => {
+                  if (Array.isArray(d.files)) {
+                    d.files.forEach((f: any) => {
+                      if (f.score) respScore += f.score;
+                    });
+                  }
+                });
+              }
+            });
+          }
+
+          const calculatedTotalScore = Math.max(subObj.totalScore || 0, evalScore, respScore);
+          subObj.totalScore = calculatedTotalScore;
+
+          // If dynamically calculated total score differs, update database
+          if (calculatedTotalScore !== s.totalScore) {
+            await Submission.findByIdAndUpdate(subObj._id, { $set: { totalScore: calculatedTotalScore } });
+          }
+
+          return subObj;
+        })
+    );
 
     if (validSubmissions.length > 0) {
       return res.status(200).json(validSubmissions);
