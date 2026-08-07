@@ -477,19 +477,38 @@ export const updateMySubmission = async (req: any, res: Response) => {
   }
 };
 
+import { StoredFile } from '../models/StoredFile';
+import { uploadToR2 } from '../services/r2Upload';
+
 export const uploadSubmissionFile = async (req: any, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    const r2Result = await uploadToR2(req.file, { folder: 'applications', uploadedBy: req.user?.id });
+    const storedFile = await StoredFile.create({
+      originalName: r2Result.originalName,
+      fileName: r2Result.fileName,
+      url: r2Result.url,
+      key: r2Result.key,
+      mimeType: r2Result.mimeType,
+      size: r2Result.size,
+      uploadedAt: r2Result.uploadedAt,
+      storageProvider: 'r2',
+      filename: r2Result.originalName,
+      contentType: r2Result.mimeType,
+      uploadedBy: req.user?.id,
+    });
+
     return res.status(200).json({
-      fileUrl,
-      fileName: req.file.originalname
+      fileUrl: r2Result.url || `/uploads/${storedFile._id}`,
+      fileName: r2Result.originalName,
+      fileId: storedFile._id,
+      storage: 'r2',
     });
   } catch (error: any) {
-    console.error('Error uploading file:', error);
+    console.error('Error uploading file to Cloudflare R2:', error);
     return res.status(500).json({ error: error.message || 'File upload failed' });
   }
 };

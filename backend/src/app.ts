@@ -70,6 +70,10 @@ const isPreviewSupported = (mime: string, filename: string): boolean => {
 };
 
 export const sendStoredFileResponse = async (res: Response, dbFile: any, req?: Request) => {
+  if (dbFile.url) {
+    return res.redirect(302, dbFile.url);
+  }
+
   let buffer: Buffer;
   if (Buffer.isBuffer(dbFile.data)) {
     buffer = dbFile.data;
@@ -163,6 +167,9 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
     if (mongoose.Types.ObjectId.isValid(cleanId)) {
       const dbFile = await StoredFile.findById(cleanId);
       if (dbFile) {
+        if (dbFile.url) {
+          return res.redirect(302, dbFile.url);
+        }
         return await sendStoredFileResponse(res, dbFile, req);
       }
     }
@@ -216,6 +223,9 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
           : { filename: targetFileName };
         const fallbackDbFile = await StoredFile.findOne(fallbackQuery);
         if (fallbackDbFile) {
+          if (fallbackDbFile.url) {
+            return res.redirect(302, fallbackDbFile.url);
+          }
           return await sendStoredFileResponse(res, fallbackDbFile, req);
         }
         const fallbackLocal = path.join(__dirname, '../uploads', targetFileName);
@@ -315,6 +325,10 @@ app.get(['/api/guidelines/:editionId', '/api/guidelines/:editionId.pdf'], async 
 
     // 3. Return document if found in GuidelinePdf collection
     if (pdf) {
+      if (pdf.url) {
+        return res.redirect(302, pdf.url);
+      }
+
       const safeFilename = (pdf.filename || 'guidelines.pdf').replace(/["\r\n]/g, '_');
       const encodedFilename = encodeURIComponent(pdf.filename || 'guidelines.pdf');
 
@@ -322,7 +336,7 @@ app.get(['/api/guidelines/:editionId', '/api/guidelines/:editionId.pdf'], async 
 
       res.setHeader('Content-Type', pdf.contentType || 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
-      res.setHeader('Content-Length', pdf.size || pdf.data.length);
+      res.setHeader('Content-Length', pdf.size || (pdf.data ? pdf.data.length : 0));
       return res.send(pdf.data);
     }
 
@@ -356,4 +370,18 @@ app.use('/api/notifications', notificationRoutes);
 app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', message: 'Server is healthy' });
 });
+
+app.get('/api/health/storage', async (req: Request, res: Response) => {
+  try {
+    const { checkR2Health } = await import('./config/r2');
+    const health = await checkR2Health();
+    if (health.status === 'ok') {
+      return res.status(200).json(health);
+    }
+    return res.status(503).json(health);
+  } catch (error: any) {
+    return res.status(500).json({ status: 'error', storage: 'cloudflare-r2', details: error.message });
+  }
+});
+
 export default app;

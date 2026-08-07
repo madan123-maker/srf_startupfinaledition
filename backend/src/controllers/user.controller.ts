@@ -78,7 +78,7 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
 
     await User.findByIdAndDelete(id);
 
-    // Delete associated submissions, assignments, and uploaded files so orphaned N/A rows are removed
+    // Delete associated submissions, assignments, and uploaded file DB records
     await Submission.deleteMany({ userId: id });
     await Assignment.deleteMany({ userId: id });
     await StoredFile.deleteMany({ uploadedBy: id });
