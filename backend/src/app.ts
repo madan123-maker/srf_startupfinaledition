@@ -384,4 +384,18 @@ app.get('/api/health/storage', async (req: Request, res: Response) => {
   }
 });
 
+app.get('/api/admin/storage', async (req: Request, res: Response) => {
+  try {
+    const { StorageService } = await import('./services/storage/StorageService');
+    const stats = await StorageService.getStorageStats();
+    return res.status(200).json({
+      status: 'ok',
+      storage: 'cloudflare-r2',
+      ...stats,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch storage statistics' });
+  }
+});
+
 export default app;

@@ -44,11 +44,17 @@ export const parseSrfPdf = async (req: AuthRequest, res: Response) => {
     if (editionId && mongoose.Types.ObjectId.isValid(editionId)) {
       const { GuidelinePdf } = await import('../models/GuidelinePdf');
       const { Edition } = await import('../models/Edition');
-      const { uploadToR2 } = await import('../services/r2Upload');
-      // Upload new guideline PDF file to Cloudflare R2 Storage (old version is preserved in R2)
-      const r2Result = await uploadToR2(req.file, { folder: 'guidelines', uploadedBy: req.user?.id, editionId: String(editionId) });
+      const { StorageService } = await import('../services/storage/StorageService');
+      const { STORAGE_FOLDERS } = await import('../constants/storage.constants');
 
-      // Upsert: one guideline PDF per edition — replaces previous if re-uploaded
+      // Upload framework PDF to Cloudflare R2 via StorageService (deterministic key: guidelines/{editionId}/guideline.pdf)
+      const r2Result = await StorageService.upload(req.file, {
+        folder: STORAGE_FOLDERS.GUIDELINES,
+        editionId: String(editionId),
+        uploadedBy: req.user.id,
+      });
+
+      // Upsert: one guideline PDF per edition
       const pdfDoc = await GuidelinePdf.findOneAndUpdate(
         { editionId: new mongoose.Types.ObjectId(editionId) },
         {

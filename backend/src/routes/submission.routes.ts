@@ -17,46 +17,48 @@ import { isDriveEnabled, getOrCreateFolder, uploadFileToDrive } from '../service
 import { StoredFile } from '../models/StoredFile';
 import mongoose from 'mongoose';
 
+import { UPLOAD_LIMITS } from '../constants/upload.constants';
+
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 16 * 1024 * 1024 } // 16MB file size limit for database storage
+  limits: { fileSize: UPLOAD_LIMITS.MAX_FILE_SIZE_BYTES } // Centralized 3MB limit
 });
 
 import { uploadToR2 } from '../services/r2Upload';
 
 const router = Router();
 
+import { StorageService } from '../services/storage/StorageService';
+import { STORAGE_FOLDERS } from '../constants/storage.constants';
+
 // ─── File Upload Route ─────────────────────────────────────────────────────
-// Upload files to Cloudflare R2 and store metadata in StoredFile collection
+// Upload files via central StorageService using deterministic stable identifiers
 router.post('/upload', protect as any, upload.single('file'), async (req: any, res: any) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Upload file to Cloudflare R2 Storage (organized under applications/ folder)
-    const r2Result = await uploadToR2(req.file, { folder: 'applications', uploadedBy: req.user?.id });
+    const applicationId = req.body?.applicationId || req.query?.applicationId;
+    const questionId = req.body?.questionId || req.query?.questionId;
+    const documentId = req.body?.documentId || req.query?.documentId;
 
-    // Save metadata in MongoDB database (no binary Buffer stored)
-    const storedFile = await StoredFile.create({
-      originalName: r2Result.originalName,
-      fileName: r2Result.fileName,
-      url: r2Result.url,
-      key: r2Result.key,
-      mimeType: r2Result.mimeType,
-      size: r2Result.size,
-      uploadedAt: r2Result.uploadedAt,
-      storageProvider: 'r2',
-      filename: r2Result.originalName,
-      contentType: r2Result.mimeType,
+    // Atomic Upload Process via central StorageService
+    const r2Result = await StorageService.upload(req.file, {
+      folder: STORAGE_FOLDERS.APPLICATIONS,
+      applicationId,
+      questionId,
+      documentId,
       uploadedBy: req.user?.id,
     });
 
+    const storedFile = await StoredFile.findOne({ key: r2Result.key });
+
     return res.status(200).json({
-      fileUrl: r2Result.url || `/uploads/${storedFile._id}`,
+      fileUrl: r2Result.url,
       fileName: r2Result.originalName,
-      fileId: storedFile._id,
+      fileId: storedFile?._id || r2Result.key,
       storage: 'r2',
     });
   } catch (error: any) {

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import './UserWorkspace.css';
 import { SUPPORTING_DOCS_DATA } from '../data/supportingDocsData';
+import { validateClientFile } from '../utils/fileValidation';
 
 interface Field {
   id: string;
@@ -357,6 +358,13 @@ const UserWorkspace: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const validation = validateClientFile(file);
+    if (!validation.isValid) {
+      alert(validation.error);
+      e.target.value = '';
+      return;
+    }
+
     const formData = new FormData();
     formData.append('file', file);
 
@@ -456,6 +464,12 @@ const UserWorkspace: React.FC = () => {
 
       // 1. Upload all files sequentially to avoid overwhelming server
       for (const file of files) {
+        const validation = validateClientFile(file);
+        if (!validation.isValid) {
+          alert(`File "${file.name}": ${validation.error}`);
+          continue;
+        }
+
         const formData = new FormData();
         formData.append('file', file);
 

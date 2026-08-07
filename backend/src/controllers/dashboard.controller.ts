@@ -12,3 +12,17 @@ export const getMetrics = async (req: Request, res: Response) => {
     return res.status(500).json({ error: error.message || 'Failed to fetch dashboard metrics' });
   }
 };
+
+export const getStorageStats = async (req: Request, res: Response) => {
+  try {
+    const { StorageService } = await import('../services/storage/StorageService');
+    const stats = await StorageService.getStorageStats();
+    return res.status(200).json({
+      status: 'ok',
+      storage: 'cloudflare-r2',
+      ...stats,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch storage statistics' });
+  }
+};

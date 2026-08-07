@@ -3,7 +3,12 @@ import multer from 'multer';
 import { getSchema, updateSchema, parseSrfPdf } from '../controllers/schema.controller';
 import { protect, adminOnly } from '../middleware/auth.middleware';
 
-const upload = multer({ storage: multer.memoryStorage() });
+import { UPLOAD_LIMITS } from '../constants/upload.constants';
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: UPLOAD_LIMITS.MAX_FILE_SIZE_BYTES },
+});
 const router = Router();
 
 // Parse SRF Framework PDF (Only SUPER_ADMIN)
