@@ -142,16 +142,41 @@ const EvaluateTaskDetail: React.FC = () => {
 
   const getFieldValue = (qId: string, fId: string) => {
     const qr = responses.find(r => String(r.questionId) === String(qId));
-    if (!qr) return '—';
-    const fr = qr.fieldResponses?.find((fr: any) => String(fr.fieldId) === String(fId));
+    let fr = qr?.fieldResponses?.find((fr: any) => String(fr.fieldId) === String(fId));
+    if (!fr) {
+      for (const resp of responses) {
+        const found = resp.fieldResponses?.find((f: any) => String(f.fieldId) === String(fId));
+        if (found && found.value !== undefined && found.value !== null && found.value !== '') {
+          fr = found;
+          break;
+        }
+      }
+    }
     return fr && fr.value !== undefined && fr.value !== null && fr.value !== '' ? fr.value : '—';
   };
   
   const getFieldFile = (qId: string, fId: string) => {
     const qr = responses.find(r => String(r.questionId) === String(qId));
-    if (!qr) return null;
-    const fr = qr.fieldResponses?.find((fr: any) => String(fr.fieldId) === String(fId));
-    if (fr && fr.fileUrl) return fr;
+    let fr = qr?.fieldResponses?.find((fr: any) => String(fr.fieldId) === String(fId));
+    if (!fr) {
+      for (const resp of responses) {
+        const found = resp.fieldResponses?.find((f: any) => String(f.fieldId) === String(fId));
+        if (found && (found.fileUrl || (typeof found.value === 'string' && (found.value.includes('/uploads/') || found.value.startsWith('http'))))) {
+          fr = found;
+          break;
+        }
+      }
+    }
+    if (fr) {
+      const fUrl = fr.fileUrl || (typeof fr.value === 'string' && (fr.value.includes('/uploads/') || fr.value.startsWith('http')) ? fr.value : null);
+      if (fUrl) {
+        return {
+          ...fr,
+          fileUrl: fUrl,
+          fileName: fr.fileName || (typeof fr.value === 'string' ? fr.value.split('/').pop() : 'View Document')
+        };
+      }
+    }
     return null;
   };
 
@@ -178,7 +203,7 @@ const EvaluateTaskDetail: React.FC = () => {
   if (loading) return <div style={{padding: 40}}>Loading details...</div>;
   if (!assignment || !schema) return <div style={{padding: 40}}>Task not found.</div>;
 
-  const allQuestions = schema.areas.flatMap(a => a.actionPoints.flatMap(ap => ap.questions));
+  const allQuestions = schema && schema.areas ? schema.areas.flatMap(a => (a.actionPoints || []).flatMap(ap => ap.questions || [])) : [];
   
   const isFrozen = assignment.status === 'EVALUATED';
   const currentUserObj = JSON.parse(localStorage.getItem('user') || '{}');
@@ -225,18 +250,24 @@ const EvaluateTaskDetail: React.FC = () => {
         <div className="etd-main" style={{ maxWidth: '900px' }}>
           <div className="etd-section-title">User's Submitted Data</div>
           <div className="etd-scroll-area">
-            {allQuestions.map(q => {
-              const qr = responses.find(r => String(r.questionId) === String(q.id));
-              const supportingDocs = qr?.supportingDocumentResponses || [];
-              const additionalFiles = qr?.additionalFiles || [];
+            {allQuestions.length === 0 ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b' }}>
+                <p style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>No specific questions mapped for this assigned scope.</p>
+                <p style={{ margin: '8px 0 0 0', fontSize: '13px' }}>The user's assigned scope may have been updated or completed.</p>
+              </div>
+            ) : (
+              allQuestions.map(q => {
+                const qr = responses.find(r => String(r.questionId) === String(q.id));
+                const supportingDocs = qr?.supportingDocumentResponses || [];
+                const additionalFiles = qr?.additionalFiles || [];
 
-              return (
-                <div key={q.id} className="etd-q-card">
-                  <div className="etd-q-num">Q{q.questionNumber}</div>
-                  <div className="etd-q-content" style={{ width: '100%' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                      <div style={{ flex: 1, paddingRight: '16px' }}>
-                        <h3 style={{ margin: 0 }}>{q.title}</h3>
+                return (
+                  <div key={q.id} className="etd-q-card">
+                    <div className="etd-q-num">Q{q.questionNumber}</div>
+                    <div className="etd-q-content" style={{ width: '100%' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                        <div style={{ flex: 1, paddingRight: '16px' }}>
+                          <h3 style={{ margin: 0 }}>{q.title}</h3>
                         {q.guidelinesRef && (
                           <div style={{ marginTop: '6px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <BookOpen size={15} color="#4f46e5" />
@@ -538,7 +569,7 @@ const EvaluateTaskDetail: React.FC = () => {
                   </div>
                 </div>
               );
-            })}
+            }))}
           </div>
         </div>
 

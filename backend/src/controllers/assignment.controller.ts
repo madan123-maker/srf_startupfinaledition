@@ -603,9 +603,15 @@ export const getAdminAssignmentDetails = async (req: AuthRequest, res: Response)
     }
 
     const { id } = req.params;
-    const assignment = await Assignment.findById(id)
-      .populate('editionId', 'name version')
+    let assignment = await Assignment.findById(id)
+      .populate('editionId', 'name version status')
       .populate('userId', 'name email state');
+
+    if (!assignment && mongoose.Types.ObjectId.isValid(id)) {
+      assignment = await Assignment.findOne({ _id: new mongoose.Types.ObjectId(id) })
+        .populate('editionId', 'name version status')
+        .populate('userId', 'name email state');
+    }
 
     if (!assignment) {
       return res.status(404).json({ error: 'Assignment not found.' });
@@ -614,39 +620,40 @@ export const getAdminAssignmentDetails = async (req: AuthRequest, res: Response)
     const rawEditionId = (assignment.editionId as any)?._id || assignment.editionId;
     const rawUserId = (assignment.userId as any)?._id || assignment.userId;
 
-    // Get the filtered schema
-    const schema = await FormSchemaModel.findOne({ editionId: rawEditionId });
-    if (!schema) return res.status(404).json({ error: 'Schema not found.' });
-
-    let filteredAreas = schema.toObject().areas;
-    if (assignment.scope === 'REFORM_AREA') {
-      filteredAreas = filteredAreas.filter((a: any) => a.id === assignment.reformAreaId);
-    } else if (assignment.scope === 'ACTION_POINT') {
-      filteredAreas = filteredAreas
-        .filter((a: any) => a.id === assignment.reformAreaId)
-        .map((a: any) => ({
-          ...a,
-          actionPoints: a.actionPoints.filter((ap: any) => ap.id === assignment.actionPointId),
-        })) as any;
-    } else if (assignment.scope === 'QUESTION') {
-      filteredAreas = filteredAreas
-        .filter((a: any) => a.id === assignment.reformAreaId)
-        .map((a: any) => ({
-          ...a,
-          actionPoints: a.actionPoints
-            .filter((ap: any) => ap.id === assignment.actionPointId)
-            .map((ap: any) => ({
-              ...ap,
-              questions: ap.questions.filter((q: any) => q.id === assignment.questionId),
-            })),
-        })) as any;
+    // Get the schema for this edition
+    let schema = await FormSchemaModel.findOne({ editionId: rawEditionId });
+    if (!schema && mongoose.Types.ObjectId.isValid(rawEditionId)) {
+      schema = await FormSchemaModel.findOne({ editionId: new mongoose.Types.ObjectId(rawEditionId) });
+    }
+    if (!schema) {
+      schema = await FormSchemaModel.findOne({ editionId: rawEditionId.toString() });
+    }
+    if (!schema) {
+      return res.status(404).json({ error: 'Schema not found for this edition.' });
     }
 
-    // Get the user's submission to see their filled data
-    const submission = await Submission.findOne({
+    // Filter the schema based on assigned scope
+    let filteredAreas = filterSchemaForUserAssignments(schema.toObject().areas || [], [assignment]);
+    if (!filteredAreas || filteredAreas.length === 0) {
+      // Fallback to all areas if specific filtering produced no matches
+      filteredAreas = schema.toObject().areas || [];
+    }
+
+    // Get the user's submission to see their filled responses & documents
+    let submission = await Submission.findOne({
       editionId: rawEditionId,
       userId: rawUserId
     });
+
+    if (!submission && (mongoose.Types.ObjectId.isValid(rawEditionId) || mongoose.Types.ObjectId.isValid(rawUserId))) {
+      submission = await Submission.findOne({
+        $or: [
+          { editionId: rawEditionId, userId: rawUserId },
+          { editionId: new mongoose.Types.ObjectId(rawEditionId), userId: new mongoose.Types.ObjectId(rawUserId) },
+          { editionId: rawEditionId.toString(), userId: rawUserId.toString() }
+        ]
+      });
+    }
 
     return res.status(200).json({
       assignment,
