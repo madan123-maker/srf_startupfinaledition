@@ -56,7 +56,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
     <main id="main-content" className="flex items-center justify-center min-h-screen" style={{ background: 'var(--bg-color)' }}>
       <a href="#main-content" className="skip-link">Skip to main content</a>
       <div className="glass-card" style={{ width: '100%', maxWidth: '450px', position: 'relative' }}>
-        <button 
+        <button
           onClick={() => navigate('/')}
           aria-label="Back to landing page"
           style={{ position: 'absolute', top: '20px', left: '20px', background: 'none', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}
@@ -81,13 +81,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
             <label className="form-label" htmlFor="email">
               Email Address <span aria-hidden="true" style={{ color: '#ef4444' }}>*</span>
             </label>
-            <input 
+            <input
               id="email"
-              type="email" 
-              className="form-control" 
+              type="email"
+              className="form-control"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder={isAdminLogin ? "admin@srf.gov.in" : "user@state.gov.in"}
               required
               aria-required="true"
               aria-invalid={!!error}
@@ -100,10 +99,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
               Password <span aria-hidden="true" style={{ color: '#ef4444' }}>*</span>
             </label>
             <div style={{ position: 'relative' }}>
-              <input 
+              <input
                 id="password"
-                type={showPassword ? "text" : "password"} 
-                className="form-control" 
+                type={showPassword ? "text" : "password"}
+                className="form-control"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
@@ -113,17 +112,17 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
                 aria-describedby={error ? "login-error" : undefined}
                 style={{ paddingRight: '40px' }}
               />
-              <button 
+              <button
                 type="button"
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowPassword(!showPassword)}
-                style={{ 
-                  position: 'absolute', 
-                  right: '12px', 
-                  top: '50%', 
-                  transform: 'translateY(-50%)', 
-                  background: 'none', 
-                  border: 'none', 
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
                   color: 'var(--text-secondary)',
                   cursor: 'pointer',
                   display: 'flex',
@@ -144,9 +143,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
             </div>
           )}
 
-          <button 
-            type="submit" 
-            className="btn btn-primary" 
+          <button
+            type="submit"
+            className="btn btn-primary"
             style={{ width: '100%', padding: '14px', fontSize: '16px', marginTop: '16px' }}
             disabled={loading}
           >
