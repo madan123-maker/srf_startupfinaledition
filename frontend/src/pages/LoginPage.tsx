@@ -87,6 +87,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
               className="form-control"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email address"
               required
               aria-required="true"
               aria-invalid={!!error}
@@ -105,7 +106,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ isAdminLogin }) => {
                 className="form-control"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 required
                 aria-required="true"
                 aria-invalid={!!error}

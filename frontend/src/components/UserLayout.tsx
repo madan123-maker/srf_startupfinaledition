@@ -1,8 +1,8 @@
 import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import logoUrl from '../assets/logo.png';
 import { 
-  Building2, 
   LayoutDashboard, 
   FileText, 
   MessageSquare, 
@@ -160,7 +160,12 @@ const UserLayout: React.FC = () => {
 
       <aside className="admin-sidebar" aria-label="User Navigation Sidebar">
         <div className="sidebar-brand">
-          <Building2 size={24} color="#e85d04" aria-hidden="true" />
+          <img 
+            src={logoUrl} 
+            alt="APIS Logo" 
+            className="brand-logo-img" 
+            style={{ width: '32px', height: '32px', objectFit: 'contain' }} 
+          />
           <span className="brand-text">State Portal</span>
         </div>
         
@@ -188,8 +193,6 @@ const UserLayout: React.FC = () => {
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <header role="banner" className="admin-header">
-          <div className="header-search"></div>
-          
           <div className="header-actions">
             <div style={{ position: 'relative' }}>
               <button 

@@ -1,8 +1,11 @@
 import { Submission, SubmissionStatus } from '../models/Submission';
+import { User } from '../models/User';
 import mongoose from 'mongoose';
 
 export class DashboardService {
   async getMetrics(editionId?: string) {
+    // Ensure User model is loaded for populate
+    void User;
     let matchStage: any = {};
     if (editionId && editionId !== 'all') {
       if (mongoose.Types.ObjectId.isValid(editionId)) {
@@ -13,7 +16,9 @@ export class DashboardService {
     }
 
     // Fetch all submissions matching matchStage with populated userId
-    const rawSubmissions = await Submission.find(matchStage).populate('userId', '_id name email').lean();
+    const rawSubmissions = await Submission.find(matchStage)
+      .populate('userId', '_id name email state district')
+      .lean();
     
     // Filter out orphaned submissions from deleted users
     const validSubmissions = rawSubmissions.filter((sub: any) => sub.userId != null);
@@ -26,32 +31,53 @@ export class DashboardService {
     let approvedApplications = 0;
     let rejectedApplications = 0;
 
+    // Dynamic District-wise Compliance Progress based on real submissions data
+    const districtMap: { [district: string]: { count: number; totalProgress: number } } = {};
+
     nonDraftSubmissions.forEach((s: any) => {
       let hasResubmission = false;
       let hasApprovedFields = false;
+      let totalFields = 0;
+      let approvedFields = 0;
 
       if (Array.isArray(s.responses)) {
         s.responses.forEach((r: any) => {
           if (Array.isArray(r.fieldResponses)) {
             r.fieldResponses.forEach((f: any) => {
+              totalFields++;
               if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
-              if (f.evaluationStatus === 'APPROVED') hasApprovedFields = true;
+              if (f.evaluationStatus === 'APPROVED') {
+                hasApprovedFields = true;
+                approvedFields++;
+              }
             });
           }
           if (Array.isArray(r.additionalFiles)) {
             r.additionalFiles.forEach((f: any) => {
+              totalFields++;
               if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
-              if (f.evaluationStatus === 'APPROVED') hasApprovedFields = true;
+              if (f.evaluationStatus === 'APPROVED') {
+                hasApprovedFields = true;
+                approvedFields++;
+              }
             });
           }
           if (Array.isArray(r.supportingDocumentResponses)) {
             r.supportingDocumentResponses.forEach((d: any) => {
+              totalFields++;
               if (d.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
-              if (d.evaluationStatus === 'APPROVED') hasApprovedFields = true;
+              if (d.evaluationStatus === 'APPROVED') {
+                hasApprovedFields = true;
+                approvedFields++;
+              }
               if (Array.isArray(d.files)) {
                 d.files.forEach((f: any) => {
+                  totalFields++;
                   if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
-                  if (f.evaluationStatus === 'APPROVED') hasApprovedFields = true;
+                  if (f.evaluationStatus === 'APPROVED') {
+                    hasApprovedFields = true;
+                    approvedFields++;
+                  }
                 });
               }
             });
@@ -59,49 +85,58 @@ export class DashboardService {
         });
       }
 
-      const isPending = hasResubmission || s.status === 'PENDING';
-      const isApproved = !isPending && (s.status === SubmissionStatus.APPROVED || hasApprovedFields);
-      const isRejected = !isPending && !isApproved && s.status === SubmissionStatus.REJECTED;
-
-      if (isPending) {
-        submittedApplications++;
-      } else if (isApproved) {
+      // Count metrics based strictly on each submission's actual status
+      if (s.status === SubmissionStatus.APPROVED) {
         approvedApplications++;
-      } else if (isRejected) {
+      } else if (s.status === SubmissionStatus.REJECTED) {
         rejectedApplications++;
       } else {
         submittedApplications++;
       }
+
+      // Calculate progress for THIS specific submission based on its lifecycle
+      let submissionProgress = 0;
+      if (s.status === SubmissionStatus.APPROVED) {
+        submissionProgress = 100;
+      } else if (s.status === SubmissionStatus.UNDER_REVIEW) {
+        if (totalFields > 0 && approvedFields > 0) {
+          submissionProgress = Math.min(95, Math.max(50, Math.round((approvedFields / totalFields) * 100)));
+        } else {
+          submissionProgress = 75;
+        }
+      } else if (s.status === SubmissionStatus.REJECTED) {
+        submissionProgress = 0;
+      } else {
+        // SUBMITTED / PENDING / RESUBMISSION_REQUIRED
+        if (hasResubmission) {
+          submissionProgress = 35;
+        } else if (totalFields > 0 && approvedFields > 0) {
+          submissionProgress = Math.min(90, Math.max(50, Math.round((approvedFields / totalFields) * 100)));
+        } else {
+          submissionProgress = 50;
+        }
+      }
+
+      // Resolve District Name dynamically
+      const userObj = s.userId as any;
+      const districtName = (s as any).districtName
+        || (userObj?.district && userObj.district.trim() !== '' ? userObj.district.trim() : '')
+        || (s.stateName && s.stateName !== 'Unassigned' ? s.stateName : '')
+        || (userObj?.state && userObj.state.trim() !== '' ? userObj.state.trim() : '')
+        || 'General';
+
+      if (!districtMap[districtName]) {
+        districtMap[districtName] = { count: 0, totalProgress: 0 };
+      }
+      districtMap[districtName].count += 1;
+      districtMap[districtName].totalProgress += submissionProgress;
     });
 
     const totalApplications = nonDraftSubmissions.length;
-    const submissionsList = nonDraftSubmissions;
 
-    // Dynamic State / District Compliance Progress based on real submissions data
-    const stateMap: { [state: string]: { count: number; totalProgress: number } } = {};
-
-    submissionsList.forEach((sub: any) => {
-      const stateName = sub.stateName || 'Unassigned';
-      
-      let progress = 60; // Default submitted progress
-      if (sub.status === SubmissionStatus.APPROVED || approvedApplications > 0) {
-        progress = 100;
-      } else if (sub.status === SubmissionStatus.UNDER_REVIEW) {
-        progress = 80;
-      } else if (sub.status === SubmissionStatus.REJECTED) {
-        progress = 15;
-      }
-
-      if (!stateMap[stateName]) {
-        stateMap[stateName] = { count: 0, totalProgress: 0 };
-      }
-      stateMap[stateName].count += 1;
-      stateMap[stateName].totalProgress += progress;
-    });
-
-    const districtCompliance = Object.keys(stateMap).map((state) => ({
-      name: state,
-      progress: Math.round(stateMap[state].totalProgress / stateMap[state].count)
+    const districtCompliance = Object.keys(districtMap).map((district) => ({
+      name: district,
+      progress: Math.round(districtMap[district].totalProgress / districtMap[district].count)
     }));
 
     return {
@@ -122,4 +157,3 @@ export class DashboardService {
     };
   }
 }
-

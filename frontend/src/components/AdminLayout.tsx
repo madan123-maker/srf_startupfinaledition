@@ -1,8 +1,8 @@
 import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import logoUrl from '../assets/logo.png';
 import { 
-  Building2, 
   LayoutDashboard, 
   Layers, 
   Users, 
@@ -13,7 +13,6 @@ import {
   GitMerge, 
   CheckCircle,
   Trash2, 
-  Search, 
   Bell, 
   Lock, 
   LogOut
@@ -195,7 +194,12 @@ const AdminLayout: React.FC = () => {
       {/* Sidebar */}
       <aside className="admin-sidebar" aria-label="Admin Navigation Sidebar">
         <div className="sidebar-brand">
-          <Building2 size={24} color="#e85d04" aria-hidden="true" />
+          <img 
+            src={logoUrl} 
+            alt="APIS Logo" 
+            className="brand-logo-img" 
+            style={{ width: '32px', height: '32px', objectFit: 'contain' }} 
+          />
           <span className="brand-text">SRF Platform</span>
         </div>
         
@@ -267,11 +271,6 @@ const AdminLayout: React.FC = () => {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Top Header */}
         <header role="banner" className="admin-header">
-          <div className="header-search">
-            <Search size={18} className="search-icon" />
-            <input type="text" placeholder="Search applications..." className="search-input" aria-label="Search applications" />
-          </div>
-          
           <div className="header-actions">
             <div style={{ position: 'relative' }}>
               <button 

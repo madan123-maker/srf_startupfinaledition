@@ -1,7 +1,7 @@
 import { API_BASE_URL } from '../config/api';
 import React, { useEffect, useState } from 'react';
-import { Download } from 'lucide-react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { Download, Loader2 } from 'lucide-react';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from 'recharts';
 import './SuperAdminDashboard.css';
 
 interface DashboardMetrics {
@@ -33,6 +33,7 @@ const SuperAdminDashboard: React.FC = () => {
   const [editions, setEditions] = useState<Edition[]>([]);
   const [selectedEdition, setSelectedEdition] = useState<string>('');
   const [_loading, setLoading] = useState<boolean>(true);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     executiveCommand: {
       totalSubmissions: 0,
@@ -107,6 +108,60 @@ const SuperAdminDashboard: React.FC = () => {
     fetchMetrics();
   }, [selectedEdition]);
 
+  const handleExportExecutiveSummary = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const token = localStorage.getItem('token');
+      let url = `${API_BASE_URL}/api/dashboard/export-executive-summary`;
+      if (selectedEdition && selectedEdition !== 'all') {
+        url += `?editionId=${selectedEdition}`;
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to export executive summary');
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+
+      // Extract filename if present in Content-Disposition header
+      const contentDisposition = response.headers.get('content-disposition');
+      let fileName = `SRF_Executive_Summary_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) {
+          fileName = match[1];
+        }
+      } else if (selectedEdition && selectedEdition !== 'all') {
+        const curEd = editions.find(e => (e._id || (e as any).id) === selectedEdition);
+        if (curEd) {
+          fileName = `SRF_Executive_Summary_${curEd.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        }
+      }
+
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      console.error('Export executive summary failed:', err);
+      alert(`Export failed: ${err.message || 'Failed to export executive summary'}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const { validationMetrics, districtCompliance } = metrics;
 
   // Formatting data for the Donut Chart dynamically according to edition status counts
@@ -143,8 +198,21 @@ const SuperAdminDashboard: React.FC = () => {
                 <option key={ed._id || (ed as any).id} value={ed._id || (ed as any).id}>{ed.name}</option>
               ))}
             </select>
-            <button className="btn-export">
-              <Download size={16} /> Export Executive Summary
+            <button 
+              className="btn-export"
+              onClick={handleExportExecutiveSummary}
+              disabled={isExporting}
+              title="Export Executive Summary Report (.xlsx)"
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" /> Exporting...
+                </>
+              ) : (
+                <>
+                  <Download size={16} /> Export Executive Summary
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -222,7 +290,7 @@ const SuperAdminDashboard: React.FC = () => {
 
           {/* Bar Chart */}
           <div className="chart-container">
-            <h4 className="chart-title">District / State Compliance Progress (%)</h4>
+            <h4 className="chart-title">District Compliance Progress (%)</h4>
             <div style={{ height: '300px', width: '100%' }}>
               {hasBarData ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -236,13 +304,18 @@ const SuperAdminDashboard: React.FC = () => {
                       tick={{fill: '#64748b', fontSize: 12}} 
                       tickFormatter={(value) => `${value}%`}
                     />
-                    <Tooltip cursor={{fill: '#f1f5f9'}} />
-                    <Bar dataKey="progress" fill={BAR_COLOR} radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    <Tooltip 
+                      cursor={{fill: '#f1f5f9'}} 
+                      formatter={(value: any) => [`${value}%`, 'Compliance Progress']}
+                    />
+                    <Bar dataKey="progress" fill={BAR_COLOR} radius={[4, 4, 0, 0]} maxBarSize={44}>
+                      <LabelList dataKey="progress" position="top" formatter={(val: any) => `${val}%`} fill="#64748b" fontSize={11} offset={6} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
                 <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
-                  No state compliance data available for this edition.
+                  No district compliance data available for this edition.
                 </div>
               )}
             </div>

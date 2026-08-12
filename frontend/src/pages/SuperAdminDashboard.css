@@ -72,10 +72,31 @@
   font-weight: 600;
   font-size: 13px;
   transition: all 0.2s;
+  cursor: pointer;
 }
 
-.btn-export:hover {
+.btn-export:hover:not(:disabled) {
   background-color: #f8fafc;
+  border-color: #cbd5e1;
+  color: #1e293b;
+}
+
+.btn-export:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .metrics-grid {
