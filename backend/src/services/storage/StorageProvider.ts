@@ -27,5 +27,7 @@ export interface StorageProvider {
     options?: UploadFileOptions
   ): Promise<StorageUploadResult>;
   getPublicUrl(key: string): string;
+  getObject(key: string): Promise<{ buffer: Buffer; contentType?: string; contentLength?: number } | null>;
   checkHealth(): Promise<{ status: string; details?: string }>;
 }
+

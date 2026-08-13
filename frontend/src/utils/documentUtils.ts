@@ -19,15 +19,13 @@ export const openDocumentPreview = async (fileUrl?: string, fileName?: string): 
 
   const fullUrl = getFileUrl(fileUrl);
 
-  // Absolute public URLs (such as Cloudflare R2 public dev URLs or external links) open directly in browser tab
-  if (fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
-    if (!fullUrl.includes('/uploads/')) {
-      window.open(fullUrl, '_blank', 'noopener,noreferrer');
-      return;
-    }
+  // Google Drive and non-backend external URLs open directly in a new tab
+  if ((fullUrl.includes('drive.google.com') || fullUrl.includes('docs.google.com')) && !fullUrl.includes('/api/') && !fullUrl.includes('/uploads/')) {
+    window.open(fullUrl, '_blank', 'noopener,noreferrer');
+    return;
   }
 
-  // Synchronously open blank window for secure Blob previewing of backend /uploads/ routes
+  // Synchronously open blank window for secure Blob previewing
   const previewWindow = window.open('', '_blank');
 
   if (previewWindow) {
@@ -175,19 +173,17 @@ export const downloadDocument = async (fileUrl?: string, fileName?: string): Pro
 
   const fullUrl = getFileUrl(fileUrl);
 
-  // If public absolute URL, trigger direct browser download link
-  if (fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
-    if (!fullUrl.includes('/uploads/')) {
-      const a = document.createElement('a');
-      a.href = fullUrl;
-      a.download = fileName || 'Document';
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      return;
-    }
+  // If public Google Drive URL, trigger direct browser download link
+  if ((fullUrl.includes('drive.google.com') || fullUrl.includes('docs.google.com')) && !fullUrl.includes('/api/') && !fullUrl.includes('/uploads/')) {
+    const a = document.createElement('a');
+    a.href = fullUrl;
+    a.download = fileName || 'Document';
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return;
   }
 
   try {
@@ -197,11 +193,13 @@ export const downloadDocument = async (fileUrl?: string, fileName?: string): Pro
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const downloadTargetUrl = fullUrl.includes('?') ? `${fullUrl}&download=true` : `${fullUrl}?download=true`;
+
     let response: Response;
     try {
-      response = await fetch(fullUrl, { headers });
+      response = await fetch(downloadTargetUrl, { headers });
     } catch {
-      response = await fetch(fullUrl);
+      response = await fetch(downloadTargetUrl);
     }
 
     if (!response.ok) {
@@ -235,3 +233,4 @@ export const downloadDocument = async (fileUrl?: string, fileName?: string): Pro
     alert(`Download failed: ${error.message || 'Network error'}`);
   }
 };
+

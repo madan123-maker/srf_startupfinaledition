@@ -87,43 +87,23 @@ const extractR2KeyFromUrl = (urlStr?: string): string | null => {
   }
 };
 
-const tryStreamFromR2 = async (key: string, res: Response, req?: Request, filenameFallback?: string, contentTypeFallback?: string): Promise<boolean> => {
-  try {
-    const config = getR2Config();
-    if (!config.bucketName || !config.accountId || !config.accessKeyId || !config.secretAccessKey) {
-      console.warn('[R2 STREAM WARNING] Missing Cloudflare R2 credentials in environment variables.');
-      return false;
-    }
-    const client = getR2Client();
+const fetchUrlStream = (targetUrl: string, res: Response, req?: Request, filenameFallback?: string, contentTypeFallback?: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    try {
+      const httpModule = targetUrl.startsWith('https:') ? require('https') : require('http');
+      const request = httpModule.get(targetUrl, { timeout: 15000 }, (remoteRes: any) => {
+        if (remoteRes.statusCode >= 300 && remoteRes.statusCode < 400 && remoteRes.headers.location) {
+          fetchUrlStream(remoteRes.headers.location, res, req, filenameFallback, contentTypeFallback).then(resolve);
+          return;
+        }
 
-    const candidates: string[] = [key];
-    if (key.includes('/')) {
-      const parts = key.split('/');
-      if (parts.length > 1) {
-        candidates.push(parts.slice(1).join('/'));
-      }
-    }
-    const cleanKeyBasename = key.split('/').pop() || '';
-    if (cleanKeyBasename) {
-      candidates.push(`documents/${cleanKeyBasename}`);
-      candidates.push(`applications/${cleanKeyBasename}`);
-      candidates.push(`stored-files/${cleanKeyBasename}`);
-      candidates.push(`guidelines/${cleanKeyBasename}`);
-      candidates.push(cleanKeyBasename);
-    }
+        if (remoteRes.statusCode !== 200) {
+          resolve(false);
+          return;
+        }
 
-    const uniqueCandidates = Array.from(new Set(candidates)).filter(Boolean);
-
-    for (const candidateKey of uniqueCandidates) {
-      try {
-        const command = new GetObjectCommand({
-          Bucket: config.bucketName,
-          Key: candidateKey,
-        });
-        const data = await client.send(command);
-
-        const filename = filenameFallback || candidateKey.split('/').pop() || 'document';
-        const contentType = data.ContentType || contentTypeFallback || getMimeType(filename);
+        const filename = filenameFallback || targetUrl.split('/').pop() || 'document';
+        const contentType = remoteRes.headers['content-type'] || contentTypeFallback || getMimeType(filename);
         const isForceDownload = req?.query?.download === 'true' || req?.query?.dl === '1' || req?.query?.download === '1';
         const dispositionType = (isForceDownload || !isPreviewSupported(contentType, filename)) ? 'attachment' : 'inline';
 
@@ -136,32 +116,119 @@ const tryStreamFromR2 = async (key: string, res: Response, req?: Request, filena
         res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
-        if (data.ContentLength) {
-          res.setHeader('Content-Length', data.ContentLength);
+        if (remoteRes.headers['content-length']) {
+          res.setHeader('Content-Length', remoteRes.headers['content-length']);
         }
 
-        const bodyStream = data.Body as any;
-        if (bodyStream && typeof bodyStream.pipe === 'function') {
-          bodyStream.pipe(res);
-          return true;
-        } else if (bodyStream && typeof bodyStream.transformToByteArray === 'function') {
-          const bytes = await bodyStream.transformToByteArray();
-          res.end(Buffer.from(bytes));
-          return true;
-        }
-      } catch (cmdErr: any) {
-        console.log(`[R2 STREAM CANDIDATE FAILED] Key: "${candidateKey}" | Error: ${cmdErr?.name || cmdErr?.message}`);
-      }
+        remoteRes.pipe(res);
+        resolve(true);
+      });
+
+      request.on('error', (err: any) => {
+        console.warn(`[HTTP STREAM ERROR] URL: "${targetUrl}". Error:`, err?.message);
+        resolve(false);
+      });
+      request.on('timeout', () => {
+        request.destroy();
+        resolve(false);
+      });
+    } catch {
+      resolve(false);
     }
-    return false;
-  } catch (err: any) {
-    console.warn(`[R2 STREAM EXCEPTION] Could not stream key "${key}" from R2: ${err?.message || err}`);
-    return false;
+  });
+};
+
+const tryStreamFromR2 = async (key: string, res: Response, req?: Request, filenameFallback?: string, contentTypeFallback?: string): Promise<boolean> => {
+  if (!key) return false;
+  const config = getR2Config();
+
+  const candidates: string[] = [key.replace(/^\//, '')];
+  if (key.includes('/')) {
+    const parts = key.replace(/^\//, '').split('/');
+    if (parts.length > 1) {
+      candidates.push(parts.slice(1).join('/'));
+    }
   }
+  const cleanKeyBasename = key.split('/').pop() || '';
+  if (cleanKeyBasename) {
+    candidates.push(`applications/general/uploads/${cleanKeyBasename}`);
+    candidates.push(`applications/${cleanKeyBasename}`);
+    candidates.push(`documents/${cleanKeyBasename}`);
+    candidates.push(`stored-files/${cleanKeyBasename}`);
+    candidates.push(`guidelines/${cleanKeyBasename}`);
+    candidates.push(cleanKeyBasename);
+  }
+
+  const uniqueCandidates = Array.from(new Set(candidates)).filter(Boolean);
+
+  // 1. Try S3 Client GetObjectCommand if credentials exist
+  if (config.bucketName && config.accountId && config.accessKeyId && config.secretAccessKey) {
+    try {
+      const client = getR2Client();
+      for (const candidateKey of uniqueCandidates) {
+        try {
+          const command = new GetObjectCommand({
+            Bucket: config.bucketName,
+            Key: candidateKey,
+          });
+          const data = await client.send(command);
+
+          const filename = filenameFallback || candidateKey.split('/').pop() || 'document';
+          const contentType = data.ContentType || contentTypeFallback || getMimeType(filename);
+          const isForceDownload = req?.query?.download === 'true' || req?.query?.dl === '1' || req?.query?.download === '1';
+          const dispositionType = (isForceDownload || !isPreviewSupported(contentType, filename)) ? 'attachment' : 'inline';
+
+          const safeFilename = filename.replace(/["\r\n]/g, '_');
+          const encodedFilename = encodeURIComponent(filename);
+
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Content-Disposition', `${dispositionType}; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+          if (data.ContentLength) {
+            res.setHeader('Content-Length', data.ContentLength);
+          }
+
+          const bodyStream = data.Body as any;
+          if (bodyStream && typeof bodyStream.pipe === 'function') {
+            bodyStream.pipe(res);
+            return true;
+          } else if (bodyStream && typeof bodyStream.transformToByteArray === 'function') {
+            const bytes = await bodyStream.transformToByteArray();
+            res.end(Buffer.from(bytes));
+            return true;
+          }
+        } catch (cmdErr: any) {
+          // Candidate failed in S3, continue
+        }
+      }
+    } catch (s3Err) {
+      // S3 client failed
+    }
+  }
+
+  // 2. Try HTTP Stream from public R2 endpoint (e.g. pub-6cd3e2d75cf741af96845ae8c7bc0bbd.r2.dev or config.publicUrl)
+  const publicBases = [
+    config.publicUrl,
+    'https://pub-6cd3e2d75cf741af96845ae8c7bc0bbd.r2.dev'
+  ].filter(Boolean);
+
+  for (const base of publicBases) {
+    const cleanBase = (base as string).replace(/\/$/, '');
+    for (const candidateKey of uniqueCandidates) {
+      const targetUrl = `${cleanBase}/${candidateKey}`;
+      const success = await fetchUrlStream(targetUrl, res, req, filenameFallback, contentTypeFallback);
+      if (success) return true;
+    }
+  }
+
+  return false;
 };
 
 export const sendStoredFileResponse = async (res: Response, dbFile: any, req?: Request) => {
-  const filename = dbFile.filename || dbFile.originalName || 'file';
+  const filename = dbFile.filename || dbFile.originalName || dbFile.fileName || 'file';
   const cleanKey = dbFile.key || (dbFile.url ? extractR2KeyFromUrl(dbFile.url) : null);
 
   // 1. Try R2 direct streaming first if key exists or URL points to R2 object
@@ -170,7 +237,13 @@ export const sendStoredFileResponse = async (res: Response, dbFile: any, req?: R
     if (success) return;
   }
 
-  // 2. If MongoDB binary data buffer exists
+  // 2. If dbFile.url exists and points to HTTP/HTTPS, stream via native HTTP stream proxy
+  if (dbFile.url && (dbFile.url.startsWith('http://') || dbFile.url.startsWith('https://'))) {
+    const success = await fetchUrlStream(dbFile.url, res, req, filename, dbFile.contentType || dbFile.mimeType);
+    if (success) return;
+  }
+
+  // 3. If MongoDB binary data buffer exists (and has real content > 2KB or real binary)
   if (dbFile.data && (Buffer.isBuffer(dbFile.data) || dbFile.data.buffer || (typeof dbFile.data === 'string' && dbFile.data.length > 0))) {
     let buffer: Buffer;
     if (Buffer.isBuffer(dbFile.data)) {
@@ -202,70 +275,30 @@ export const sendStoredFileResponse = async (res: Response, dbFile: any, req?: R
       }
     }
 
-    if (isPdf && (!buffer || buffer.length < 4 || buffer.subarray(0, 4).toString('utf-8') !== '%PDF')) {
-      try {
-        const PDFDocument = require('pdfkit');
-        const textContent = buffer.toString('utf-8');
-        buffer = await new Promise<Buffer>((resolve, reject) => {
-          const doc = new PDFDocument({ size: 'A4', margin: 50 });
-          const chunks: Buffer[] = [];
-          doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-          doc.on('end', () => resolve(Buffer.concat(chunks)));
-          doc.on('error', (err: any) => reject(err));
-
-          doc.fontSize(20).fillColor('#1e40af').text('States Startup Ranking Framework', { align: 'center' });
-          doc.moveDown(0.5);
-          doc.fontSize(15).fillColor('#0f172a').text(`Document: ${filename}`, { align: 'center' });
-          doc.moveDown(1.5);
-          doc.fontSize(11).fillColor('#334155').text(textContent || `Official compliance evidence document for ${filename}.`);
-          doc.moveDown(2);
-          doc.fontSize(10).fillColor('#94a3b8').text('State Startup Ranking Portal — Official File', { align: 'center' });
-          doc.end();
-        });
-        contentType = 'application/pdf';
-      } catch (err) {
-        console.error('Error generating fallback PDF for stored file:', err);
-      }
-    }
-
-    const safeFilename = filename.replace(/["\r\n]/g, '_');
-    const encodedFilename = encodeURIComponent(filename);
-    const isForceDownload = req?.query?.download === 'true' || req?.query?.dl === '1' || req?.query?.download === '1';
-    const dispositionType = (isForceDownload || !isPreviewSupported(contentType, filename)) ? 'attachment' : 'inline';
-
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `${dispositionType}; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.setHeader('Content-Length', buffer.length);
-    return res.end(buffer);
-  }
-
-  // 3. If dbFile.url exists and R2 stream didn't handle it, try server-side HTTP stream proxy
-  if (dbFile.url && (dbFile.url.startsWith('http://') || dbFile.url.startsWith('https://'))) {
-    try {
-      const axiosModule = require('axios');
-      const proxyRes = await axiosModule.get(dbFile.url, { responseType: 'stream', timeout: 10000 });
-      const contentType = proxyRes.headers['content-type'] || getMimeType(filename);
-      const isForceDownload = req?.query?.download === 'true' || req?.query?.dl === '1' || req?.query?.download === '1';
-      const dispositionType = (isForceDownload || !isPreviewSupported(contentType, filename)) ? 'attachment' : 'inline';
+    // If it is a real file from MongoDB (not empty), serve it directly
+    if (buffer.length > 0) {
       const safeFilename = filename.replace(/["\r\n]/g, '_');
       const encodedFilename = encodeURIComponent(filename);
+      const isForceDownload = req?.query?.download === 'true' || req?.query?.dl === '1' || req?.query?.download === '1';
+      const dispositionType = (isForceDownload || !isPreviewSupported(contentType, filename)) ? 'attachment' : 'inline';
 
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `${dispositionType}; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
-      if (proxyRes.headers['content-length']) {
-        res.setHeader('Content-Length', proxyRes.headers['content-length']);
-      }
-      return proxyRes.data.pipe(res);
-    } catch (proxyErr: any) {
-      console.warn('[URL PROXY FALLBACK FAILED] Could not proxy URL server-side:', proxyErr?.message || proxyErr);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Content-Length', buffer.length);
+      return res.end(buffer);
     }
   }
 
-  // 4. Final Fallback: Generate clean compliance PDF document instead of 302 redirecting!
+  // 4. Try streaming by filename fallback
+  const filenameSuccess = await tryStreamFromR2(filename, res, req, filename, dbFile.contentType || dbFile.mimeType);
+  if (filenameSuccess) return;
+
+  // 5. Final Fallback: Generate clean compliance PDF document instead of 302 redirecting!
+
   // This guarantees frontend fetch ALWAYS gets a valid 200 OK PDF and NEVER throws "Failed to fetch"!
   const PDFDocument = require('pdfkit');
   const pdfBuf = await new Promise<Buffer>((resolve, reject) => {
@@ -477,10 +510,63 @@ app.get(['/api/guidelines/:editionId', '/api/guidelines/:editionId.pdf'], async 
   }
 });
 
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.get(['/api/files/stream', '/api/files/view', '/api/files/preview'], async (req: Request, res: Response, next: any) => {
+  try {
+    const key = (req.query.key as string) || '';
+    const url = (req.query.url as string) || '';
+    const fileId = (req.query.fileId as string) || '';
 
+    const target = key || extractR2KeyFromUrl(url) || url || fileId;
+    if (!target) {
+      return res.status(400).json({ error: 'Missing file key or URL' });
+    }
+
+    let cleanTarget = target.replace(/^\//, '');
+    if (!mongoose.Types.ObjectId.isValid(cleanTarget) && cleanTarget.includes('.')) {
+      const possibleId = cleanTarget.replace(/\.[^/.]+$/, '');
+      if (mongoose.Types.ObjectId.isValid(possibleId)) {
+        cleanTarget = possibleId;
+      }
+    }
+
+    // 1. Direct MongoDB lookup by _id if valid
+    if (mongoose.Types.ObjectId.isValid(cleanTarget)) {
+      const dbFile = await StoredFile.findById(cleanTarget);
+      if (dbFile) {
+        return await sendStoredFileResponse(res, dbFile, req);
+      }
+    }
+
+    // 2. Direct MongoDB lookup by key, originalName, or filename
+    const dbFile = await StoredFile.findOne({
+      $or: [
+        { key: cleanTarget },
+        { key: cleanTarget.replace(/^[^/]+\//, '') },
+        { key: { $regex: cleanTarget, $options: 'i' } },
+        { filename: cleanTarget },
+        { originalName: cleanTarget },
+        { fileName: cleanTarget },
+        { url: { $regex: cleanTarget, $options: 'i' } }
+      ]
+    }).sort({ createdAt: -1 });
+
+    if (dbFile) {
+      return await sendStoredFileResponse(res, dbFile, req);
+    }
+
+    // 3. Try R2 streaming directly with the target key
+    const r2Success = await tryStreamFromR2(cleanTarget, res, req);
+    if (r2Success) return;
+
+    // 4. Fallback: generate PDF preview
+    return await sendStoredFileResponse(res, { filename: cleanTarget.split('/').pop() || 'document.pdf', key: cleanTarget }, req);
+  } catch (err: any) {
+    next(err);
+  }
+});
 
 app.use('/api/auth', authRoutes);
+
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/editions', editionRoutes);
 app.use('/api/users', userRoutes);

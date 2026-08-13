@@ -107,6 +107,10 @@ export class StorageService {
     return StorageService.provider.getPublicUrl(key);
   }
 
+  public static async getObject(key: string): Promise<{ buffer: Buffer; contentType?: string; contentLength?: number } | null> {
+    return StorageService.provider.getObject(key);
+  }
+
   /**
    * Calculates storage statistics across Cloudflare R2 and legacy databases.
    */

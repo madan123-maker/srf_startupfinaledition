@@ -45,38 +45,53 @@ export const API_BASE_URL = getApiBaseUrl();
 export const getFileUrl = (fileUrl?: string): string => {
   if (!fileUrl) return '#';
 
-  const r2PublicBase = (import.meta.env.VITE_R2_PUBLIC_URL || 'https://pub-6cd3e2d75cf741af96845ae8c7bc0bbd.r2.dev').replace(/\/$/, '');
+  const base = getApiBaseUrl();
 
-  // Convert legacy S3 API endpoint URLs (.r2.cloudflarestorage.com) to public R2 URLs
+  // Convert legacy S3 API endpoint URLs (.r2.cloudflarestorage.com) to backend stream URLs
   if (fileUrl.includes('.r2.cloudflarestorage.com/')) {
     try {
       const parsed = new URL(fileUrl);
       const pathname = parsed.pathname.replace(/^\//, '');
       const parts = pathname.split('/');
-      const objectKey = (parts.length > 1 && (parts[0] === 'srf' || parts[0] === 'srf-bucket'))
+      const objectKey = (parts.length > 1 && (parts[0] === 'srf' || parts[0] === 'srf-bucket' || parts[0] === 'srf_db' || parts[0] === 'srf-files'))
         ? parts.slice(1).join('/')
         : pathname;
-      return `${r2PublicBase}/${objectKey}`;
+      return `${base}/api/files/stream?key=${encodeURIComponent(objectKey)}`;
     } catch {
       return fileUrl;
     }
   }
 
-  // Absolute HTTP/HTTPS URLs (including public R2 dev URLs) are returned as-is
+  // Handle direct R2 dev / custom domain URLs by routing them through backend stream to prevent CORS issues
+  if (fileUrl.includes('.r2.dev/')) {
+    try {
+      const parsed = new URL(fileUrl);
+      const objectKey = parsed.pathname.replace(/^\//, '');
+      return `${base}/api/files/stream?key=${encodeURIComponent(objectKey)}`;
+    } catch {
+      return fileUrl;
+    }
+  }
+
+  // If already an absolute HTTP/HTTPS URL (e.g. Google Drive)
   if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
     return fileUrl;
   }
 
   const cleanPath = fileUrl.replace(/^\//, '');
 
-  // Direct R2 object keys (documents/..., applications/..., guidelines/..., stored-files/...)
-  if (cleanPath.startsWith('documents/') || cleanPath.startsWith('applications/') || cleanPath.startsWith('guidelines/') || cleanPath.startsWith('stored-files/')) {
-    return `${r2PublicBase}/${cleanPath}`;
+  if (cleanPath.startsWith('api/') || cleanPath.startsWith('uploads/')) {
+    return `${base}/${cleanPath}`;
   }
 
-  const base = getApiBaseUrl();
+  // Direct R2 object keys (documents/..., applications/..., guidelines/..., stored-files/...)
+  if (cleanPath.startsWith('documents/') || cleanPath.startsWith('applications/') || cleanPath.startsWith('guidelines/') || cleanPath.startsWith('stored-files/')) {
+    return `${base}/api/files/stream?key=${encodeURIComponent(cleanPath)}`;
+  }
+
   return `${base}/${cleanPath}`;
 };
+
 
 // ─── Error Types ──────────────────────────────────────────────────────────────
 

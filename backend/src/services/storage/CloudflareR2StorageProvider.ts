@@ -1,4 +1,4 @@
-import { PutObjectCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand, GetObjectCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { getR2Client, getR2Config, getPublicR2Url } from '../../config/r2';
 import { StorageProvider, StorageUploadResult, UploadFileOptions } from './StorageProvider';
 
@@ -40,6 +40,47 @@ export class CloudflareR2StorageProvider implements StorageProvider {
 
   public getPublicUrl(key: string): string {
     return getPublicR2Url(key);
+  }
+
+  public async getObject(key: string): Promise<{ buffer: Buffer; contentType?: string; contentLength?: number } | null> {
+    if (!key) return null;
+    const config = getR2Config();
+    if (!config.bucketName || !config.accountId || !config.accessKeyId || !config.secretAccessKey) {
+      return null;
+    }
+
+    try {
+      const client = getR2Client();
+      const cleanKey = key.replace(/^\//, '');
+      const command = new GetObjectCommand({
+        Bucket: config.bucketName,
+        Key: cleanKey,
+      });
+
+      const response = await client.send(command);
+      if (!response.Body) return null;
+
+      let buffer: Buffer;
+      if (typeof (response.Body as any).transformToByteArray === 'function') {
+        const byteArray = await (response.Body as any).transformToByteArray();
+        buffer = Buffer.from(byteArray);
+      } else {
+        const chunks: Buffer[] = [];
+        for await (const chunk of response.Body as any) {
+          chunks.push(Buffer.from(chunk));
+        }
+        buffer = Buffer.concat(chunks);
+      }
+
+      return {
+        buffer,
+        contentType: response.ContentType,
+        contentLength: response.ContentLength,
+      };
+    } catch (err: any) {
+      console.error(`[R2 GET OBJECT ERROR] Key: "${key}". Error: ${err.name || err.message}`);
+      return null;
+    }
   }
 
   public async upload(
@@ -114,3 +155,4 @@ export class CloudflareR2StorageProvider implements StorageProvider {
     }
   }
 }
+

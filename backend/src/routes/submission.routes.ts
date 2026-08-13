@@ -67,12 +67,12 @@ router.post('/upload', protect as any, upload.single('file'), async (req: any, r
   }
 });
 
-// Route to download/view stored files directly (redirects to R2 if available, or serves legacy binary)
-router.get('/files/:fileId', async (req: any, res: any) => {
+// Route to download/view stored files directly (streams from R2, MongoDB, or fallback)
+router.get('/files/:fileId(*)', async (req: any, res: any) => {
   try {
     const { fileId } = req.params;
 
-    let cleanId = fileId;
+    let cleanId = fileId ? fileId.replace(/^\//, '') : '';
     if (!mongoose.Types.ObjectId.isValid(cleanId) && cleanId.includes('.')) {
       const possibleId = cleanId.replace(/\.[^/.]+$/, '');
       if (mongoose.Types.ObjectId.isValid(possibleId)) {
@@ -80,21 +80,36 @@ router.get('/files/:fileId', async (req: any, res: any) => {
       }
     }
 
-    const dbFile = await StoredFile.findById(cleanId);
-    if (!dbFile) {
-      return res.status(404).json({ error: 'File not found in database' });
+    let dbFile: any = null;
+    if (mongoose.Types.ObjectId.isValid(cleanId)) {
+      dbFile = await StoredFile.findById(cleanId);
     }
 
-    if (dbFile.storageProvider === 'r2' || dbFile.url) {
-      return res.redirect(302, dbFile.url);
+    if (!dbFile) {
+      dbFile = await StoredFile.findOne({
+        $or: [
+          { key: cleanId },
+          { key: cleanId.replace(/^[^/]+\//, '') },
+          { key: { $regex: cleanId, $options: 'i' } },
+          { filename: cleanId },
+          { originalName: cleanId },
+          { fileName: cleanId },
+          { url: { $regex: cleanId, $options: 'i' } }
+        ]
+      }).sort({ createdAt: -1 });
     }
 
     const { sendStoredFileResponse } = require('../app');
-    return sendStoredFileResponse(res, dbFile);
+    if (dbFile) {
+      return await sendStoredFileResponse(res, dbFile, req);
+    }
+
+    return await sendStoredFileResponse(res, { filename: cleanId.split('/').pop() || 'document.pdf', key: cleanId }, req);
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Error fetching file from database' });
   }
 });
+
 
 // ─── State User Workspace routes (Protected) ──────────────────────────────
 router.get('/edition/:editionId/my-submission', protect as any, getMySubmission);
