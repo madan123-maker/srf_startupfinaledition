@@ -72,9 +72,13 @@ export const openDocumentPreview = async (fileUrl?: string, fileName?: string): 
 
   const fullUrl = getFileUrl(fileUrl);
 
-  // External URLs (http/https not pointing to our server uploads or R2 storage) open directly
+  // External URLs (Google Drive, external websites not pointing to backend or R2 storage) open directly
   if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-    if (!fileUrl.includes('/uploads/') && !fileUrl.includes('r2.cloudflarestorage.com')) {
+    const isBackendUpload = fileUrl.includes('/uploads/');
+    const isR2Url = fileUrl.includes('r2.cloudflarestorage.com') || fileUrl.includes('.r2.dev');
+    const isRewrittenProxy = fullUrl !== fileUrl;
+
+    if (!isBackendUpload && !isR2Url && !isRewrittenProxy) {
       if (previewWindow) {
         previewWindow.location.href = fileUrl;
       } else {
