@@ -18,13 +18,14 @@ export class StorageService {
   public static resolveKey(options: UploadFileOptions, originalName: string): string {
     const cleanExt = (path.extname(originalName || '').toLowerCase()) || '.bin';
     const baseName = path.basename(originalName || 'file', cleanExt).replace(/[^a-zA-Z0-9_-]/g, '_') || 'file';
+    const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
     const folder = options.folder || STORAGE_FOLDERS.STORED_FILES;
 
     if (folder === STORAGE_FOLDERS.APPLICATIONS) {
       const appId = options.applicationId || options.userId || 'general';
       const qId = options.questionId || 'uploads';
-      const docId = options.documentId || baseName;
+      const docId = options.documentId || `${uniqueSuffix}_${baseName}`;
       return `${STORAGE_FOLDERS.APPLICATIONS}/${appId}/${qId}/${docId}${cleanExt}`;
     }
 
@@ -40,11 +41,11 @@ export class StorageService {
 
     if (folder === STORAGE_FOLDERS.REPORTS) {
       const edId = options.editionId || 'general';
-      return `${STORAGE_FOLDERS.REPORTS}/${edId}/${baseName}${cleanExt}`;
+      return `${STORAGE_FOLDERS.REPORTS}/${edId}/${uniqueSuffix}_${baseName}${cleanExt}`;
     }
 
     // Default: stored-files
-    const ctxId = options.documentId || options.userId || baseName;
+    const ctxId = options.documentId || `${options.userId || 'file'}_${uniqueSuffix}_${baseName}`;
     return `${STORAGE_FOLDERS.STORED_FILES}/${ctxId}${cleanExt}`;
   }
 
@@ -70,12 +71,8 @@ export class StorageService {
 
     // Step 3: Atomic MongoDB metadata recording
     try {
-      const existingFilter = options.customKey
-        ? { key: options.customKey }
-        : {
-            originalName: uploadResult.originalName,
-            uploadedBy: options.uploadedBy ? options.uploadedBy : { $exists: true },
-          };
+      const existingFilter = { key: uploadResult.key };
+
 
       await StoredFile.findOneAndUpdate(
         existingFilter,
