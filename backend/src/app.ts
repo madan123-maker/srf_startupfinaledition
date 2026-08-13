@@ -105,8 +105,10 @@ const tryStreamFromR2 = async (key: string, res: Response, req?: Request, filena
     }
     const cleanKeyBasename = key.split('/').pop() || '';
     if (cleanKeyBasename) {
+      candidates.push(`documents/${cleanKeyBasename}`);
       candidates.push(`applications/${cleanKeyBasename}`);
       candidates.push(`stored-files/${cleanKeyBasename}`);
+      candidates.push(`guidelines/${cleanKeyBasename}`);
       candidates.push(cleanKeyBasename);
     }
 
@@ -326,9 +328,13 @@ app.get('/uploads/:fileId(*)', async (req: Request, res: Response, next: any) =>
       $or: [
         { key: cleanId },
         { key: cleanId.replace(/^[^/]+\//, '') },
+        { key: { $regex: cleanId, $options: 'i' } },
         { filename: cleanId },
+        { filename: { $regex: cleanId, $options: 'i' } },
         { originalName: cleanId },
+        { originalName: { $regex: cleanId, $options: 'i' } },
         { fileName: cleanId },
+        { fileName: { $regex: cleanId, $options: 'i' } },
         { url: { $regex: cleanId, $options: 'i' } }
       ]
     }).sort({ createdAt: -1 });
@@ -337,10 +343,7 @@ app.get('/uploads/:fileId(*)', async (req: Request, res: Response, next: any) =>
     }
 
     // 3. Direct R2 streaming by key or filename candidates
-    const r2DirectKey = cleanId.startsWith('applications/') || cleanId.startsWith('guidelines/') || cleanId.startsWith('stored-files/') || cleanId.startsWith('profile/') || cleanId.startsWith('reports/')
-      ? cleanId
-      : cleanId.replace(/^[^/]+\//, '');
-    const r2Success = await tryStreamFromR2(r2DirectKey, res, req);
+    const r2Success = await tryStreamFromR2(cleanId, res, req);
     if (r2Success) return;
 
     // 4. Check local disk file
