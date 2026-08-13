@@ -17,8 +17,17 @@ export const openDocumentPreview = async (fileUrl?: string, fileName?: string): 
     return;
   }
 
-  // Open a blank window synchronously inside the user click handler stack
-  // to prevent browser popup blockers from triggering after asynchronous fetch.
+  const fullUrl = getFileUrl(fileUrl);
+
+  // Absolute public URLs (such as Cloudflare R2 public dev URLs or external links) open directly in browser tab
+  if (fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
+    if (!fullUrl.includes('/uploads/')) {
+      window.open(fullUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+  }
+
+  // Synchronously open blank window for secure Blob previewing of backend /uploads/ routes
   const previewWindow = window.open('', '_blank');
 
   if (previewWindow) {
@@ -66,25 +75,7 @@ export const openDocumentPreview = async (fileUrl?: string, fileName?: string): 
         </html>
       `;
     } catch {
-      // Ignore initial window document setup errors if cross-origin boundary
-    }
-  }
-
-  const fullUrl = getFileUrl(fileUrl);
-
-  // External URLs (Google Drive, external websites not pointing to backend or R2 storage) open directly
-  if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-    const isBackendUpload = fileUrl.includes('/uploads/');
-    const isR2Url = fileUrl.includes('r2.cloudflarestorage.com') || fileUrl.includes('.r2.dev');
-    const isRewrittenProxy = fullUrl !== fileUrl;
-
-    if (!isBackendUpload && !isR2Url && !isRewrittenProxy) {
-      if (previewWindow) {
-        previewWindow.location.href = fileUrl;
-      } else {
-        window.open(fileUrl, '_blank', 'noopener,noreferrer');
-      }
-      return;
+      // Ignore cross-origin error
     }
   }
 
@@ -99,9 +90,6 @@ export const openDocumentPreview = async (fileUrl?: string, fileName?: string): 
     try {
       response = await fetch(fullUrl, { headers });
     } catch (fetchErr) {
-      // If fetching with Authorization header failed (e.g. CORS preflight blocked on cross-origin redirect),
-      // retry fetching without Authorization header!
-      console.warn('[Document Preview] Retry fetch without Authorization header due to CORS/network error:', fetchErr);
       response = await fetch(fullUrl);
     }
 
@@ -132,17 +120,6 @@ export const openDocumentPreview = async (fileUrl?: string, fileName?: string): 
     const typedBlob = new Blob([rawBlob], { type: responseContentType });
     const objectUrl = window.URL.createObjectURL(typedBlob);
 
-    console.log('[Document Preview Browser Verification]', {
-      requestedUrl: fileUrl,
-      fullUrl,
-      httpStatusCode: response.status,
-      httpContentType: response.headers.get('Content-Type'),
-      httpContentLength: response.headers.get('Content-Length'),
-      blobType: typedBlob.type,
-      blobSize: typedBlob.size,
-      objectUrl
-    });
-
     if (previewWindow && !previewWindow.closed) {
       if (typedBlob.type.startsWith('image/')) {
         previewWindow.document.title = fileName || 'Image Preview';
@@ -167,7 +144,6 @@ export const openDocumentPreview = async (fileUrl?: string, fileName?: string): 
       window.location.href = objectUrl;
     }
 
-    // Revoke object URL after tab loading window timeout
     setTimeout(() => {
       window.URL.revokeObjectURL(objectUrl);
     }, 120000);
@@ -189,7 +165,7 @@ export const openDocumentPreview = async (fileUrl?: string, fileName?: string): 
 };
 
 /**
- * Downloads a document securely with Bearer token headers via Blob creation.
+ * Downloads a document securely via direct link or Blob creation.
  */
 export const downloadDocument = async (fileUrl?: string, fileName?: string): Promise<void> => {
   if (!fileUrl || fileUrl === '#') {
@@ -198,6 +174,21 @@ export const downloadDocument = async (fileUrl?: string, fileName?: string): Pro
   }
 
   const fullUrl = getFileUrl(fileUrl);
+
+  // If public absolute URL, trigger direct browser download link
+  if (fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
+    if (!fullUrl.includes('/uploads/')) {
+      const a = document.createElement('a');
+      a.href = fullUrl;
+      a.download = fileName || 'Document';
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+  }
 
   try {
     const token = localStorage.getItem('token');

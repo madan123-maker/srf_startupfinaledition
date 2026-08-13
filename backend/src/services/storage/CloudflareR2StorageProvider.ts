@@ -1,5 +1,5 @@
 import { PutObjectCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
-import { getR2Client, getR2Config } from '../../config/r2';
+import { getR2Client, getR2Config, getPublicR2Url } from '../../config/r2';
 import { StorageProvider, StorageUploadResult, UploadFileOptions } from './StorageProvider';
 
 const DANGEROUS_EXTENSIONS = new Set([
@@ -39,12 +39,7 @@ export class CloudflareR2StorageProvider implements StorageProvider {
   }
 
   public getPublicUrl(key: string): string {
-    if (!key) return '';
-    const config = getR2Config();
-    if (config.publicUrl) {
-      return `${config.publicUrl}/${key}`;
-    }
-    return `https://${config.accountId}.r2.cloudflarestorage.com/${config.bucketName}/${key}`;
+    return getPublicR2Url(key);
   }
 
   public async upload(

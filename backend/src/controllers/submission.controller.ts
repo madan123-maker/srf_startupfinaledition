@@ -480,6 +480,7 @@ export const updateMySubmission = async (req: any, res: Response) => {
 import { StoredFile } from '../models/StoredFile';
 import { StorageService } from '../services/storage/StorageService';
 import { STORAGE_FOLDERS } from '../constants/storage.constants';
+import { getPublicR2Url } from '../config/r2';
 
 export const uploadSubmissionFile = async (req: any, res: Response) => {
   try {
@@ -500,13 +501,16 @@ export const uploadSubmissionFile = async (req: any, res: Response) => {
     });
 
     const storedFile = await StoredFile.findOne({ key: r2Result.key });
+    const publicUrl = getPublicR2Url(r2Result.key);
 
-    const secureUrl = storedFile?._id ? `/uploads/${storedFile._id}` : `/uploads/${r2Result.key}`;
+    console.log(`[R2 UPLOAD RESPONSE] File: "${r2Result.originalName}" | Key: "${r2Result.key}" | Public URL: "${publicUrl}"`);
 
     return res.status(200).json({
-      fileUrl: secureUrl,
+      fileUrl: publicUrl,
       fileName: r2Result.originalName,
       fileId: storedFile?._id || r2Result.key,
+      objectKey: r2Result.key,
+      url: publicUrl,
       storage: 'r2',
     });
   } catch (error: any) {

@@ -29,6 +29,50 @@ export const getR2Config = (): R2Config => {
   };
 };
 
+/**
+ * Centralized Helper for generating public Cloudflare R2 URLs.
+ * - Uses process.env.R2_PUBLIC_URL (or fallback config)
+ * - Normalizes leading/trailing slashes
+ * - Preserves the exact R2 object key
+ * - Prevents duplicate prepending if input is already an absolute HTTP/HTTPS URL
+ */
+export const getPublicR2Url = (objectKey?: string): string => {
+  if (!objectKey) return '';
+
+  // Preserve absolute HTTP/HTTPS URLs as-is
+  if (objectKey.startsWith('http://') || objectKey.startsWith('https://')) {
+    // If it's an old S3 REST API endpoint URL, rewrite it cleanly to public R2 URL
+    if (objectKey.includes('.r2.cloudflarestorage.com/')) {
+      try {
+        const parsed = new URL(objectKey);
+        const pathKey = parsed.pathname.replace(/^\//, '');
+        const config = getR2Config();
+        const cleanKey = (config.bucketName && pathKey.startsWith(`${config.bucketName}/`))
+          ? pathKey.substring(config.bucketName.length + 1)
+          : pathKey;
+        return getPublicR2Url(cleanKey);
+      } catch {
+        return objectKey;
+      }
+    }
+    return objectKey;
+  }
+
+  const config = getR2Config();
+  const cleanKey = objectKey.replace(/^\//, '');
+
+  if (config.publicUrl) {
+    const baseUrl = config.publicUrl.replace(/\/$/, '');
+    return `${baseUrl}/${cleanKey}`;
+  }
+
+  if (config.accountId && config.bucketName) {
+    return `https://${config.accountId}.r2.cloudflarestorage.com/${config.bucketName}/${cleanKey}`;
+  }
+
+  return `/${cleanKey}`;
+};
+
 export const validateR2ConfigOnStartup = (): void => {
   const config = getR2Config();
   const missing: string[] = [];

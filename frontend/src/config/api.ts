@@ -45,25 +45,37 @@ export const API_BASE_URL = getApiBaseUrl();
 export const getFileUrl = (fileUrl?: string): string => {
   if (!fileUrl) return '#';
 
-  // If fileUrl points directly to Cloudflare R2 S3 endpoint or R2 dev domain,
-  // rewrite it to route through backend /uploads proxy so backend streams it securely with R2 credentials!
-  if (fileUrl.includes('.r2.cloudflarestorage.com/') || fileUrl.includes('.r2.dev/')) {
+  const r2PublicBase = (import.meta.env.VITE_R2_PUBLIC_URL || 'https://pub-6cd3e2d75cf741af96845ae8c7bc0bbd.r2.dev').replace(/\/$/, '');
+
+  // Convert legacy S3 API endpoint URLs (.r2.cloudflarestorage.com) to public R2 URLs
+  if (fileUrl.includes('.r2.cloudflarestorage.com/')) {
     try {
       const parsed = new URL(fileUrl);
-      const pathKey = parsed.pathname.replace(/^\//, '');
-      const base = getApiBaseUrl();
-      return `${base}/uploads/${pathKey}`;
+      const pathname = parsed.pathname.replace(/^\//, '');
+      const parts = pathname.split('/');
+      const objectKey = (parts.length > 1 && (parts[0] === 'srf' || parts[0] === 'srf-bucket'))
+        ? parts.slice(1).join('/')
+        : pathname;
+      return `${r2PublicBase}/${objectKey}`;
     } catch {
-      // fallback
+      return fileUrl;
     }
   }
 
+  // Absolute HTTP/HTTPS URLs (including public R2 dev URLs) are returned as-is
   if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
     return fileUrl;
   }
+
+  const cleanPath = fileUrl.replace(/^\//, '');
+
+  // Direct R2 object keys (documents/..., applications/..., guidelines/..., stored-files/...)
+  if (cleanPath.startsWith('documents/') || cleanPath.startsWith('applications/') || cleanPath.startsWith('guidelines/') || cleanPath.startsWith('stored-files/')) {
+    return `${r2PublicBase}/${cleanPath}`;
+  }
+
   const base = getApiBaseUrl();
-  const path = fileUrl.startsWith('/') ? fileUrl : `/${fileUrl}`;
-  return `${base}${path}`;
+  return `${base}/${cleanPath}`;
 };
 
 // ─── Error Types ──────────────────────────────────────────────────────────────
