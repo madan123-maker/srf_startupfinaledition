@@ -321,19 +321,22 @@ app.get('/uploads/:fileId(*)', async (req: Request, res: Response, next: any) =>
       }
     }
 
-    // 2. Direct MongoDB lookup by key or url matching
+    // 2. Direct MongoDB lookup by key, filename, originalName, or url matching
     const dbFileByKey = await StoredFile.findOne({
       $or: [
         { key: cleanId },
         { key: cleanId.replace(/^[^/]+\//, '') },
+        { filename: cleanId },
+        { originalName: cleanId },
+        { fileName: cleanId },
         { url: { $regex: cleanId, $options: 'i' } }
       ]
-    });
+    }).sort({ createdAt: -1 });
     if (dbFileByKey) {
       return await sendStoredFileResponse(res, dbFileByKey, req);
     }
 
-    // 3. Direct R2 streaming by key
+    // 3. Direct R2 streaming by key or filename candidates
     const r2DirectKey = cleanId.startsWith('applications/') || cleanId.startsWith('guidelines/') || cleanId.startsWith('stored-files/') || cleanId.startsWith('profile/') || cleanId.startsWith('reports/')
       ? cleanId
       : cleanId.replace(/^[^/]+\//, '');
@@ -355,7 +358,9 @@ app.get('/uploads/:fileId(*)', async (req: Request, res: Response, next: any) =>
       $or: [
         { 'responses.fieldResponses.fileUrl': { $regex: cleanId, $options: 'i' } },
         { 'responses.supportingDocumentResponses.files.fileUrl': { $regex: cleanId, $options: 'i' } },
-        { 'responses.additionalFiles.fileUrl': { $regex: cleanId, $options: 'i' } }
+        { 'responses.additionalFiles.fileUrl': { $regex: cleanId, $options: 'i' } },
+        { 'responses.fieldResponses.fileName': { $regex: cleanId, $options: 'i' } },
+        { 'responses.fieldResponses.value': { $regex: cleanId, $options: 'i' } }
       ]
     });
 
@@ -363,33 +368,39 @@ app.get('/uploads/:fileId(*)', async (req: Request, res: Response, next: any) =>
       let targetFileName = '';
       for (const resp of submissionMatch.responses) {
         if (resp.fieldResponses) {
-          const found = resp.fieldResponses.find((f: any) => f.fileUrl && f.fileUrl.includes(cleanId));
-          if (found && found.fileName) { targetFileName = found.fileName; break; }
+          const found = resp.fieldResponses.find((f: any) => (f.fileUrl && f.fileUrl.includes(cleanId)) || (f.fileName && f.fileName.includes(cleanId)) || (f.value && typeof f.value === 'string' && f.value.includes(cleanId)));
+          if (found && (found.fileName || found.value)) { targetFileName = found.fileName || found.value; break; }
         }
         if (resp.supportingDocumentResponses) {
           for (const sdr of resp.supportingDocumentResponses) {
-            const found = sdr.files?.find((f: any) => f.fileUrl && f.fileUrl.includes(cleanId));
+            const found = sdr.files?.find((f: any) => (f.fileUrl && f.fileUrl.includes(cleanId)) || (f.fileName && f.fileName.includes(cleanId)));
             if (found && found.fileName) { targetFileName = found.fileName; break; }
           }
         }
         if (targetFileName) break;
         if (resp.additionalFiles) {
-          const found = resp.additionalFiles.find((f: any) => f.fileUrl && f.fileUrl.includes(cleanId));
+          const found = resp.additionalFiles.find((f: any) => (f.fileUrl && f.fileUrl.includes(cleanId)) || (f.fileName && f.fileName.includes(cleanId)));
           if (found && found.fileName) { targetFileName = found.fileName; break; }
         }
       }
 
       if (targetFileName) {
-        // Scope by the submission owner's userId to prevent filename collisions
-        // where multiple states upload files with the same original filename.
-        const submissionOwnerId = submissionMatch?.userId;
-        const fallbackQuery = submissionOwnerId
-          ? { filename: targetFileName, uploadedBy: submissionOwnerId }
-          : { filename: targetFileName };
-        const fallbackDbFile = await StoredFile.findOne(fallbackQuery);
+        const fallbackDbFile = await StoredFile.findOne({
+          $or: [
+            { filename: targetFileName },
+            { originalName: targetFileName },
+            { fileName: targetFileName },
+            { key: { $regex: targetFileName, $options: 'i' } }
+          ]
+        }).sort({ createdAt: -1 });
+
         if (fallbackDbFile) {
           return await sendStoredFileResponse(res, fallbackDbFile, req);
         }
+
+        const fallbackR2Success = await tryStreamFromR2(targetFileName, res, req);
+        if (fallbackR2Success) return;
+
         const fallbackLocal = path.join(__dirname, '../uploads', targetFileName);
         if (fs.existsSync(fallbackLocal) && fs.statSync(fallbackLocal).isFile()) {
           const mime = getMimeType(targetFileName);
@@ -398,42 +409,6 @@ app.get('/uploads/:fileId(*)', async (req: Request, res: Response, next: any) =>
           res.setHeader('Content-Disposition', `${disposition}; filename="${targetFileName}"`);
           return res.sendFile(fallbackLocal);
         }
-
-        // Return clean PDF document generated specifically for this targetFileName
-        const PDFDocument = require('pdfkit');
-        const pdfBuf = await new Promise<Buffer>((resolve, reject) => {
-          try {
-            const doc = new PDFDocument({ size: 'A4', margin: 50 });
-            const chunks: Buffer[] = [];
-            doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-            doc.on('end', () => resolve(Buffer.concat(chunks)));
-            doc.on('error', (err: any) => reject(err));
-
-            doc.fontSize(22).fillColor('#1e40af').text('States Startup Ranking Framework', { align: 'center' });
-            doc.moveDown(0.5);
-            doc.fontSize(16).fillColor('#0f172a').text(`Document Preview: ${targetFileName}`, { align: 'center' });
-            doc.moveDown(1.5);
-            doc.fontSize(12).fillColor('#334155').text(`Official compliance evidence document for ${targetFileName}.`);
-            doc.moveDown(1);
-            doc.fontSize(11).fillColor('#475569');
-            doc.text(`File Name: ${targetFileName}`);
-            doc.text(`Reference ID: ${cleanId}`);
-            doc.text(`Timestamp: ${new Date().toLocaleDateString()}`);
-            doc.text(`Status: Verified Compliance Evidence Record`);
-            doc.moveDown(2);
-            doc.fontSize(10).fillColor('#94a3b8').text('State Startup Ranking Portal — Official Compliance File', { align: 'center' });
-            doc.end();
-          } catch (err) {
-            reject(err);
-          }
-        });
-
-        const safeFilename = targetFileName.replace(/["\r\n]/g, '_');
-        const encodedFilename = encodeURIComponent(targetFileName);
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
-        res.setHeader('Content-Length', pdfBuf.length);
-        return res.end(pdfBuf);
       }
     }
 
