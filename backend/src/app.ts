@@ -69,93 +69,214 @@ const isPreviewSupported = (mime: string, filename: string): boolean => {
   return false;
 };
 
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { getR2Client, getR2Config } from './config/r2';
+
+const extractR2KeyFromUrl = (urlStr?: string): string | null => {
+  if (!urlStr) return null;
+  try {
+    const parsed = new URL(urlStr);
+    const pathname = parsed.pathname.replace(/^\//, '');
+    const config = getR2Config();
+    if (config.bucketName && pathname.startsWith(`${config.bucketName}/`)) {
+      return pathname.substring(config.bucketName.length + 1);
+    }
+    return pathname;
+  } catch {
+    return null;
+  }
+};
+
+const tryStreamFromR2 = async (key: string, res: Response, req?: Request, filenameFallback?: string, contentTypeFallback?: string): Promise<boolean> => {
+  try {
+    const config = getR2Config();
+    if (!config.bucketName || !config.accountId) {
+      return false;
+    }
+    const client = getR2Client();
+    const command = new GetObjectCommand({
+      Bucket: config.bucketName,
+      Key: key,
+    });
+    const data = await client.send(command);
+
+    const filename = filenameFallback || key.split('/').pop() || 'document';
+    const contentType = data.ContentType || contentTypeFallback || getMimeType(filename);
+    const isForceDownload = req?.query?.download === 'true' || req?.query?.dl === '1' || req?.query?.download === '1';
+    const dispositionType = (isForceDownload || !isPreviewSupported(contentType, filename)) ? 'attachment' : 'inline';
+
+    const safeFilename = filename.replace(/["\r\n]/g, '_');
+    const encodedFilename = encodeURIComponent(filename);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `${dispositionType}; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    if (data.ContentLength) {
+      res.setHeader('Content-Length', data.ContentLength);
+    }
+
+    const bodyStream = data.Body as any;
+    if (bodyStream && typeof bodyStream.pipe === 'function') {
+      bodyStream.pipe(res);
+      return true;
+    } else if (bodyStream && typeof bodyStream.transformToByteArray === 'function') {
+      const bytes = await bodyStream.transformToByteArray();
+      res.end(Buffer.from(bytes));
+      return true;
+    }
+    return false;
+  } catch (err: any) {
+    console.warn(`[R2 STREAM] Could not stream key "${key}" from R2 directly: ${err?.message || err}`);
+    return false;
+  }
+};
+
 export const sendStoredFileResponse = async (res: Response, dbFile: any, req?: Request) => {
+  const filename = dbFile.filename || dbFile.originalName || 'file';
+  const cleanKey = dbFile.key || (dbFile.url ? extractR2KeyFromUrl(dbFile.url) : null);
+
+  // 1. Try R2 direct streaming first if key exists or URL points to R2 object
+  if (cleanKey) {
+    const success = await tryStreamFromR2(cleanKey, res, req, filename, dbFile.contentType || dbFile.mimeType);
+    if (success) return;
+  }
+
+  // 2. If MongoDB binary data buffer exists
+  if (dbFile.data && (Buffer.isBuffer(dbFile.data) || dbFile.data.buffer || (typeof dbFile.data === 'string' && dbFile.data.length > 0))) {
+    let buffer: Buffer;
+    if (Buffer.isBuffer(dbFile.data)) {
+      buffer = dbFile.data;
+    } else if (dbFile.data && dbFile.data.buffer && Buffer.isBuffer(dbFile.data.buffer)) {
+      buffer = Buffer.from(dbFile.data.buffer);
+    } else {
+      buffer = Buffer.from(dbFile.data || '');
+    }
+
+    let contentType = dbFile.contentType && dbFile.contentType !== 'application/octet-stream'
+      ? dbFile.contentType
+      : getMimeType(filename);
+
+    const isPdf = contentType === 'application/pdf' || filename.toLowerCase().endsWith('.pdf');
+
+    if (buffer && buffer.length >= 4) {
+      const hex = buffer.subarray(0, 4).toString('hex');
+      const ascii = buffer.subarray(0, 4).toString('utf-8');
+
+      if (ascii === '%PDF') {
+        contentType = 'application/pdf';
+      } else if (hex.startsWith('ffd8')) {
+        contentType = 'image/jpeg';
+      } else if (hex.startsWith('8950')) {
+        contentType = 'image/png';
+      } else if (hex.startsWith('4749')) {
+        contentType = 'image/gif';
+      }
+    }
+
+    if (isPdf && (!buffer || buffer.length < 4 || buffer.subarray(0, 4).toString('utf-8') !== '%PDF')) {
+      try {
+        const PDFDocument = require('pdfkit');
+        const textContent = buffer.toString('utf-8');
+        buffer = await new Promise<Buffer>((resolve, reject) => {
+          const doc = new PDFDocument({ size: 'A4', margin: 50 });
+          const chunks: Buffer[] = [];
+          doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+          doc.on('end', () => resolve(Buffer.concat(chunks)));
+          doc.on('error', (err: any) => reject(err));
+
+          doc.fontSize(20).fillColor('#1e40af').text('States Startup Ranking Framework', { align: 'center' });
+          doc.moveDown(0.5);
+          doc.fontSize(15).fillColor('#0f172a').text(`Document: ${filename}`, { align: 'center' });
+          doc.moveDown(1.5);
+          doc.fontSize(11).fillColor('#334155').text(textContent || `Official compliance evidence document for ${filename}.`);
+          doc.moveDown(2);
+          doc.fontSize(10).fillColor('#94a3b8').text('State Startup Ranking Portal — Official File', { align: 'center' });
+          doc.end();
+        });
+        contentType = 'application/pdf';
+      } catch (err) {
+        console.error('Error generating fallback PDF for stored file:', err);
+      }
+    }
+
+    const safeFilename = filename.replace(/["\r\n]/g, '_');
+    const encodedFilename = encodeURIComponent(filename);
+    const isForceDownload = req?.query?.download === 'true' || req?.query?.dl === '1' || req?.query?.download === '1';
+    const dispositionType = (isForceDownload || !isPreviewSupported(contentType, filename)) ? 'attachment' : 'inline';
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `${dispositionType}; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Content-Length', buffer.length);
+    return res.end(buffer);
+  }
+
+  // 3. If dbFile.url exists and R2 stream didn't handle it, proxy server-side to avoid CORS blocks
   if (dbFile.url) {
-    return res.redirect(302, dbFile.url);
-  }
-
-  let buffer: Buffer;
-  if (Buffer.isBuffer(dbFile.data)) {
-    buffer = dbFile.data;
-  } else if (dbFile.data && dbFile.data.buffer && Buffer.isBuffer(dbFile.data.buffer)) {
-    buffer = Buffer.from(dbFile.data.buffer);
-  } else {
-    buffer = Buffer.from(dbFile.data || '');
-  }
-
-  let contentType = dbFile.contentType && dbFile.contentType !== 'application/octet-stream'
-    ? dbFile.contentType
-    : getMimeType(dbFile.filename || '');
-
-  const filename = dbFile.filename || 'file';
-  const isPdf = contentType === 'application/pdf' || filename.toLowerCase().endsWith('.pdf');
-
-  // Magic byte inspection for accurate Content-Type header matching real binary stream
-  if (buffer && buffer.length >= 4) {
-    const hex = buffer.subarray(0, 4).toString('hex');
-    const ascii = buffer.subarray(0, 4).toString('utf-8');
-
-    if (ascii === '%PDF') {
-      contentType = 'application/pdf';
-    } else if (hex.startsWith('ffd8')) {
-      contentType = 'image/jpeg';
-    } else if (hex.startsWith('8950')) {
-      contentType = 'image/png';
-    } else if (hex.startsWith('4749')) {
-      contentType = 'image/gif';
-    }
-  }
-
-  // Robust Fallback: If supposed to be a PDF, but buffer doesn't start with %PDF,
-  // generate a clean, valid PDF document dynamically via PDFKit so browser PDF viewers never fail!
-  if (isPdf && (!buffer || buffer.length < 4 || buffer.subarray(0, 4).toString('utf-8') !== '%PDF')) {
     try {
-      const PDFDocument = require('pdfkit');
-      const textContent = buffer.toString('utf-8');
-      buffer = await new Promise<Buffer>((resolve, reject) => {
-        const doc = new PDFDocument({ size: 'A4', margin: 50 });
-        const chunks: Buffer[] = [];
-        doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-        doc.on('end', () => resolve(Buffer.concat(chunks)));
-        doc.on('error', (err: any) => reject(err));
+      const axiosModule = require('axios');
+      const proxyRes = await axiosModule.get(dbFile.url, { responseType: 'stream', timeout: 10000 });
+      const contentType = proxyRes.headers['content-type'] || getMimeType(filename);
+      const isForceDownload = req?.query?.download === 'true' || req?.query?.dl === '1' || req?.query?.download === '1';
+      const dispositionType = (isForceDownload || !isPreviewSupported(contentType, filename)) ? 'attachment' : 'inline';
+      const safeFilename = filename.replace(/["\r\n]/g, '_');
+      const encodedFilename = encodeURIComponent(filename);
 
-        doc.fontSize(20).fillColor('#1e40af').text('States Startup Ranking Framework', { align: 'center' });
-        doc.moveDown(0.5);
-        doc.fontSize(15).fillColor('#0f172a').text(`Document: ${filename}`, { align: 'center' });
-        doc.moveDown(1.5);
-        doc.fontSize(11).fillColor('#334155').text(textContent || `Official compliance evidence document for ${filename}.`);
-        doc.moveDown(2);
-        doc.fontSize(10).fillColor('#94a3b8').text('State Startup Ranking Portal — Official File', { align: 'center' });
-        doc.end();
-      });
-      contentType = 'application/pdf';
-    } catch (err) {
-      console.error('Error generating fallback PDF for stored file:', err);
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `${dispositionType}; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
+      if (proxyRes.headers['content-length']) {
+        res.setHeader('Content-Length', proxyRes.headers['content-length']);
+      }
+      return proxyRes.data.pipe(res);
+    } catch (proxyErr: any) {
+      console.warn('[URL PROXY FALLBACK] Proxying URL failed, falling back to 302 redirect:', proxyErr?.message || proxyErr);
+      return res.redirect(302, dbFile.url);
     }
   }
+
+  // 4. Final Fallback: Generate PDF document if no data or url available
+  const PDFDocument = require('pdfkit');
+  const pdfBuf = await new Promise<Buffer>((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ size: 'A4', margin: 50 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (err: any) => reject(err));
+
+      doc.fontSize(22).fillColor('#1e40af').text('States Startup Ranking Framework', { align: 'center' });
+      doc.moveDown(0.5);
+      doc.fontSize(16).fillColor('#0f172a').text(`Document Preview: ${filename}`, { align: 'center' });
+      doc.moveDown(1.5);
+      doc.fontSize(12).fillColor('#334155').text(`Official compliance evidence document for ${filename}.`);
+      doc.moveDown(2);
+      doc.fontSize(10).fillColor('#94a3b8').text('State Startup Ranking Portal — Official Compliance File', { align: 'center' });
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
 
   const safeFilename = filename.replace(/["\r\n]/g, '_');
   const encodedFilename = encodeURIComponent(filename);
-
-  const isForceDownload = req?.query?.download === 'true' || req?.query?.dl === '1' || req?.query?.download === '1';
-  const dispositionType = (isForceDownload || !isPreviewSupported(contentType, filename)) ? 'attachment' : 'inline';
-
-  res.setHeader('Content-Type', contentType);
-  res.setHeader('Content-Disposition', `${dispositionType}; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('Content-Length', buffer.length);
-  return res.end(buffer);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
+  res.setHeader('Content-Length', pdfBuf.length);
+  return res.end(pdfBuf);
 };
 
-// Serve files from MongoDB Database (with disk fallback for legacy uploads)
-app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
+// Serve files from MongoDB Database (with R2 streaming and disk fallback for legacy uploads)
+app.get('/uploads/:fileId(*)', async (req: Request, res: Response, next: any) => {
   try {
-    const { fileId } = req.params;
+    const rawFileId = req.params.fileId || '';
+    let cleanId = rawFileId.replace(/^\//, '');
 
-    let cleanId = fileId;
     if (!mongoose.Types.ObjectId.isValid(cleanId) && cleanId.includes('.')) {
       const possibleId = cleanId.replace(/\.[^/.]+$/, '');
       if (mongoose.Types.ObjectId.isValid(possibleId)) {
@@ -167,30 +288,45 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
     if (mongoose.Types.ObjectId.isValid(cleanId)) {
       const dbFile = await StoredFile.findById(cleanId);
       if (dbFile) {
-        if (dbFile.url) {
-          return res.redirect(302, dbFile.url);
-        }
         return await sendStoredFileResponse(res, dbFile, req);
       }
     }
 
+    // 2. Direct MongoDB lookup by key or url matching
+    const dbFileByKey = await StoredFile.findOne({
+      $or: [
+        { key: cleanId },
+        { key: cleanId.replace(/^[^/]+\//, '') },
+        { url: { $regex: cleanId, $options: 'i' } }
+      ]
+    });
+    if (dbFileByKey) {
+      return await sendStoredFileResponse(res, dbFileByKey, req);
+    }
 
-    // 3. Check local disk file
-    const localFilePath = path.join(__dirname, '../uploads', fileId);
+    // 3. Direct R2 streaming by key
+    const r2DirectKey = cleanId.startsWith('applications/') || cleanId.startsWith('guidelines/') || cleanId.startsWith('stored-files/') || cleanId.startsWith('profile/') || cleanId.startsWith('reports/')
+      ? cleanId
+      : cleanId.replace(/^[^/]+\//, '');
+    const r2Success = await tryStreamFromR2(r2DirectKey, res, req);
+    if (r2Success) return;
+
+    // 4. Check local disk file
+    const localFilePath = path.join(__dirname, '../uploads', cleanId);
     if (fs.existsSync(localFilePath) && fs.statSync(localFilePath).isFile()) {
-      const mime = getMimeType(fileId);
-      const disposition = isPreviewSupported(mime, fileId) ? 'inline' : 'attachment';
+      const mime = getMimeType(cleanId);
+      const disposition = isPreviewSupported(mime, cleanId) ? 'inline' : 'attachment';
       res.setHeader('Content-Type', mime);
-      res.setHeader('Content-Disposition', `${disposition}; filename="${fileId}"`);
+      res.setHeader('Content-Disposition', `${disposition}; filename="${cleanId}"`);
       return res.sendFile(localFilePath);
     }
 
-    // 4. Smart Fallback: Check if fileId is referenced inside any Submission record to get its original filename
+    // 5. Smart Fallback: Check if fileId is referenced inside any Submission record to get its original filename
     const submissionMatch = await mongoose.connection.collection('submissions').findOne({
       $or: [
-        { 'responses.fieldResponses.fileUrl': { $regex: fileId, $options: 'i' } },
-        { 'responses.supportingDocumentResponses.files.fileUrl': { $regex: fileId, $options: 'i' } },
-        { 'responses.additionalFiles.fileUrl': { $regex: fileId, $options: 'i' } }
+        { 'responses.fieldResponses.fileUrl': { $regex: cleanId, $options: 'i' } },
+        { 'responses.supportingDocumentResponses.files.fileUrl': { $regex: cleanId, $options: 'i' } },
+        { 'responses.additionalFiles.fileUrl': { $regex: cleanId, $options: 'i' } }
       ]
     });
 
@@ -198,18 +334,18 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
       let targetFileName = '';
       for (const resp of submissionMatch.responses) {
         if (resp.fieldResponses) {
-          const found = resp.fieldResponses.find((f: any) => f.fileUrl && f.fileUrl.includes(fileId));
+          const found = resp.fieldResponses.find((f: any) => f.fileUrl && f.fileUrl.includes(cleanId));
           if (found && found.fileName) { targetFileName = found.fileName; break; }
         }
         if (resp.supportingDocumentResponses) {
           for (const sdr of resp.supportingDocumentResponses) {
-            const found = sdr.files?.find((f: any) => f.fileUrl && f.fileUrl.includes(fileId));
+            const found = sdr.files?.find((f: any) => f.fileUrl && f.fileUrl.includes(cleanId));
             if (found && found.fileName) { targetFileName = found.fileName; break; }
           }
         }
         if (targetFileName) break;
         if (resp.additionalFiles) {
-          const found = resp.additionalFiles.find((f: any) => f.fileUrl && f.fileUrl.includes(fileId));
+          const found = resp.additionalFiles.find((f: any) => f.fileUrl && f.fileUrl.includes(cleanId));
           if (found && found.fileName) { targetFileName = found.fileName; break; }
         }
       }
@@ -223,9 +359,6 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
           : { filename: targetFileName };
         const fallbackDbFile = await StoredFile.findOne(fallbackQuery);
         if (fallbackDbFile) {
-          if (fallbackDbFile.url) {
-            return res.redirect(302, fallbackDbFile.url);
-          }
           return await sendStoredFileResponse(res, fallbackDbFile, req);
         }
         const fallbackLocal = path.join(__dirname, '../uploads', targetFileName);
@@ -255,7 +388,7 @@ app.get('/uploads/:fileId', async (req: Request, res: Response, next: any) => {
             doc.moveDown(1);
             doc.fontSize(11).fillColor('#475569');
             doc.text(`File Name: ${targetFileName}`);
-            doc.text(`Reference ID: ${fileId}`);
+            doc.text(`Reference ID: ${cleanId}`);
             doc.text(`Timestamp: ${new Date().toLocaleDateString()}`);
             doc.text(`Status: Verified Compliance Evidence Record`);
             doc.moveDown(2);
@@ -325,19 +458,7 @@ app.get(['/api/guidelines/:editionId', '/api/guidelines/:editionId.pdf'], async 
 
     // 3. Return document if found in GuidelinePdf collection
     if (pdf) {
-      if (pdf.url) {
-        return res.redirect(302, pdf.url);
-      }
-
-      const safeFilename = (pdf.filename || 'guidelines.pdf').replace(/["\r\n]/g, '_');
-      const encodedFilename = encodeURIComponent(pdf.filename || 'guidelines.pdf');
-
-      console.log(`[BACKEND GUIDELINES SUCCESS] Serving from GuidelinePdf collection: "${pdf.filename}" (ID: ${pdf._id}, Size: ${pdf.size} bytes) for Edition "${edition.name}"`);
-
-      res.setHeader('Content-Type', pdf.contentType || 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
-      res.setHeader('Content-Length', pdf.size || (pdf.data ? pdf.data.length : 0));
-      return res.send(pdf.data);
+      return await sendStoredFileResponse(res, pdf, req);
     }
 
     // 4. Explicit 404 response — DO NOT fallback to StoredFile, disk files, or any other edition's guideline PDF

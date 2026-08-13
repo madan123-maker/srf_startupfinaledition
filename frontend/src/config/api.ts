@@ -44,6 +44,20 @@ export const API_BASE_URL = getApiBaseUrl();
  */
 export const getFileUrl = (fileUrl?: string): string => {
   if (!fileUrl) return '#';
+
+  // If fileUrl points directly to Cloudflare R2 S3 endpoint or R2 dev domain,
+  // rewrite it to route through backend /uploads proxy so backend streams it securely with R2 credentials!
+  if (fileUrl.includes('.r2.cloudflarestorage.com/') || fileUrl.includes('.r2.dev/')) {
+    try {
+      const parsed = new URL(fileUrl);
+      const pathKey = parsed.pathname.replace(/^\//, '');
+      const base = getApiBaseUrl();
+      return `${base}/uploads/${pathKey}`;
+    } catch {
+      // fallback
+    }
+  }
+
   if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
     return fileUrl;
   }

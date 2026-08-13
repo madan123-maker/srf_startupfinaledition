@@ -72,9 +72,9 @@ export const openDocumentPreview = async (fileUrl?: string, fileName?: string): 
 
   const fullUrl = getFileUrl(fileUrl);
 
-  // External URLs (http/https not pointing to our server uploads) open directly
+  // External URLs (http/https not pointing to our server uploads or R2 storage) open directly
   if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-    if (!fileUrl.includes('/uploads/')) {
+    if (!fileUrl.includes('/uploads/') && !fileUrl.includes('r2.cloudflarestorage.com')) {
       if (previewWindow) {
         previewWindow.location.href = fileUrl;
       } else {
@@ -91,7 +91,15 @@ export const openDocumentPreview = async (fileUrl?: string, fileName?: string): 
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(fullUrl, { headers });
+    let response: Response;
+    try {
+      response = await fetch(fullUrl, { headers });
+    } catch (fetchErr) {
+      // If fetching with Authorization header failed (e.g. CORS preflight blocked on cross-origin redirect),
+      // retry fetching without Authorization header!
+      console.warn('[Document Preview] Retry fetch without Authorization header due to CORS/network error:', fetchErr);
+      response = await fetch(fullUrl);
+    }
 
     if (!response.ok) {
       let errText = `Status ${response.status}`;
@@ -142,11 +150,13 @@ export const openDocumentPreview = async (fileUrl?: string, fileName?: string): 
         previewWindow.document.body.style.minHeight = '100vh';
         previewWindow.document.body.innerHTML = `<img src="${objectUrl}" style="max-width:98%;max-height:98vh;object-fit:contain;box-shadow:0 10px 25px rgba(0,0,0,0.5);border-radius:8px;" alt="${fileName || 'Preview'}" />`;
       } else {
+        previewWindow.document.title = fileName || 'Document Preview';
         try {
           previewWindow.location.replace(objectUrl);
         } catch {
           previewWindow.document.body.style.margin = '0';
-          previewWindow.document.body.innerHTML = `<iframe src="${objectUrl}" style="width:100%;height:100vh;border:none;"></iframe>`;
+          previewWindow.document.body.style.overflow = 'hidden';
+          previewWindow.document.body.innerHTML = `<iframe src="${objectUrl}" style="width:100%;height:100vh;border:none;margin:0;padding:0;" title="${fileName || 'Preview'}"></iframe>`;
         }
       }
     } else {
@@ -192,7 +202,12 @@ export const downloadDocument = async (fileUrl?: string, fileName?: string): Pro
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(fullUrl, { headers });
+    let response: Response;
+    try {
+      response = await fetch(fullUrl, { headers });
+    } catch {
+      response = await fetch(fullUrl);
+    }
 
     if (!response.ok) {
       let errText = `Status ${response.status}`;

@@ -501,8 +501,10 @@ export const uploadSubmissionFile = async (req: any, res: Response) => {
 
     const storedFile = await StoredFile.findOne({ key: r2Result.key });
 
+    const secureUrl = storedFile?._id ? `/uploads/${storedFile._id}` : `/uploads/${r2Result.key}`;
+
     return res.status(200).json({
-      fileUrl: r2Result.url,
+      fileUrl: secureUrl,
       fileName: r2Result.originalName,
       fileId: storedFile?._id || r2Result.key,
       storage: 'r2',
