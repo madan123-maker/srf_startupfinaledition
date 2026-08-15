@@ -55,7 +55,7 @@ const getDisplayedStatusInfo = (sub: Submission) => {
   });
 
   if (sub.status === 'APPROVED' || hasApprovedFields) {
-    return { statusKey: 'APPROVED', label: 'DONE', bg: '#dcfce7', color: '#15803d' };
+    return { statusKey: 'APPROVED', label: 'APPROVED', bg: '#dcfce7', color: '#15803d' };
   }
 
   if (sub.status === 'REJECTED') {

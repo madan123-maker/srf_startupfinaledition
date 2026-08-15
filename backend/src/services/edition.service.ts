@@ -5,6 +5,7 @@ import { Assignment } from '../models/Assignment';
 import { RecycleBin, EntityType } from '../models/RecycleBin';
 import { User } from '../models/User';
 import { Notification } from '../models/Notification';
+import { computeSubmissionEffectiveStatus } from '../utils/submissionUtils';
 
 export class EditionService {
   async createEdition(editionData: Partial<IEdition>, createdBy: string) {
@@ -64,34 +65,25 @@ export class EditionService {
       let approvedCount = 0;
 
       nonDraftSubmissions.forEach((s: any) => {
-        let hasResubmission = false;
-        let hasApprovedFields = false;
+        const { effectiveStatus } = computeSubmissionEffectiveStatus(s);
         let score = s.totalScore || 0;
 
         if (Array.isArray(s.responses)) {
           s.responses.forEach((r: any) => {
             if (Array.isArray(r.fieldResponses)) {
               r.fieldResponses.forEach((f: any) => {
-                if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
-                if (f.evaluationStatus === 'APPROVED') hasApprovedFields = true;
                 if (f.score) score += f.score;
               });
             }
             if (Array.isArray(r.additionalFiles)) {
               r.additionalFiles.forEach((f: any) => {
-                if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
-                if (f.evaluationStatus === 'APPROVED') hasApprovedFields = true;
                 if (f.score) score += f.score;
               });
             }
             if (Array.isArray(r.supportingDocumentResponses)) {
               r.supportingDocumentResponses.forEach((d: any) => {
-                if (d.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
-                if (d.evaluationStatus === 'APPROVED') hasApprovedFields = true;
                 if (Array.isArray(d.files)) {
                   d.files.forEach((f: any) => {
-                    if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
-                    if (f.evaluationStatus === 'APPROVED') hasApprovedFields = true;
                     if (f.score) score += f.score;
                   });
                 }
@@ -100,21 +92,15 @@ export class EditionService {
           });
         }
 
-        const isPending = hasResubmission || s.status === 'PENDING';
-        const isApproved = !isPending && (s.status === SubmissionStatus.APPROVED || hasApprovedFields);
-        const isRejected = !isPending && !isApproved && s.status === SubmissionStatus.REJECTED;
-
-        if (isPending) {
-          pending++;
-        } else if (isApproved) {
+        if (effectiveStatus === 'APPROVED') {
           approved++;
-        } else if (isRejected) {
+        } else if (effectiveStatus === 'REJECTED') {
           rejected++;
         } else {
           pending++;
         }
 
-        if (isApproved || score > 0) {
+        if (effectiveStatus === 'APPROVED' || score > 0) {
           sumScore += score;
           approvedCount++;
         }

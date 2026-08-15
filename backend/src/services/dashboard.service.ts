@@ -1,6 +1,7 @@
 import { Submission, SubmissionStatus } from '../models/Submission';
 import { User } from '../models/User';
 import mongoose from 'mongoose';
+import { computeSubmissionEffectiveStatus } from '../utils/submissionUtils';
 
 export class DashboardService {
   async getMetrics(editionId?: string) {
@@ -35,8 +36,8 @@ export class DashboardService {
     const districtMap: { [district: string]: { count: number; totalProgress: number } } = {};
 
     nonDraftSubmissions.forEach((s: any) => {
-      let hasResubmission = false;
-      let hasApprovedFields = false;
+      const { effectiveStatus, hasResubmission, hasApprovedFields } = computeSubmissionEffectiveStatus(s);
+
       let totalFields = 0;
       let approvedFields = 0;
 
@@ -45,39 +46,23 @@ export class DashboardService {
           if (Array.isArray(r.fieldResponses)) {
             r.fieldResponses.forEach((f: any) => {
               totalFields++;
-              if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
-              if (f.evaluationStatus === 'APPROVED') {
-                hasApprovedFields = true;
-                approvedFields++;
-              }
+              if (f.evaluationStatus === 'APPROVED') approvedFields++;
             });
           }
           if (Array.isArray(r.additionalFiles)) {
             r.additionalFiles.forEach((f: any) => {
               totalFields++;
-              if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
-              if (f.evaluationStatus === 'APPROVED') {
-                hasApprovedFields = true;
-                approvedFields++;
-              }
+              if (f.evaluationStatus === 'APPROVED') approvedFields++;
             });
           }
           if (Array.isArray(r.supportingDocumentResponses)) {
             r.supportingDocumentResponses.forEach((d: any) => {
               totalFields++;
-              if (d.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
-              if (d.evaluationStatus === 'APPROVED') {
-                hasApprovedFields = true;
-                approvedFields++;
-              }
+              if (d.evaluationStatus === 'APPROVED') approvedFields++;
               if (Array.isArray(d.files)) {
                 d.files.forEach((f: any) => {
                   totalFields++;
-                  if (f.evaluationStatus === 'RESUBMISSION_REQUIRED') hasResubmission = true;
-                  if (f.evaluationStatus === 'APPROVED') {
-                    hasApprovedFields = true;
-                    approvedFields++;
-                  }
+                  if (f.evaluationStatus === 'APPROVED') approvedFields++;
                 });
               }
             });
@@ -85,10 +70,10 @@ export class DashboardService {
         });
       }
 
-      // Count metrics based strictly on each submission's actual status
-      if (s.status === SubmissionStatus.APPROVED) {
+      // Count metrics based strictly on central effective status logic
+      if (effectiveStatus === 'APPROVED') {
         approvedApplications++;
-      } else if (s.status === SubmissionStatus.REJECTED) {
+      } else if (effectiveStatus === 'REJECTED') {
         rejectedApplications++;
       } else {
         submittedApplications++;
@@ -96,24 +81,17 @@ export class DashboardService {
 
       // Calculate progress for THIS specific submission based on its lifecycle
       let submissionProgress = 0;
-      if (s.status === SubmissionStatus.APPROVED) {
+      if (effectiveStatus === 'APPROVED') {
         submissionProgress = 100;
-      } else if (s.status === SubmissionStatus.UNDER_REVIEW) {
-        if (totalFields > 0 && approvedFields > 0) {
-          submissionProgress = Math.min(95, Math.max(50, Math.round((approvedFields / totalFields) * 100)));
-        } else {
-          submissionProgress = 75;
-        }
-      } else if (s.status === SubmissionStatus.REJECTED) {
+      } else if (effectiveStatus === 'REJECTED') {
         submissionProgress = 0;
       } else {
-        // SUBMITTED / PENDING / RESUBMISSION_REQUIRED
         if (hasResubmission) {
           submissionProgress = 35;
         } else if (totalFields > 0 && approvedFields > 0) {
-          submissionProgress = Math.min(90, Math.max(50, Math.round((approvedFields / totalFields) * 100)));
+          submissionProgress = Math.min(95, Math.max(50, Math.round((approvedFields / totalFields) * 100)));
         } else {
-          submissionProgress = 50;
+          submissionProgress = 75;
         }
       }
 
